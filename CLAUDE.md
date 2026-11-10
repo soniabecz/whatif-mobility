@@ -1,6 +1,12 @@
 
 # WhatIf Mobility
 
+## Start Here
+- At the start of every session, read `docs/IMPLEMENTATION_PLAN.md`
+  for the current status, scope, decisions and next tasks.
+- At the end of a session, update its checklists, "Current status"
+  and session log.
+
 ## Project Goal
 Build an AI-powered urban public transport
 simulation application.
