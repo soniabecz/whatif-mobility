@@ -1,0 +1,12 @@
+# Web framework + server
+fastapi==0.162.4
+uvicorn[standard]==0.54.0
+
+# Data validation, database, graph modelling
+pydantic==2.14.3
+sqlalchemy==2.1.8
+networkx==3.6.1
+
+# Testing (httpx is required by FastAPI's TestClient)
+pytest==9.2.0
+httpx==0.28.1
