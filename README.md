@@ -5,11 +5,11 @@ changes to a city bus network in natural language ("close stop X",
 "add a route between A and B"), and the system simulates their impact on
 passenger journeys.
 
-> **Status:** early development. The backend serves an invented sample bus
-> network and simulates scenarios (close a stop, remove a connection, change
-> a travel time) with deterministic before/after metrics. The web UI shows
-> the network on a map, builds scenarios with a form and displays the
-> results. The AI (natural-language) layer is not implemented yet.
+> **Status:** MVP complete. The backend serves an invented sample bus network
+> and simulates scenarios (close a stop, remove a connection, change a travel
+> time) with deterministic before/after metrics. The web UI shows the network
+> on a map, builds scenarios with a form or from plain language (AI via Groq),
+> and displays the results.
 
 ## Tech stack
 
@@ -51,6 +51,7 @@ python3 -m venv .venv            # create an isolated Python environment
 source .venv/bin/activate        # activate it (prompt shows "(.venv)")
 pip install -r requirements.txt
 python -m app.seed               # create backend/whatif.db with the sample network
+cp .env.example .env             # then add your Groq API key (optional, see below)
 ```
 
 Re-run `python -m app.seed` at any time to reset the database to the sample
@@ -85,6 +86,7 @@ uvicorn app.main:app --reload
 | `GET /api/routes`   | all routes (id, name, color)                 |
 | `GET /api/network`  | stops, routes and directed connections       |
 | `POST /api/simulations` | before/after metrics for a scenario (nothing is stored) |
+| `POST /api/ai/interpret` | plain-language text → scenario changes for review (needs `GROQ_API_KEY`) |
 
 Example scenario (changes are applied in order; `both_directions` defaults to `true`):
 
@@ -137,6 +139,22 @@ Configuration is read from environment variables. Real values go in local
 | Variable            | Where                 | Default                 | Purpose                    |
 | ------------------- | --------------------- | ----------------------- | -------------------------- |
 | `VITE_API_BASE_URL` | `frontend/.env.local` | `http://localhost:8000` | Address of the backend API |
+| `GROQ_API_KEY`      | `backend/.env`        | *(none)*                | Enables the AI input; without it the form still works |
+| `AI_MODEL`          | `backend/.env`        | `openai/gpt-oss-120b`   | Groq model used by the AI input |
+| `AI_TIMEOUT_SECONDS`| `backend/.env`        | `30`                    | How long to wait for the AI |
+
+Restart the backend after changing `backend/.env`.
+
+## How the AI is used
+
+The AI (a Groq-hosted model) only **translates** text such as *"roadworks make
+Riverside – East Gate twice as slow"* into the scenario format. Its answer is
+forced into a strict JSON schema, validated with the same rules as the form, and
+dry-run against the network before it is shown. The changes then appear in the
+normal list, where the user checks them before running the simulation. The AI
+never sees or produces simulation results: every number comes from the
+deterministic simulation engine. Requests it cannot map (ambiguous, unsupported
+such as new routes, or unrelated) come back as "unclear" with an explanation.
 
 The frontend dev server must run on port 5173. That address is in the backend's
 CORS allow-list (`ALLOWED_ORIGINS` in `backend/app/main.py`).

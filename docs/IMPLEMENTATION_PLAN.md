@@ -6,10 +6,9 @@
 
 ## Current status
 
-- **Last completed:** Day 4 (map and results UI), checked in the browser
-- **Next up:** Day 5 – AI layer and wrap-up
-- **First action next session:** decide the AI provider and API key
-  (open decision below), then explain the AI service design
+- **Last completed:** Day 5 (AI layer via Groq): 95 backend tests, lint and
+  build pass, live API check with the real model and browser check passed
+- **Next up:** MVP complete. Possible follow-ups are listed under Open issues
 - **Repository:** https://github.com/soniabecz/whatif-mobility (private, branch `main`)
 
 ## Timeline
@@ -24,7 +23,7 @@ so the project is usable even if a later day is cut short.
 | 2   | Data model and graph      | ✅ Done |
 | 3   | Simulation engine         | ✅ Done |
 | 4   | Map and results UI        | ✅ Done |
-| 5   | AI layer and wrap-up      | ⬜ Todo |
+| 5   | AI layer and wrap-up      | ✅ Done |
 
 ---
 
@@ -78,6 +77,15 @@ so the project is usable even if a later day is cut short.
 | Tables created on app startup; data only via the seed script | Fresh checkout gives empty lists, not a 500 error |
 | Invented stops placed on a real map via `CITY_CENTER` in `seed/sample_network.py` | Realistic map tiles; city moved by changing one constant |
 | Tests use an in-memory SQLite DB (`tests/conftest.py`) | Tests never touch the real database file |
+| AI provider: Groq, model `openai/gpt-oss-120b` (configurable via `AI_MODEL`) | Production model with strict structured outputs; < 0.1 cent per request |
+| AI flow: interpret → user reviews changes → run | AI never touches results; user sees what it understood |
+| Separate strict AI output schema (`AIInterpretation`), converted to `Scenario` | Groq strict mode needs all fields required, no defaults/limits |
+| AI answer checked 3×: strict JSON schema, `Scenario` validation, dry-run `apply_scenario` | Invalid stops/links never reach the user |
+| Content problems → `status: "unclear"` + message; provider problems → 503, bad JSON → 502 | User gets an explanation instead of a generic error |
+| Relative requests ("twice as slow") converted by the AI to absolute minutes from the times in the prompt | No new change types; result is visible before running |
+| `ChatModel` protocol; tests use a fake, Groq errors mapped with locally built exceptions | No network calls or API key needed in tests |
+| Settings via `pydantic-settings` from `backend/.env`; key held as `SecretStr` | Key never hardcoded, logged or committed |
+| Without `GROQ_API_KEY` the AI endpoint returns 503; the rest works | AI is optional, the app works without it |
 | Scenario = ordered list of 1–20 changes, discriminated by `type`; unknown fields rejected | One input format for form and AI; typos fail loudly |
 | `both_directions` defaults to `true` for link changes | People think in streets, not one-way links |
 | Link changes act on the merged edge (all routes on it) | Consistent with the merged-edge graph rule |
@@ -184,19 +192,20 @@ form, and sees before/after results.
 
 **Risk:** fullest day. Fallback: show results as a table instead of charts.
 
-## Day 5 – AI layer and wrap-up
+## Day 5 – AI layer and wrap-up ✅
 
 **Outcome:** user types a change in plain language; the AI turns it into
 a structured scenario; the existing simulation computes the results.
 
-- [ ] Choose AI provider; obtain API key (**do this before Day 5**)
-- [ ] `config.py` reading settings from environment; `backend/.env.example`
-- [ ] `ai_service.py`: text → scenario JSON (no metrics from AI)
-- [ ] Validate AI output with the Pydantic scenario schema
-- [ ] Clear error when the request cannot be understood
-- [ ] Tests for AI service with a mocked AI client
-- [ ] Natural-language input in the UI, reusing the Day 4 results view
-- [ ] Update README (setup incl. API key), final checks, demo run, commit
+- [x] Choose AI provider (Groq, `openai/gpt-oss-120b`); API key in `backend/.env`
+- [x] `config.py` reading settings from environment; `backend/.env.example`
+- [x] `ai_service.py`: text → scenario JSON (no metrics from AI)
+- [x] Validate AI output with the Pydantic scenario schema
+- [x] Clear error when the request cannot be understood
+- [x] Tests for AI service with a mocked AI client
+- [x] Natural-language input in the UI, reusing the Day 4 results view
+- [x] Update README (setup incl. API key), final checks, live API demo run
+- [x] Browser check of the AI input (done by the user) and commit
 
 **Fallback:** if Day 5 runs short, the app is still complete with the form.
 
@@ -215,7 +224,7 @@ a structured scenario; the existing simulation computes the results.
 
 ## Decisions still needed
 
-- [ ] **Day 5:** AI provider and API key
+- [x] **Day 5:** AI provider and API key: Groq, `openai/gpt-oss-120b`
 
 ## Session log
 
@@ -225,3 +234,4 @@ a structured scenario; the existing simulation computes the results.
 | 2026-11-11 | 2   | DB models, seed (16 stops, 4 routes), graph + shortest journey, network API; 25 tests |
 | 2026-11-11 | 3   | Scenario schema, simulation engine (bypass on stop closure), metrics, `POST /api/simulations`; 63 tests |
 | 2026-11-11 | 4   | Map, legend, scenario form, results panel and chart; lint + build pass; browser-checked |
+| 2026-11-11 | 5   | Groq AI layer (strict JSON, 3-step validation), AI input in UI; 95 tests; live API + browser check passed |

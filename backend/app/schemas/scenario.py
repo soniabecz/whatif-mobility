@@ -9,6 +9,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 StopId = Annotated[str, Field(min_length=1, max_length=10)]
+MAX_CHANGES = 20
 
 
 class _Change(BaseModel):
@@ -53,4 +54,4 @@ class Scenario(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    changes: list[ScenarioChange] = Field(min_length=1, max_length=20)
+    changes: list[ScenarioChange] = Field(min_length=1, max_length=MAX_CHANGES)

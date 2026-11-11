@@ -7,6 +7,10 @@ pydantic==2.14.3
 sqlalchemy==2.1.8
 networkx==3.6.1
 
+# AI layer (Groq) + settings from environment / backend/.env
+groq==1.7.0
+pydantic-settings==2.16.2
+
 # Testing (httpx is required by FastAPI's TestClient)
 pytest==9.2.0
 httpx==0.28.1

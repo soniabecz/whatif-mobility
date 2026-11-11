@@ -3,12 +3,13 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { describeApiError } from './api/errors'
 import { fetchNetwork } from './api/network'
 import { runSimulation } from './api/simulations'
+import { AiScenarioInput } from './components/AiScenarioInput'
 import { NetworkMap } from './components/NetworkMap'
 import { ResultsPanel } from './components/ResultsPanel'
 import { ScenarioForm } from './components/ScenarioForm'
 import { stopsById } from './lib/network'
 import type { Network } from './types/network'
-import type { ScenarioChange } from './types/scenario'
+import { MAX_CHANGES, type ScenarioChange } from './types/scenario'
 import type { SimulationResult } from './types/simulation'
 
 // Discriminated unions: TypeScript knows which fields exist in each state.
@@ -65,6 +66,13 @@ function App() {
     setSimulation({ kind: 'idle' }) // results always match the listed changes
   }
 
+  /** Append AI-interpreted changes (up to the limit); returns how many fitted. */
+  function handleAddChanges(added: ScenarioChange[]): number {
+    const fitting = added.slice(0, Math.max(0, MAX_CHANGES - changes.length))
+    if (fitting.length > 0) handleChangesChange([...changes, ...fitting])
+    return fitting.length
+  }
+
   async function handleRun() {
     const id = ++requestId.current
     setSimulation({ kind: 'running' })
@@ -115,6 +123,10 @@ function App() {
       {networkState.kind === 'ready' && (
         <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
           <aside className="order-2 space-y-8 border-slate-200 bg-white p-4 lg:order-1 lg:w-[420px] lg:shrink-0 lg:overflow-y-auto lg:border-r">
+            <AiScenarioInput
+              onAddChanges={handleAddChanges}
+              disabled={simulation.kind === 'running'}
+            />
             <ScenarioForm
               network={networkState.network}
               changes={changes}
