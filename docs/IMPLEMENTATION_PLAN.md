@@ -8,12 +8,15 @@
 
 - **Last completed:** Day 5 (AI layer via Groq): 95 backend tests, lint and
   build pass, live API check with the real model and browser check passed
-- **Next up:** MVP complete. Possible follow-ups are listed under Open issues
+- **Next up:** Day 6 – Quality and explainability (CI, journey explorer,
+  transfer penalty)
+- **First action next session:** explain the CI workflow and wait for
+  approval before writing it
 - **Repository:** https://github.com/soniabecz/whatif-mobility (private, branch `main`)
 
 ## Timeline
 
-Total: **5 working days** (Day 1 done + 4 remaining). A "day" is one
+Total: **6 working days** (MVP in Days 1–5, Day 6 added afterwards). A "day" is one
 working session. Every day must end with something working and committed,
 so the project is usable even if a later day is cut short.
 
@@ -24,6 +27,7 @@ so the project is usable even if a later day is cut short.
 | 3   | Simulation engine         | ✅ Done |
 | 4   | Map and results UI        | ✅ Done |
 | 5   | AI layer and wrap-up      | ✅ Done |
+| 6   | Quality and explainability | ⬜ Todo |
 
 ---
 
@@ -209,6 +213,46 @@ a structured scenario; the existing simulation computes the results.
 
 **Fallback:** if Day 5 runs short, the app is still complete with the form.
 
+## Day 6 – Quality and explainability
+
+**Outcome:** every push is checked automatically, users can see *why* a
+journey changed, and journey times include the cost of changing buses.
+
+Ordered by risk: each part is committed on its own, so the day can stop
+after any of them with a working app.
+
+**1. CI on GitHub Actions** (small)
+- [ ] Explain the workflow and get approval
+- [ ] Workflow on push and pull request: backend `pytest`; frontend `npm ci`,
+      `tsc`, `oxlint`, `npm run build`
+- [ ] No secrets needed (AI tests use a fake model)
+- [ ] Push and confirm the first run passes; add a status badge to the README
+- [ ] Commit
+
+**2. Journey explorer** (small–medium)
+- [ ] Explain the API and UI design and get approval
+- [ ] Backend: return the stop sequence of a journey before and after a
+      scenario (reuse `shortest_journey` on baseline and modified graph)
+- [ ] Tests: path before/after, journey that becomes impossible, closed stop
+- [ ] UI: pick origin and destination (or a row in the changed-journeys
+      table) and draw both paths on the map with times
+- [ ] Lint, build, browser check, commit
+
+**3. Transfer penalty** (medium; largest change to the engine)
+- [ ] Explain the graph design and get approval, including the penalty value
+- [ ] Route-aware graph: one node per (stop, route) plus transfer edges
+      carrying the penalty; journeys start and end at stop level
+- [ ] Re-check closed-stop handling (buses drive through, no transfers there)
+      and parallel routes on one street (MKT–CEN)
+- [ ] Update metrics and tests: baseline journey times will change, so
+      hand-calculated expectations must be redone
+- [ ] Show the penalty in the UI (e.g. "includes 5 min per change")
+- [ ] Update the AI prompt only if the network description changes
+- [ ] Run all tests, browser check, commit
+
+**Fallback:** the transfer penalty is last because it is the riskiest. If it
+runs short, CI and the journey explorer are still complete.
+
 ---
 
 ## Open issues
@@ -222,9 +266,41 @@ a structured scenario; the existing simulation computes the results.
 - [ ] `fsevents` install script not approved by npm (optional; only needed
       if hot reload stops working: `npm install-scripts approve fsevents`)
 
+## Possible future improvements (maybes, not planned)
+
+Ideas collected after the MVP. Not scheduled; pick from here if time allows.
+
+**Simulation realism**
+- Waiting time from route frequencies (headways), plus a "change frequency"
+  scenario type
+- Passenger demand weighting (invented demand clearly labelled as an
+  assumption, to stay within the "no fake metrics" rule)
+- Walking to a nearby stop when a stop is closed (distance from coordinates)
+- Scenario types cut from the MVP: add a connection, a stop or a route
+
+**Product**
+- Save and compare scenarios side by side (cut from the MVP)
+- Click a stop on the map to fill in the form
+- Shareable link that encodes the scenario in the URL
+- AI summary of results, which may only rephrase computed numbers (check that
+  every number in the text appears in the results)
+- AI aware of the current change list ("undo the last one", "and also…")
+- CSV export of changed journeys
+
+**Engineering**
+- Generate TypeScript types from the backend's OpenAPI schema instead of
+  copying them by hand
+- Frontend tests: Vitest for `lib/`, one Playwright end-to-end smoke test
+- One-command start (Docker Compose or a script)
+- Before any public deployment: rate-limit the AI endpoint, use a different
+  map tile provider, add authentication
+- Real city data (GTFS import), including performance work for thousands of
+  stops (all-pairs journeys will not scale)
+
 ## Decisions still needed
 
 - [x] **Day 5:** AI provider and API key: Groq, `openai/gpt-oss-120b`
+- [ ] **Day 6:** transfer penalty value (e.g. 5 min, fixed or configurable)
 
 ## Session log
 
