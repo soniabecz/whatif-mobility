@@ -7,10 +7,9 @@
 ## Current status
 
 - **Last completed:** Day 6 (UI redesign), browser-checked by the user
-- **Next up:** Day 7 – Quality and explainability (CI, journey explorer,
-  transfer penalty)
-- **First action next session:** explain the CI workflow and wait for
-  approval before writing it
+- **In progress:** Day 7 – part 1 (CI) committed; first GitHub run pending
+- **Next up:** Day 7 – part 2 (journey explorer): explain the API and UI
+  design and wait for approval
 - **Repository:** https://github.com/soniabecz/whatif-mobility (private, branch `main`)
 
 ## Timeline
@@ -27,7 +26,7 @@ so the project is usable even if a later day is cut short.
 | 4   | Map and results UI        | ✅ Done |
 | 5   | AI layer and wrap-up      | ✅ Done |
 | 6   | UI redesign               | ✅ Done |
-| 7   | Quality and explainability | ⬜ Todo |
+| 7   | Quality and explainability | 🔄 In progress |
 
 ---
 
@@ -96,6 +95,9 @@ so the project is usable even if a later day is cut short.
 | Muted basemap = OSM tiles + CSS filter (not CARTO) | CARTO now needs an API key, which would be public in the frontend |
 | Inter font self-hosted via `@fontsource-variable/inter`; icons from `lucide-react` | No external font requests; one consistent icon set |
 | `ScenarioForm` split into builder, `ChangeList` and `RunBar` | Run button pinned to the panel bottom; no behaviour change |
+| CI: GitHub Actions, 2 parallel jobs, Python 3.11 + Node 24, no secrets, read-only permissions | Matches local versions; proves the app works without the AI key |
+| Actions pinned to major versions (`@v7`) | Bug fixes automatically, no breaking changes |
+| No branch protection | User pushes directly to `main`; add if pull requests are used |
 | Results collapsed by default (key figures), details on demand | Keeps the map visible after a run |
 | Scenario = ordered list of 1–20 changes, discriminated by `type`; unknown fields rejected | One input format for form and AI; typos fail loudly |
 | `both_directions` defaults to `true` for link changes | People think in streets, not one-way links |
@@ -249,12 +251,13 @@ Ordered by risk: each part is committed on its own, so the day can stop
 after any of them with a working app.
 
 **1. CI on GitHub Actions** (small)
-- [ ] Explain the workflow and get approval
-- [ ] Workflow on push and pull request: backend `pytest`; frontend `npm ci`,
+- [x] Explain the workflow and get approval
+- [x] Workflow on push and pull request: backend `pytest`; frontend `npm ci`,
       `tsc`, `oxlint`, `npm run build`
-- [ ] No secrets needed (AI tests use a fake model)
-- [ ] Push and confirm the first run passes; add a status badge to the README
-- [ ] Commit
+- [x] No secrets needed (AI tests use a fake model)
+- [x] Simulated both jobs on a clean checkout locally (95 tests, lint, build)
+- [x] Add a status badge to the README; commit
+- [ ] Push and confirm the first run on GitHub passes
 
 **2. Journey explorer** (small–medium)
 - [ ] Explain the API and UI design and get approval

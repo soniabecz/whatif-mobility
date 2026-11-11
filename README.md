@@ -1,5 +1,7 @@
 # WhatIf Mobility
 
+[![CI](https://github.com/soniabecz/whatif-mobility/actions/workflows/ci.yml/badge.svg)](https://github.com/soniabecz/whatif-mobility/actions/workflows/ci.yml)
+
 An AI-powered urban public transport simulator. Users describe hypothetical
 changes to a city bus network in natural language ("close stop X",
 "add a route between A and B"), and the system simulates their impact on
@@ -129,6 +131,13 @@ cd frontend
 npm run lint     # static code checks (oxlint)
 npm run build    # type-check with TypeScript and build for production
 ```
+
+## Continuous integration
+
+Every push to `main` and every pull request runs
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) on GitHub Actions:
+backend `pytest`, and frontend `npm ci`, lint, type check and build. No secrets
+are needed: the tests use a fake AI model and an in-memory database.
 
 ## Configuration
 
