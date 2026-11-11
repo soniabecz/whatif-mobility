@@ -59,6 +59,7 @@ def test_parallel_connections_merge_into_fastest_edge() -> None:
     assert graph.number_of_edges() == 1
     assert graph.edges["A", "B"]["weight"] == 2
     assert graph.edges["A", "B"]["routes"] == ["R1", "R2", "R3"]
+    assert graph.edges["A", "B"]["route_times"] == {"R1": 2, "R2": 4, "R3": 6}
 
 
 def test_connection_to_unknown_stop_is_rejected() -> None:
@@ -99,7 +100,11 @@ def test_graph_from_db_contains_whole_sample_network(db: Session) -> None:
     # MKT<->CEN is served by R1 and R4, so 2 directed connections merge.
     total_connections = sum(len(r.travel_times_min) * 2 for r in ROUTES)
     assert graph.number_of_edges() == total_connections - 2
-    assert graph.edges["MKT", "CEN"] == {"weight": 2.0, "routes": ["R1", "R4"]}
+    assert graph.edges["MKT", "CEN"] == {
+        "weight": 2.0,
+        "routes": ["R1", "R4"],
+        "route_times": {"R1": 3.0, "R4": 2.0},
+    }
 
 
 def test_every_stop_can_reach_every_other_stop(db: Session) -> None:

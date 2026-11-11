@@ -6,10 +6,9 @@
 
 ## Current status
 
-- **Last completed:** Day 2 (data model and graph), 25 backend tests passing
-- **Next up:** Day 3 – Simulation engine
-- **First action next session:** explain the scenario format and metrics
-  (incl. which origin–destination pairs count as "passenger journeys")
+- **Last completed:** Day 3 (simulation engine), 63 backend tests passing
+- **Next up:** Day 4 – Map and results UI
+- **First action next session:** explain the UI layout and component plan
   and wait for approval before writing code
 - **Repository:** https://github.com/soniabecz/whatif-mobility (private, branch `main`)
 
@@ -23,7 +22,7 @@ so the project is usable even if a later day is cut short.
 | --- | ------------------------- | ------- |
 | 1   | Setup and skeletons       | ✅ Done |
 | 2   | Data model and graph      | ✅ Done |
-| 3   | Simulation engine         | ⬜ Todo |
+| 3   | Simulation engine         | ✅ Done |
 | 4   | Map and results UI        | ⬜ Todo |
 | 5   | AI layer and wrap-up      | ⬜ Todo |
 
@@ -79,6 +78,18 @@ so the project is usable even if a later day is cut short.
 | Tables created on app startup; data only via the seed script | Fresh checkout gives empty lists, not a 500 error |
 | Invented stops placed on a real map via `CITY_CENTER` in `seed/sample_network.py` | Realistic map tiles; city moved by changing one constant |
 | Tests use an in-memory SQLite DB (`tests/conftest.py`) | Tests never touch the real database file |
+| Scenario = ordered list of 1–20 changes, discriminated by `type`; unknown fields rejected | One input format for form and AI; typos fail loudly |
+| `both_directions` defaults to `true` for link changes | People think in streets, not one-way links |
+| Link changes act on the merged edge (all routes on it) | Consistent with the merged-edge graph rule |
+| `change_travel_time` sets an absolute time (0 < t ≤ 600 min) | Simple and unambiguous |
+| **Close stop = buses drive through (option B):** node removed, per-route bypass edges P→N added with that route's own times | Realistic: no boarding/alighting/transfers, but the road stays |
+| Graph edges keep `route_times` per route | Needed for correct bypass times (MKT–CEN is 3 min on R1, 2 on R4) |
+| Simulation works on `copy.deepcopy(baseline)`; edge attributes replaced, never mutated | Baseline can never be modified (tested) |
+| Passenger journeys = all ordered stop pairs (240), equal weight | No demand data; inventing it would be fake metrics |
+| Journeys to/from a closed stop counted separately, excluded from other metrics | They are not "slower", they cannot exist |
+| Response lists only changed journeys + summary + per-stop impact + top-5 stops | Small payload; per-stop data drives map highlighting |
+| Times rounded to 0.1 min in responses; comparisons use a 1e-9 tolerance | Readable output; no false "changes" from float noise |
+| Scenario errors → HTTP 422 with message "Change N (type): …" | Tells the user (and later the AI layer) exactly what is wrong |
 
 ### Target backend structure
 
@@ -131,22 +142,22 @@ turned into a NetworkX graph that can calculate shortest journeys.
 - [x] Tests: graph building, shortest path, endpoints
 - [x] Run tests, explain changes, commit
 
-## Day 3 – Simulation engine
+## Day 3 – Simulation engine ✅
 
 **Outcome:** a tested engine that applies a scenario to a copy of the
 baseline graph and returns deterministic before/after metrics.
 
-- [ ] Explain scenario format and metrics; get approval
-- [ ] Pydantic scenario schema for the three types
+- [x] Explain scenario format and metrics; get approval
+- [x] Pydantic scenario schema for the three types
       (close stop, remove connection, change travel time)
-- [ ] Validation errors for unknown stops/connections
-- [ ] `simulation_service.py`: copy graph → apply changes → compute metrics
-- [ ] Metrics (deterministic), e.g. journey times before/after,
+- [x] Validation errors for unknown stops/connections
+- [x] `simulation_service.py`: copy graph → apply changes → compute metrics
+- [x] Metrics (deterministic), e.g. journey times before/after,
       journeys that become impossible, most affected stops
-- [ ] Test that the baseline graph is never modified
-- [ ] Tests for each scenario type and for edge cases
-- [ ] `POST /api/simulations` endpoint
-- [ ] Run tests, explain changes, commit
+- [x] Test that the baseline graph is never modified
+- [x] Tests for each scenario type and for edge cases
+- [x] `POST /api/simulations` endpoint
+- [x] Run tests, explain changes, commit
 
 ## Day 4 – Map and results UI
 
@@ -199,3 +210,4 @@ a structured scenario; the existing simulation computes the results.
 | ---------- | --- | ----------------------------------------------------------- |
 | 2026-11-10 | 1   | Environment checked, skeletons built, committed and pushed  |
 | 2026-11-11 | 2   | DB models, seed (16 stops, 4 routes), graph + shortest journey, network API; 25 tests |
+| 2026-11-11 | 3   | Scenario schema, simulation engine (bypass on stop closure), metrics, `POST /api/simulations`; 63 tests |

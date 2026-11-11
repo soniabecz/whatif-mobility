@@ -4,7 +4,8 @@ Graph rules (see docs/IMPLEMENTATION_PLAN.md):
 - Stops are nodes, directed connections are edges.
 - Edge attribute ``weight`` is the travel time in minutes.
 - If several routes connect the same ordered pair of stops, they become ONE
-  edge: weight = the fastest travel time, ``routes`` = all serving route ids.
+  edge: weight = the fastest travel time, ``routes`` = all serving route ids,
+  ``route_times`` = each route's own time (needed to bypass closed stops).
 - No transfer penalty: a journey is simply the fastest path.
 
 The graph-building and journey functions take plain data, not a database
@@ -66,14 +67,39 @@ def build_graph(
             if stop_id not in graph:
                 raise UnknownStopError(stop_id)
 
-        u, v = conn.from_stop_id, conn.to_stop_id
-        if graph.has_edge(u, v):
-            edge = graph.edges[u, v]
-            edge["weight"] = min(edge["weight"], conn.travel_time_min)
-            edge["routes"] = sorted({*edge["routes"], conn.route_id})
-        else:
-            graph.add_edge(u, v, weight=conn.travel_time_min, routes=[conn.route_id])
+        add_route_edge(
+            graph, conn.from_stop_id, conn.to_stop_id, conn.route_id, conn.travel_time_min
+        )
     return graph
+
+
+def add_route_edge(
+    graph: nx.DiGraph, u: str, v: str, route_id: str, travel_time_min: float
+) -> None:
+    """Add one route's u->v connection, merging with an existing edge.
+
+    Edge attributes:
+      route_times  {route_id: minutes} -- every route serving u->v
+      routes       sorted route ids (convenience copy of route_times keys)
+      weight       fastest of route_times (used for shortest paths)
+
+    Attributes are always replaced, never mutated in place, so a shallow
+    graph copy can never leak changes back into the original.
+    """
+    route_times: dict[str, float] = {}
+    if graph.has_edge(u, v):
+        route_times = dict(graph.edges[u, v]["route_times"])
+    current = route_times.get(route_id)
+    route_times[route_id] = (
+        travel_time_min if current is None else min(current, travel_time_min)
+    )
+    graph.add_edge(
+        u,
+        v,
+        route_times=route_times,
+        routes=sorted(route_times),
+        weight=min(route_times.values()),
+    )
 
 
 def build_graph_from_db(db: Session) -> nx.DiGraph:

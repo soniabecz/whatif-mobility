@@ -13,6 +13,7 @@ from pydantic import BaseModel
 
 from app import models  # noqa: F401  (registers tables on Base.metadata)
 from app.api.network import router as network_router
+from app.api.simulations import router as simulations_router
 from app.database import Base, engine
 
 # The Vite dev server runs on port 5173. Browsers block requests from one
@@ -55,3 +56,4 @@ def health() -> HealthResponse:
 
 
 app.include_router(network_router)
+app.include_router(simulations_router)

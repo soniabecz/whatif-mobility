@@ -6,8 +6,9 @@ changes to a city bus network in natural language ("close stop X",
 passenger journeys.
 
 > **Status:** early development. The backend serves an invented sample bus
-> network (SQLite + NetworkX graph). Simulation, map UI and AI features are
-> not implemented yet.
+> network and simulates scenarios (close a stop, remove a connection, change
+> a travel time) with deterministic before/after metrics. Map UI and AI
+> features are not implemented yet.
 
 ## Tech stack
 
@@ -80,6 +81,20 @@ uvicorn app.main:app --reload
 | `GET /api/stops`    | all stops (id, name, lat, lon)               |
 | `GET /api/routes`   | all routes (id, name, color)                 |
 | `GET /api/network`  | stops, routes and directed connections       |
+| `POST /api/simulations` | before/after metrics for a scenario (nothing is stored) |
+
+Example scenario (changes are applied in order; `both_directions` defaults to `true`):
+
+```json
+{
+  "changes": [
+    { "type": "close_stop", "stop_id": "CEN" },
+    { "type": "remove_connection", "from_stop_id": "MKT", "to_stop_id": "UNI" },
+    { "type": "change_travel_time", "from_stop_id": "RIV", "to_stop_id": "EST",
+      "travel_time_min": 9, "both_directions": false }
+  ]
+}
+```
 
 **Terminal 2 – frontend**
 
