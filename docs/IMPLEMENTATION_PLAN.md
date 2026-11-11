@@ -6,10 +6,11 @@
 
 ## Current status
 
-- **Last completed:** Day 1 (setup), commit `e6a598b`, pushed to GitHub
-- **Next up:** Day 2 – Data model and graph
-- **First action next session:** explain the data model design and wait for
-  approval before writing code
+- **Last completed:** Day 2 (data model and graph), 25 backend tests passing
+- **Next up:** Day 3 – Simulation engine
+- **First action next session:** explain the scenario format and metrics
+  (incl. which origin–destination pairs count as "passenger journeys")
+  and wait for approval before writing code
 - **Repository:** https://github.com/soniabecz/whatif-mobility (private, branch `main`)
 
 ## Timeline
@@ -21,7 +22,7 @@ so the project is usable even if a later day is cut short.
 | Day | Focus                     | Status  |
 | --- | ------------------------- | ------- |
 | 1   | Setup and skeletons       | ✅ Done |
-| 2   | Data model and graph      | ⬜ Todo |
+| 2   | Data model and graph      | ✅ Done |
 | 3   | Simulation engine         | ⬜ Todo |
 | 4   | Map and results UI        | ⬜ Todo |
 | 5   | AI layer and wrap-up      | ⬜ Todo |
@@ -69,6 +70,15 @@ so the project is usable even if a later day is cut short.
 | Tailwind CSS v4 via `@tailwindcss/vite` (no config file) | Current standard setup |
 | Template uses `oxlint` (not ESLint) for `npm run lint` | Default in the current Vite template |
 | Secrets only in git-ignored `.env` files; never in `VITE_` variables | `VITE_` variables are public in the browser |
+| Stop and route ids are short readable codes (`CEN`, `R1`) | Scenarios, tests and AI output can name stops directly |
+| Connections are directed, one row per route per direction | Matches the directed-graph rule; one-way changes are possible |
+| `nx.DiGraph`; parallel connections from several routes merge into one edge (weight = fastest, `routes` = all) | "Remove/change connection A→B" has one clear meaning |
+| No transfer penalty in the MVP; a journey = fastest path | Keeps the graph simple; can be added later |
+| Graph/journey functions take plain data, not a DB session | Testable without a DB; reusable by the simulation |
+| SQLite file `backend/whatif.db` (git-ignored), rebuilt by `python -m app.seed` | Reproducible data; nothing generated is committed |
+| Tables created on app startup; data only via the seed script | Fresh checkout gives empty lists, not a 500 error |
+| Invented stops placed on a real map via `CITY_CENTER` in `seed/sample_network.py` | Realistic map tiles; city moved by changing one constant |
+| Tests use an in-memory SQLite DB (`tests/conftest.py`) | Tests never touch the real database file |
 
 ### Target backend structure
 
@@ -104,22 +114,22 @@ backend/app/
 - [x] Root `README.md` and `frontend/.env.example`
 - [x] Commit `e6a598b` and push to private GitHub repo
 
-## Day 2 – Data model and graph
+## Day 2 – Data model and graph ✅
 
 **Outcome:** a sample network stored in SQLite, served by the API and
 turned into a NetworkX graph that can calculate shortest journeys.
 
-- [ ] Explain data model design and get approval
-- [ ] `database.py`: SQLAlchemy engine/session for SQLite
-- [ ] SQLAlchemy models: Stop, Route, Connection (directed, with travel time)
-- [ ] Pydantic schemas for the network API responses
-- [ ] Seed script with the invented sample network (~15–20 stops, 3–4 routes)
-- [ ] `network_service.py`: build a directed NetworkX graph from the DB
+- [x] Explain data model design and get approval
+- [x] `database.py`: SQLAlchemy engine/session for SQLite
+- [x] SQLAlchemy models: Stop, Route, Connection (directed, with travel time)
+- [x] Pydantic schemas for the network API responses
+- [x] Seed script with the invented sample network (~15–20 stops, 3–4 routes)
+- [x] `network_service.py`: build a directed NetworkX graph from the DB
       (stops = nodes, connections = edges, weight = travel time)
-- [ ] Shortest-journey calculation between two stops
-- [ ] API endpoints: list stops, list routes, get network
-- [ ] Tests: graph building, shortest path, endpoints
-- [ ] Run tests, explain changes, commit
+- [x] Shortest-journey calculation between two stops
+- [x] API endpoints: list stops, list routes, get network
+- [x] Tests: graph building, shortest path, endpoints
+- [x] Run tests, explain changes, commit
 
 ## Day 3 – Simulation engine
 
@@ -188,3 +198,4 @@ a structured scenario; the existing simulation computes the results.
 | Date       | Day | Summary                                                     |
 | ---------- | --- | ----------------------------------------------------------- |
 | 2026-11-10 | 1   | Environment checked, skeletons built, committed and pushed  |
+| 2026-11-11 | 2   | DB models, seed (16 stops, 4 routes), graph + shortest journey, network API; 25 tests |

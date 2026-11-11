@@ -5,9 +5,9 @@ changes to a city bus network in natural language ("close stop X",
 "add a route between A and B"), and the system simulates their impact on
 passenger journeys.
 
-> **Status:** early development. The backend and frontend skeletons are in
-> place and connected via a health check. Network data, simulation and AI
-> features are not implemented yet.
+> **Status:** early development. The backend serves an invented sample bus
+> network (SQLite + NetworkX graph). Simulation, map UI and AI features are
+> not implemented yet.
 
 ## Tech stack
 
@@ -46,7 +46,11 @@ cd backend
 python3 -m venv .venv            # create an isolated Python environment
 source .venv/bin/activate        # activate it (prompt shows "(.venv)")
 pip install -r requirements.txt
+python -m app.seed               # create backend/whatif.db with the sample network
 ```
+
+Re-run `python -m app.seed` at any time to reset the database to the sample
+network. The database file is git-ignored.
 
 ### Frontend
 
@@ -69,6 +73,13 @@ uvicorn app.main:app --reload
 
 - API: http://localhost:8000
 - Interactive API docs: http://localhost:8000/docs
+
+| Endpoint            | Returns                                      |
+| ------------------- | -------------------------------------------- |
+| `GET /api/health`   | `{"status": "ok"}`                           |
+| `GET /api/stops`    | all stops (id, name, lat, lon)               |
+| `GET /api/routes`   | all routes (id, name, color)                 |
+| `GET /api/network`  | stops, routes and directed connections       |
 
 **Terminal 2 – frontend**
 
