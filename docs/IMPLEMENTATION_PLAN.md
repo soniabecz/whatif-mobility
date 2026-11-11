@@ -6,10 +6,10 @@
 
 ## Current status
 
-- **Last completed:** Day 3 (simulation engine), 63 backend tests passing
-- **Next up:** Day 4 – Map and results UI
-- **First action next session:** explain the UI layout and component plan
-  and wait for approval before writing code
+- **Last completed:** Day 4 (map and results UI), checked in the browser
+- **Next up:** Day 5 – AI layer and wrap-up
+- **First action next session:** decide the AI provider and API key
+  (open decision below), then explain the AI service design
 - **Repository:** https://github.com/soniabecz/whatif-mobility (private, branch `main`)
 
 ## Timeline
@@ -23,7 +23,7 @@ so the project is usable even if a later day is cut short.
 | 1   | Setup and skeletons       | ✅ Done |
 | 2   | Data model and graph      | ✅ Done |
 | 3   | Simulation engine         | ✅ Done |
-| 4   | Map and results UI        | ⬜ Todo |
+| 4   | Map and results UI        | ✅ Done |
 | 5   | AI layer and wrap-up      | ⬜ Todo |
 
 ---
@@ -90,6 +90,14 @@ so the project is usable even if a later day is cut short.
 | Response lists only changed journeys + summary + per-stop impact + top-5 stops | Small payload; per-stop data drives map highlighting |
 | Times rounded to 0.1 min in responses; comparisons use a 1e-9 tolerance | Readable output; no false "changes" from float noise |
 | Scenario errors → HTTP 422 with message "Change N (type): …" | Tells the user (and later the AI layer) exactly what is wrong |
+| UI layout: sidebar (form + results) left, map right; stacked on narrow screens | Map stays visible next to the results |
+| Form builds a list of changes; "to" stop limited to real neighbours | Matches the backend format; prevents most invalid scenarios |
+| Editing the changes clears results; stale responses ignored (request id) | Results always match the listed scenario |
+| UI loads `/api/network` instead of calling `/api/health` | Loading the network already proves the backend works |
+| Stops drawn as `CircleMarker`, not `Marker` | Avoids Leaflet's broken default icon under Vite; easy to colour |
+| Stop impact colours from the fixed status palette, always with icon + label | Colour is never the only signal (colour-blind safe) |
+| Chart: grouped horizontal bars, before/after time of the 10 biggest changes | Counts are already in tiles; palette validated (CVD/contrast) |
+| No frontend test runner; logic kept in pure `lib/` functions | Not in the tech stack; all metrics are tested in the backend |
 
 ### Target backend structure
 
@@ -159,19 +167,20 @@ baseline graph and returns deterministic before/after metrics.
 - [x] `POST /api/simulations` endpoint
 - [x] Run tests, explain changes, commit
 
-## Day 4 – Map and results UI
+## Day 4 – Map and results UI ✅
 
 **Outcome:** user sees the network on a map, builds a scenario with a
 form, and sees before/after results.
 
-- [ ] Install React Leaflet and Recharts
-- [ ] TypeScript types mirroring network and simulation schemas
-- [ ] Map component showing stops and routes
-- [ ] Scenario form (choose type, stop/connection, value)
-- [ ] Call `POST /api/simulations` and show loading / error states
-- [ ] Before/after comparison chart (Recharts)
-- [ ] Highlight affected stops on the map
-- [ ] Lint, build, manual browser check, commit
+- [x] Install React Leaflet and Recharts
+- [x] TypeScript types mirroring network and simulation schemas
+- [x] Map component showing stops and routes
+- [x] Scenario form (choose type, stop/connection, value)
+- [x] Call `POST /api/simulations` and show loading / error states
+- [x] Before/after comparison chart (Recharts)
+- [x] Highlight affected stops on the map
+- [x] Lint, build
+- [x] Manual browser check (done by the user) and commit
 
 **Risk:** fullest day. Fallback: show results as a table instead of charts.
 
@@ -197,6 +206,10 @@ a structured scenario; the existing simulation computes the results.
 
 - [ ] Starlette deprecation warning in tests: `httpx` → `httpx2`
       (verify `httpx2` is the official successor before switching)
+- [ ] Production bundle is ~836 kB (Leaflet + Recharts); Vite warns at 500 kB.
+      Fine for the MVP; code-split the chart if it matters later
+- [ ] Routes sharing a street (R1/R4 on MKT–CEN) draw on top of each other;
+      the tooltip names the route under the cursor only
 - [ ] `fsevents` install script not approved by npm (optional; only needed
       if hot reload stops working: `npm install-scripts approve fsevents`)
 
@@ -211,3 +224,4 @@ a structured scenario; the existing simulation computes the results.
 | 2026-11-10 | 1   | Environment checked, skeletons built, committed and pushed  |
 | 2026-11-11 | 2   | DB models, seed (16 stops, 4 routes), graph + shortest journey, network API; 25 tests |
 | 2026-11-11 | 3   | Scenario schema, simulation engine (bypass on stop closure), metrics, `POST /api/simulations`; 63 tests |
+| 2026-11-11 | 4   | Map, legend, scenario form, results panel and chart; lint + build pass; browser-checked |

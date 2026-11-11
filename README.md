@@ -7,8 +7,9 @@ passenger journeys.
 
 > **Status:** early development. The backend serves an invented sample bus
 > network and simulates scenarios (close a stop, remove a connection, change
-> a travel time) with deterministic before/after metrics. Map UI and AI
-> features are not implemented yet.
+> a travel time) with deterministic before/after metrics. The web UI shows
+> the network on a map, builds scenarios with a form and displays the
+> results. The AI (natural-language) layer is not implemented yet.
 
 ## Tech stack
 
@@ -33,8 +34,10 @@ whatif-mobility/
 │   └── requirements.txt
 ├── frontend/          React single-page app (port 5173)
 │   └── src/
-│       ├── api/       HTTP calls to the backend
-│       └── types/     TypeScript types mirroring backend responses
+│       ├── api/         HTTP calls to the backend and error messages
+│       ├── components/  map, legend, scenario form, results, chart
+│       ├── lib/         pure helpers (network lookups, impact colours)
+│       └── types/       TypeScript types mirroring backend schemas
 └── CLAUDE.md          project rules and conventions
 ```
 
@@ -103,7 +106,14 @@ cd frontend
 npm run dev
 ```
 
-Open http://localhost:5173. The page should show **"Backend connected ✅"**.
+Open http://localhost:5173. The header shows **● Connected** and the bus
+network appears on the map. Build a scenario in the sidebar, click
+**Run simulation**, and the results appear below the form and on the map.
+
+If the page says the network is empty, run `python -m app.seed` in `backend/`.
+
+Map tiles come from the public OpenStreetMap tile server, which is fine for
+local development. A public deployment needs its own tile provider.
 
 ## Tests and checks
 
