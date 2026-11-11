@@ -1,1 +1,68 @@
 @import 'tailwindcss';
+
+/* Design tokens (Tailwind v4): each variable becomes utility classes,
+   e.g. --color-accent -> bg-accent / text-accent, --radius-panel -> rounded-panel.
+   Light theme only (dark mode is out of scope). */
+@theme {
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+
+  --color-accent: #4f46e5; /* indigo-600 */
+  --color-accent-hover: #4338ca;
+  --color-accent-soft: #eef2ff;
+  --color-accent-ring: #a5b4fc;
+
+  --color-canvas: #eef0f3; /* behind the map tiles */
+  --color-surface: #ffffff;
+  --color-surface-muted: #f4f5f7;
+  --color-line: #e3e5ea;
+
+  --color-ink: #0f172a;
+  --color-ink-muted: #475569;
+  --color-ink-subtle: #8b95a5;
+
+  --radius-panel: 1.25rem;
+  --shadow-panel: 0 18px 40px -16px rgb(15 23 42 / 0.28), 0 2px 8px rgb(15 23 42 / 0.06);
+  --shadow-soft: 0 4px 14px -4px rgb(15 23 42 / 0.16);
+}
+
+body {
+  @apply bg-canvas font-sans text-ink antialiased;
+}
+
+/* --- Leaflet ------------------------------------------------------------- */
+
+.leaflet-container {
+  font-family: inherit;
+  background: var(--color-canvas);
+}
+
+/* Muted basemap: same OpenStreetMap tiles, desaturated so routes stand out. */
+.map-muted .leaflet-tile-pane {
+  filter: saturate(0.22) brightness(1.05) contrast(0.9);
+}
+
+.leaflet-tooltip {
+  border: 1px solid var(--color-line);
+  border-radius: 0.75rem;
+  box-shadow: var(--shadow-soft);
+  color: var(--color-ink);
+  font-size: 0.75rem;
+  line-height: 1.35;
+  padding: 0.4rem 0.65rem;
+}
+
+.leaflet-bar {
+  border: none !important;
+  border-radius: 0.75rem !important;
+  box-shadow: var(--shadow-soft) !important;
+  overflow: hidden;
+}
+
+.leaflet-bar a {
+  color: var(--color-ink-muted) !important;
+}
+
+.leaflet-control-attribution {
+  border-top-left-radius: 0.5rem;
+  background: rgb(255 255 255 / 0.8) !important;
+}

@@ -1,12 +1,7 @@
 import { useMemo, useState, type FormEvent } from 'react'
+import { Plus, SlidersHorizontal } from 'lucide-react'
 
-import {
-  currentTravelTime,
-  describeChange,
-  neighbours,
-  sortedStops,
-  stopsById,
-} from '../lib/network'
+import { currentTravelTime, neighbours, sortedStops } from '../lib/network'
 import type { Network } from '../types/network'
 import {
   MAX_CHANGES,
@@ -14,36 +9,30 @@ import {
   type ChangeType,
   type ScenarioChange,
 } from '../types/scenario'
+import { CHANGE_ICONS } from './impactIcons'
+import { Button } from './ui/Button'
+import { Field, inputClass } from './ui/Field'
+import { SectionTitle } from './ui/SectionTitle'
+import { SegmentedControl, type SegmentOption } from './ui/SegmentedControl'
+import { cx } from './ui/cx'
 
 interface ScenarioFormProps {
   network: Network
-  changes: ScenarioChange[]
-  onChangesChange: (changes: ScenarioChange[]) => void
-  onRun: () => void
-  running: boolean
-  error: string | null
+  /** Current number of changes, to enforce the limit. */
+  changeCount: number
+  onAdd: (change: ScenarioChange) => void
+  disabled: boolean
 }
 
-const CHANGE_TYPE_LABELS: Record<ChangeType, string> = {
-  close_stop: 'Close a stop',
-  remove_connection: 'Remove a connection',
-  change_travel_time: 'Change travel time',
-}
+const CHANGE_TYPES: SegmentOption<ChangeType>[] = [
+  { value: 'close_stop', label: 'Close stop', icon: CHANGE_ICONS.close_stop },
+  { value: 'remove_connection', label: 'Remove link', icon: CHANGE_ICONS.remove_connection },
+  { value: 'change_travel_time', label: 'Travel time', icon: CHANGE_ICONS.change_travel_time },
+]
 
-const fieldClass =
-  'mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm ' +
-  'focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none'
-
-export function ScenarioForm({
-  network,
-  changes,
-  onChangesChange,
-  onRun,
-  running,
-  error,
-}: ScenarioFormProps) {
+/** Builds one change at a time and hands it to the parent's list. */
+export function ScenarioForm({ network, changeCount, onAdd, disabled }: ScenarioFormProps) {
   const stops = useMemo(() => sortedStops(network), [network])
-  const stopMap = useMemo(() => stopsById(network), [network])
   const firstStopId = stops[0]?.id ?? ''
 
   const [type, setType] = useState<ChangeType>('close_stop')
@@ -70,7 +59,7 @@ export function ScenarioForm({
 
   // Validate the draft change; returns the change or an error message.
   function buildChange(): ScenarioChange | string {
-    if (changes.length >= MAX_CHANGES) return `A scenario can have at most ${MAX_CHANGES} changes.`
+    if (changeCount >= MAX_CHANGES) return `A scenario can have at most ${MAX_CHANGES} changes.`
     if (type === 'close_stop') {
       if (!stopId) return 'Choose a stop.'
       return { type, stop_id: stopId }
@@ -100,51 +89,46 @@ export function ScenarioForm({
 
   function handleAdd(event: FormEvent) {
     event.preventDefault()
-    if (typeof draft !== 'string') onChangesChange([...changes, draft])
+    if (typeof draft !== 'string') onAdd(draft)
   }
 
   return (
-    <section>
-      <h2 className="text-sm font-semibold tracking-wide text-slate-500 uppercase">
-        1. Build scenario
-      </h2>
+    <section className="space-y-3">
+      <SectionTitle icon={SlidersHorizontal}>Build a change</SectionTitle>
 
-      <form onSubmit={handleAdd} className="mt-3 space-y-3">
-        <label className="block text-sm font-medium">
-          Type of change
-          <select
-            className={fieldClass}
-            value={type}
-            onChange={(e) => setType(e.target.value as ChangeType)}
-          >
-            {Object.entries(CHANGE_TYPE_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
+      <form onSubmit={handleAdd} className="space-y-3">
+        <SegmentedControl
+          label="Type of change"
+          options={CHANGE_TYPES}
+          value={type}
+          onChange={setType}
+          disabled={disabled}
+        />
 
         {type === 'close_stop' ? (
-          <label className="block text-sm font-medium">
-            Stop
-            <select className={fieldClass} value={stopId} onChange={(e) => setStopId(e.target.value)}>
+          <Field label="Stop">
+            <select
+              className={inputClass}
+              value={stopId}
+              onChange={(e) => setStopId(e.target.value)}
+              disabled={disabled}
+            >
               {stops.map((stop) => (
                 <option key={stop.id} value={stop.id}>
                   {stop.name} ({stop.id})
                 </option>
               ))}
             </select>
-          </label>
+          </Field>
         ) : (
           <>
             <div className="grid grid-cols-2 gap-2">
-              <label className="block text-sm font-medium">
-                From
+              <Field label="From">
                 <select
-                  className={fieldClass}
+                  className={inputClass}
                   value={fromId}
                   onChange={(e) => handleFromChange(e.target.value)}
+                  disabled={disabled}
                 >
                   {stops.map((stop) => (
                     <option key={stop.id} value={stop.id}>
@@ -152,13 +136,13 @@ export function ScenarioForm({
                     </option>
                   ))}
                 </select>
-              </label>
-              <label className="block text-sm font-medium">
-                To
+              </Field>
+              <Field label="To">
                 <select
-                  className={fieldClass}
+                  className={inputClass}
                   value={toId}
                   onChange={(e) => selectLink(fromId, e.target.value)}
+                  disabled={disabled}
                 >
                   {toOptions.map((stop) => (
                     <option key={stop.id} value={stop.id}>
@@ -166,108 +150,65 @@ export function ScenarioForm({
                     </option>
                   ))}
                 </select>
-              </label>
+              </Field>
             </div>
 
             {type === 'change_travel_time' && (
-              <label className="block text-sm font-medium">
-                New travel time (minutes)
+              <Field
+                label="New travel time (minutes)"
+                hint={
+                  currentTime !== null &&
+                  `Currently ${currentTime} min (fastest route on this link)`
+                }
+              >
                 <input
-                  className={fieldClass}
+                  className={cx(inputClass, 'tabular-nums')}
                   type="number"
                   min={0.1}
                   max={MAX_TRAVEL_TIME_MIN}
                   step={0.5}
                   value={travelTime}
                   onChange={(e) => setTravelTime(e.target.value)}
+                  disabled={disabled}
                 />
-                {currentTime !== null && (
-                  <span className="mt-1 block text-xs font-normal text-slate-500">
-                    Currently {currentTime} min (fastest route on this link)
-                  </span>
-                )}
-              </label>
+              </Field>
             )}
 
-            <label className="flex items-center gap-2 text-sm">
+            <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl bg-surface-muted px-3 py-2 text-sm text-ink">
+              Both directions
               <input
                 type="checkbox"
+                role="switch"
+                className="peer sr-only"
                 checked={bothDirections}
                 onChange={(e) => setBothDirections(e.target.checked)}
+                disabled={disabled}
               />
-              Both directions
+              <span
+                aria-hidden
+                className={cx(
+                  'relative h-5 w-9 shrink-0 rounded-full bg-ink-subtle/40 transition-colors',
+                  'peer-checked:bg-accent peer-focus-visible:ring-2 peer-focus-visible:ring-accent-ring',
+                  'after:absolute after:top-0.5 after:left-0.5 after:h-4 after:w-4 after:rounded-full',
+                  'after:bg-white after:shadow after:transition-transform peer-checked:after:translate-x-4',
+                )}
+              />
             </label>
           </>
         )}
 
-        {draftError && changes.length < MAX_CHANGES && (
-          <p className="text-sm text-amber-700">{draftError}</p>
+        {draftError && changeCount < MAX_CHANGES && (
+          <p className="text-xs text-amber-700">{draftError}</p>
         )}
-        <button
+        <Button
           type="submit"
-          disabled={draftError !== null || running}
-          className="w-full rounded-md border border-blue-600 px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+          icon={Plus}
+          className="w-full"
+          disabled={draftError !== null || disabled}
         >
-          + Add change
-        </button>
+          Add to scenario
+        </Button>
       </form>
-
-      <div className="mt-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-medium">
-            Changes ({changes.length}/{MAX_CHANGES})
-          </h3>
-          {changes.length > 0 && (
-            <button
-              type="button"
-              onClick={() => onChangesChange([])}
-              disabled={running}
-              className="text-xs text-slate-500 hover:text-slate-800 disabled:opacity-50"
-            >
-              Clear all
-            </button>
-          )}
-        </div>
-        {changes.length === 0 ? (
-          <p className="mt-1 text-sm text-slate-500">No changes yet. Add at least one.</p>
-        ) : (
-          <ol className="mt-2 space-y-1">
-            {changes.map((change, index) => (
-              <li
-                key={index}
-                className="flex items-center justify-between gap-2 rounded-md bg-slate-100 px-2 py-1 text-sm"
-              >
-                <span>
-                  {index + 1}. {describeChange(change, stopMap)}
-                </span>
-                <button
-                  type="button"
-                  aria-label={`Remove change ${index + 1}`}
-                  onClick={() => onChangesChange(changes.filter((_, i) => i !== index))}
-                  disabled={running}
-                  className="px-1 text-slate-500 hover:text-red-700 disabled:opacity-50"
-                >
-                  ✕
-                </button>
-              </li>
-            ))}
-          </ol>
-        )}
-      </div>
-
-      <button
-        type="button"
-        onClick={onRun}
-        disabled={changes.length === 0 || running}
-        className="mt-4 w-full rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        {running ? 'Simulating…' : 'Run simulation'}
-      </button>
-      {error && (
-        <p role="alert" className="mt-2 rounded-md bg-red-50 p-2 text-sm text-red-800">
-          ❌ {error}
-        </p>
-      )}
     </section>
   )
 }

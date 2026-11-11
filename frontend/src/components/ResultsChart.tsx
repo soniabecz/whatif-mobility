@@ -51,41 +51,41 @@ export function ResultsChart({ journeys, stops }: ResultsChartProps) {
 
   if (rows.length === 0) {
     return (
-      <p className="text-sm text-slate-500">
+      <p className="text-sm text-ink-subtle">
         No journey that is still possible changed its travel time.
       </p>
     )
   }
 
   return (
-    <figure>
-      <figcaption className="text-sm font-medium">
+    <figure className="rounded-xl border border-line bg-white p-3">
+      <figcaption className="text-xs font-semibold text-ink-muted">
         Biggest changes in travel time (top {rows.length})
       </figcaption>
       <div style={{ height: rows.length * ROW_HEIGHT + 70 }} className="mt-2">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={rows} layout="vertical" barGap={2} margin={{ left: 0, right: 12 }}>
-            <CartesianGrid horizontal={false} stroke="#e5e7eb" />
+            <CartesianGrid horizontal={false} stroke="#e3e5ea" />
             <XAxis
               type="number"
               unit=" min"
-              tick={{ fontSize: 11, fill: '#52514e' }}
-              stroke="#d4d4d8"
+              tick={{ fontSize: 11, fill: '#475569' }}
+              stroke="#e3e5ea"
             />
             <YAxis
               type="category"
               dataKey="label"
               width={84}
-              tick={{ fontSize: 11, fill: '#52514e' }}
-              stroke="#d4d4d8"
+              tick={{ fontSize: 11, fill: '#475569' }}
+              stroke="#e3e5ea"
             />
             <Tooltip
-              cursor={{ fill: '#f1f5f9' }}
+              cursor={{ fill: '#f4f5f7' }}
               content={({ active, payload }) => {
                 const row = payload?.[0]?.payload as ChartRow | undefined
                 if (!active || !row) return null
                 return (
-                  <div className="rounded-md border border-slate-200 bg-white p-2 text-xs shadow">
+                  <div className="rounded-xl border border-line bg-white px-3 py-2 text-xs text-ink shadow-soft">
                     <p className="font-semibold">{row.fullLabel}</p>
                     <p>Before: {formatMinutes(row.before)}</p>
                     <p>After: {formatMinutes(row.after)}</p>

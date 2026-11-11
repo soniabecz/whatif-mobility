@@ -1,5 +1,11 @@
+import { useState } from 'react'
+import { ChevronDown, ChevronUp, Layers } from 'lucide-react'
+
 import { IMPACT_ORDER, IMPACT_STYLES, type ImpactLevel } from '../lib/impact'
 import type { Route } from '../types/network'
+import { IMPACT_ICONS } from './impactIcons'
+import { Card } from './ui/Card'
+import { cx } from './ui/cx'
 
 interface MapLegendProps {
   routes: Route[]
@@ -7,46 +13,79 @@ interface MapLegendProps {
   showImpact: boolean
   /** A scenario is being built: explain the preview marks. */
   showScenario: boolean
+  defaultOpen: boolean
+  className?: string
 }
 
-export function MapLegend({ routes, showImpact, showScenario }: MapLegendProps) {
+export function MapLegend({
+  routes,
+  showImpact,
+  showScenario,
+  defaultOpen,
+  className,
+}: MapLegendProps) {
+  const [open, setOpen] = useState(defaultOpen)
   const levels: ImpactLevel[] = showImpact ? IMPACT_ORDER : showScenario ? ['closed'] : []
 
   return (
-    // z-[1000]: above Leaflet's panes (which use z-index 400–700).
-    <div className="absolute right-3 bottom-6 z-[1000] rounded-lg border border-slate-200 bg-white/95 p-3 text-xs text-slate-700 shadow-sm">
-      <p className="mb-1 font-semibold text-slate-500 uppercase">Routes</p>
-      <ul className="space-y-1">
-        {routes.map((route) => (
-          <li key={route.id} className="flex items-center gap-2">
-            <span className="h-1.5 w-5 rounded-full" style={{ backgroundColor: route.color }} />
-            {route.id} {route.name}
-          </li>
-        ))}
-      </ul>
+    <Card className={cx('w-56 text-xs', className)}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-2 rounded-panel px-3 py-2.5 font-semibold text-ink focus-visible:ring-2 focus-visible:ring-accent-ring focus-visible:outline-none"
+      >
+        <span className="flex items-center gap-2">
+          <Layers size={14} className="text-accent" aria-hidden />
+          Legend
+        </span>
+        {open ? <ChevronUp size={14} aria-hidden /> : <ChevronDown size={14} aria-hidden />}
+      </button>
 
-      {levels.length > 0 && (
-        <>
-          <p className="mt-3 mb-1 font-semibold text-slate-500 uppercase">Scenario</p>
-          <ul className="space-y-1">
-            {levels.map((level) => (
-              <li key={level} className="flex items-center gap-2">
+      {open && (
+        <div className="space-y-3 border-t border-line px-3 pt-2.5 pb-3 text-ink-muted">
+          <ul className="space-y-1.5">
+            {routes.map((route) => (
+              <li key={route.id} className="flex items-center gap-2">
                 <span
-                  className="h-3 w-3 rounded-full border-2 border-white shadow"
-                  style={{ backgroundColor: IMPACT_STYLES[level].color }}
+                  className="h-1.5 w-6 rounded-full ring-2 ring-white"
+                  style={{ backgroundColor: route.color }}
                 />
-                {IMPACT_STYLES[level].icon} {IMPACT_STYLES[level].label}
+                <span className="font-semibold text-ink">{route.id}</span> {route.name}
               </li>
             ))}
           </ul>
-          <p className="mt-2 flex items-center gap-2">
-            <span className="w-5 border-t-2 border-dashed border-zinc-500" /> Removed link
-          </p>
-          <p className="mt-1 flex items-center gap-2">
-            <span className="h-2 w-5 rounded-full bg-zinc-500" /> Travel time changed (thick)
-          </p>
-        </>
+
+          {levels.length > 0 && (
+            <>
+              <ul className="space-y-1.5 border-t border-line pt-2.5">
+                {levels.map((level) => {
+                  const Icon = IMPACT_ICONS[level]
+                  return (
+                    <li key={level} className="flex items-center gap-2">
+                      <span
+                        className="flex h-4 w-4 items-center justify-center rounded-full text-white ring-2 ring-white"
+                        style={{ backgroundColor: IMPACT_STYLES[level].color }}
+                      >
+                        <Icon size={10} aria-hidden />
+                      </span>
+                      {IMPACT_STYLES[level].label}
+                    </li>
+                  )
+                })}
+              </ul>
+              <ul className="space-y-1.5">
+                <li className="flex items-center gap-2">
+                  <span className="w-6 border-t-2 border-dashed border-zinc-500" /> Removed link
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="h-2 w-6 rounded-full bg-zinc-500" /> Travel time changed
+                </li>
+              </ul>
+            </>
+          )}
+        </div>
       )}
-    </div>
+    </Card>
   )
 }

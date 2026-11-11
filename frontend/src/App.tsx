@@ -1,12 +1,21 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { BusFront, ChevronDown, ChevronUp, Loader2, RotateCcw, TriangleAlert } from 'lucide-react'
 
 import { describeApiError } from './api/errors'
 import { fetchNetwork } from './api/network'
 import { runSimulation } from './api/simulations'
 import { AiScenarioInput } from './components/AiScenarioInput'
+import { ChangeList } from './components/ChangeList'
+import { MapLegend } from './components/MapLegend'
 import { NetworkMap } from './components/NetworkMap'
 import { ResultsPanel } from './components/ResultsPanel'
+import { RunBar } from './components/RunBar'
 import { ScenarioForm } from './components/ScenarioForm'
+import { Badge } from './components/ui/Badge'
+import { Button } from './components/ui/Button'
+import { Card } from './components/ui/Card'
+import { cx } from './components/ui/cx'
+import { DESKTOP_QUERY, useMediaQuery } from './hooks/useMediaQuery'
 import { stopsById } from './lib/network'
 import type { Network } from './types/network'
 import { MAX_CHANGES, type ScenarioChange } from './types/scenario'
@@ -24,11 +33,17 @@ type SimulationState =
   | { kind: 'error'; message: string }
   | { kind: 'success'; result: SimulationResult }
 
+// Map padding so the network is fitted beside the floating panels.
+const DESKTOP_FIT = { topLeft: [460, 60] as [number, number], bottomRight: [60, 60] as [number, number] }
+const MOBILE_FIT = { topLeft: [24, 64] as [number, number], bottomRight: [24, 120] as [number, number] }
+
 function App() {
   const [networkState, setNetworkState] = useState<NetworkState>({ kind: 'loading' })
   const [reloadToken, setReloadToken] = useState(0)
   const [changes, setChanges] = useState<ScenarioChange[]>([])
   const [simulation, setSimulation] = useState<SimulationState>({ kind: 'idle' })
+  const [sheetOpen, setSheetOpen] = useState(true)
+  const isDesktop = useMediaQuery(DESKTOP_QUERY)
   // Incremented on every run and every edit, so a slow response for an
   // outdated scenario is ignored instead of overwriting newer state.
   const requestId = useRef(0)
@@ -91,78 +106,184 @@ function App() {
     [networkState],
   )
   const result = simulation.kind === 'success' ? simulation.result : null
+  const running = simulation.kind === 'running'
+
+  if (networkState.kind !== 'ready') {
+    return <StatusScreen state={networkState} onRetry={retryNetwork} />
+  }
+  const { network } = networkState
+
+  const scenarioSections = (
+    <>
+      <AiScenarioInput onAddChanges={handleAddChanges} disabled={running} />
+      <ChangeList
+        network={network}
+        changes={changes}
+        onChangesChange={handleChangesChange}
+        disabled={running}
+      />
+      <ScenarioForm
+        network={network}
+        changeCount={changes.length}
+        onAdd={(change) => handleChangesChange([...changes, change])}
+        disabled={running}
+      />
+    </>
+  )
+  const runBar = (
+    <RunBar
+      changeCount={changes.length}
+      running={running}
+      error={simulation.kind === 'error' ? simulation.message : null}
+      onRun={handleRun}
+    />
+  )
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50 text-slate-800 lg:h-screen">
-      <header className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3">
-        <div>
-          <h1 className="text-xl font-bold">WhatIf Mobility</h1>
-          <p className="text-sm text-slate-500">Simulate changes to a city bus network.</p>
-        </div>
-        <ConnectionBadge state={networkState.kind} />
-      </header>
+    <div className="relative h-dvh w-full overflow-hidden">
+      <div className="absolute inset-0">
+        <NetworkMap
+          network={network}
+          changes={changes}
+          result={result}
+          fitPadding={isDesktop ? DESKTOP_FIT : MOBILE_FIT}
+        />
+      </div>
 
-      {networkState.kind === 'loading' && (
-        <p className="p-8 text-slate-500">Loading the bus network…</p>
-      )}
+      {/* Leaflet panes use z-index up to 1000, so overlays sit above that. */}
+      <MapLegend
+        key={isDesktop ? 'desktop' : 'mobile'}
+        routes={network.routes}
+        showImpact={result !== null}
+        showScenario={changes.length > 0}
+        defaultOpen={isDesktop}
+        className="absolute top-3 left-3 z-[1100] lg:top-4 lg:left-[436px]"
+      />
 
-      {networkState.kind === 'error' && (
-        <div className="m-8 max-w-lg rounded-lg border border-red-200 bg-white p-4" role="alert">
-          <p className="font-medium text-red-700">❌ Could not load the bus network.</p>
-          <p className="mt-1 text-sm text-slate-600">{networkState.message}</p>
+      {isDesktop ? (
+        <>
+          <Card className="absolute top-4 bottom-4 left-4 z-[1100] flex w-[404px] flex-col overflow-hidden">
+            <PanelHeader status="live" />
+            <div className="flex-1 space-y-7 overflow-y-auto px-5 pt-2 pb-5">{scenarioSections}</div>
+            <div className="border-t border-line bg-white/70 p-4">{runBar}</div>
+          </Card>
+
+          {result && (
+            <Card className="absolute right-2.5 bottom-7 z-[1100] max-h-[calc(100dvh-7rem)] w-[420px] overflow-y-auto p-4">
+              <ResultsPanel result={result} stops={stops} />
+            </Card>
+          )}
+        </>
+      ) : (
+        <Card
+          className={cx(
+            'absolute inset-x-0 bottom-0 z-[1100] flex flex-col overflow-hidden rounded-b-none',
+            sheetOpen ? 'max-h-[72dvh]' : 'max-h-none',
+          )}
+        >
           <button
             type="button"
-            onClick={retryNetwork}
-            className="mt-3 rounded-md bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700"
+            onClick={() => setSheetOpen(!sheetOpen)}
+            aria-expanded={sheetOpen}
+            aria-label={sheetOpen ? 'Collapse panel' : 'Expand panel'}
+            className="flex w-full flex-col items-center pt-2 focus-visible:outline-none"
           >
-            Retry
+            <span className="h-1 w-10 rounded-full bg-ink-subtle/40" aria-hidden />
           </button>
-        </div>
-      )}
-
-      {networkState.kind === 'ready' && (
-        <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-          <aside className="order-2 space-y-8 border-slate-200 bg-white p-4 lg:order-1 lg:w-[420px] lg:shrink-0 lg:overflow-y-auto lg:border-r">
-            <AiScenarioInput
-              onAddChanges={handleAddChanges}
-              disabled={simulation.kind === 'running'}
-            />
-            <ScenarioForm
-              network={networkState.network}
-              changes={changes}
-              onChangesChange={handleChangesChange}
-              onRun={handleRun}
-              running={simulation.kind === 'running'}
-              error={simulation.kind === 'error' ? simulation.message : null}
-            />
-            {result ? (
-              <ResultsPanel result={result} stops={stops} />
-            ) : (
-              <p className="text-sm text-slate-500">
-                Results appear here after you run a simulation.
-              </p>
-            )}
-          </aside>
-          <main className="order-1 h-[55vh] lg:order-2 lg:h-auto lg:flex-1">
-            <NetworkMap network={networkState.network} changes={changes} result={result} />
-          </main>
-        </div>
+          <PanelHeader
+            status="live"
+            aside={
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={sheetOpen ? ChevronDown : ChevronUp}
+                onClick={() => setSheetOpen(!sheetOpen)}
+              >
+                {sheetOpen ? 'Hide' : `Scenario (${changes.length})`}
+              </Button>
+            }
+          />
+          {sheetOpen && (
+            <>
+              <div className="flex-1 space-y-7 overflow-y-auto px-4 pt-2 pb-4">
+                {result && <ResultsPanel result={result} stops={stops} />}
+                {scenarioSections}
+              </div>
+              <div className="border-t border-line bg-white/70 p-3">{runBar}</div>
+            </>
+          )}
+        </Card>
       )}
     </div>
   )
 }
 
-function ConnectionBadge({ state }: { state: NetworkState['kind'] }) {
-  const styles = {
-    loading: { dot: 'bg-slate-400', text: 'Connecting…' },
-    ready: { dot: 'bg-green-600', text: 'Connected' },
-    error: { dot: 'bg-red-600', text: 'Offline' },
-  }[state]
+type ConnectionStatus = 'live' | 'connecting' | 'offline'
+
+const CONNECTION_BADGES = {
+  live: { tone: 'success', label: 'Live', pulse: true },
+  connecting: { tone: 'neutral', label: 'Connecting…', pulse: true },
+  offline: { tone: 'danger', label: 'Offline', pulse: false },
+} as const
+
+function PanelHeader({ status, aside }: { status: ConnectionStatus; aside?: ReactNode }) {
+  const badge = CONNECTION_BADGES[status]
   return (
-    <span className="flex items-center gap-2 text-sm text-slate-600">
-      <span className={`h-2.5 w-2.5 rounded-full ${styles.dot}`} />
-      {styles.text}
-    </span>
+    <header className="flex items-center justify-between gap-3 px-5 pt-4 pb-3 max-lg:px-4 max-lg:pt-1">
+      <div className="flex items-center gap-3">
+        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-linear-to-br from-indigo-500 to-violet-600 text-white shadow-soft">
+          <BusFront size={20} aria-hidden />
+        </span>
+        <div>
+          <h1 className="text-base leading-tight font-bold tracking-tight text-ink">
+            WhatIf Mobility
+          </h1>
+          <p className="text-xs text-ink-subtle">What if the bus network changed?</p>
+        </div>
+      </div>
+      {aside ?? (
+        <Badge tone={badge.tone} dot pulse={badge.pulse}>
+          {badge.label}
+        </Badge>
+      )}
+    </header>
+  )
+}
+
+function StatusScreen({
+  state,
+  onRetry,
+}: {
+  state: Exclude<NetworkState, { kind: 'ready' }>
+  onRetry: () => void
+}) {
+  return (
+    <div className="flex h-dvh items-center justify-center bg-linear-to-br from-slate-100 to-indigo-50 p-4">
+      <Card className="w-full max-w-sm p-2">
+        <PanelHeader status={state.kind === 'loading' ? 'connecting' : 'offline'} />
+        <div className="px-5 pb-5">
+          {state.kind === 'loading' ? (
+            <p className="flex items-center gap-2 text-sm text-ink-muted">
+              <Loader2 size={16} className="animate-spin text-accent" aria-hidden />
+              Loading the bus network…
+            </p>
+          ) : (
+            <div role="alert" className="space-y-3">
+              <p className="flex gap-2 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-800">
+                <TriangleAlert size={16} className="mt-0.5 shrink-0" aria-hidden />
+                <span>
+                  <strong className="block">Could not load the bus network.</strong>
+                  {state.message}
+                </span>
+              </p>
+              <Button variant="primary" icon={RotateCcw} onClick={onRetry} className="w-full">
+                Retry
+              </Button>
+            </div>
+          )}
+        </div>
+      </Card>
+    </div>
   )
 }
 

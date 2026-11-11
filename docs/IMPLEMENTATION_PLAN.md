@@ -6,9 +6,8 @@
 
 ## Current status
 
-- **Last completed:** Day 5 (AI layer via Groq): 95 backend tests, lint and
-  build pass, live API check with the real model and browser check passed
-- **Next up:** Day 6 – Quality and explainability (CI, journey explorer,
+- **Last completed:** Day 6 (UI redesign), browser-checked by the user
+- **Next up:** Day 7 – Quality and explainability (CI, journey explorer,
   transfer penalty)
 - **First action next session:** explain the CI workflow and wait for
   approval before writing it
@@ -16,7 +15,7 @@
 
 ## Timeline
 
-Total: **6 working days** (MVP in Days 1–5, Day 6 added afterwards). A "day" is one
+Total: **7 working days** (MVP in Days 1–5, Days 6–7 added afterwards). A "day" is one
 working session. Every day must end with something working and committed,
 so the project is usable even if a later day is cut short.
 
@@ -27,7 +26,8 @@ so the project is usable even if a later day is cut short.
 | 3   | Simulation engine         | ✅ Done |
 | 4   | Map and results UI        | ✅ Done |
 | 5   | AI layer and wrap-up      | ✅ Done |
-| 6   | Quality and explainability | ⬜ Todo |
+| 6   | UI redesign               | ✅ Done |
+| 7   | Quality and explainability | ⬜ Todo |
 
 ---
 
@@ -49,7 +49,7 @@ so the project is usable even if a later day is cut short.
 - Real city data (GTFS import)
 - Adding new routes as a scenario type
 - Saving scenarios to the database (simulations are run, shown, discarded)
-- UI polish beyond clear error messages (no dark mode, animations, etc.)
+- ~~UI polish~~ moved into scope as Day 6 (redesign); dark mode stays out of scope
 
 ---
 
@@ -90,6 +90,13 @@ so the project is usable even if a later day is cut short.
 | `ChatModel` protocol; tests use a fake, Groq errors mapped with locally built exceptions | No network calls or API key needed in tests |
 | Settings via `pydantic-settings` from `backend/.env`; key held as `SecretStr` | Key never hardcoded, logged or committed |
 | Without `GROQ_API_KEY` the AI endpoint returns 503; the rest works | AI is optional, the app works without it |
+| UI: full-screen map with floating panels; bottom sheet below 1024 px | Map-first, modern; results stay next to the map |
+| Design tokens in `index.css` via Tailwind v4 `@theme` (indigo accent, surfaces, radii, shadows) | One place for the look; consistent components |
+| Shared UI building blocks in `components/ui/` | Consistent styling; reused by the Day 7 journey explorer |
+| Muted basemap = OSM tiles + CSS filter (not CARTO) | CARTO now needs an API key, which would be public in the frontend |
+| Inter font self-hosted via `@fontsource-variable/inter`; icons from `lucide-react` | No external font requests; one consistent icon set |
+| `ScenarioForm` split into builder, `ChangeList` and `RunBar` | Run button pinned to the panel bottom; no behaviour change |
+| Results collapsed by default (key figures), details on demand | Keeps the map visible after a run |
 | Scenario = ordered list of 1–20 changes, discriminated by `type`; unknown fields rejected | One input format for form and AI; typos fail loudly |
 | `both_directions` defaults to `true` for link changes | People think in streets, not one-way links |
 | Link changes act on the merged edge (all routes on it) | Consistent with the merged-edge graph rule |
@@ -213,7 +220,27 @@ a structured scenario; the existing simulation computes the results.
 
 **Fallback:** if Day 5 runs short, the app is still complete with the form.
 
-## Day 6 – Quality and explainability
+## Day 6 – UI redesign ✅
+
+**Outcome:** a modern, map-first interface: full-screen muted map with
+floating panels. Light theme only. Frontend only; no behaviour changes.
+
+- [x] Agree on direction (floating panels, light only, before the old Day 6)
+- [x] Install `lucide-react` (icons) and `@fontsource-variable/inter` (font)
+- [x] Design tokens in `index.css` (`@theme`): indigo accent, surfaces,
+      radii, shadows; muted OpenStreetMap tiles via CSS filter (no new
+      tile provider: CARTO now needs an API key, which would be public)
+- [x] Shared building blocks in `components/ui/` (Card, Button,
+      SegmentedControl, IconButton, Badge)
+- [x] Layout: full-screen map, floating left panel (bottom sheet on phones),
+      collapsible results card, collapsible legend
+- [x] Restyle AI input, scenario form (type as icon tabs), change list,
+      results (KPI row + expandable details), chart, map lines and stops
+- [x] Keep status colours with icon + label and the validated chart palette
+- [x] Type-check, lint, build
+- [x] Browser check by the user (desktop and phone width), commit
+
+## Day 7 – Quality and explainability
 
 **Outcome:** every push is checked automatically, users can see *why* a
 journey changed, and journey times include the cost of changing buses.
@@ -300,7 +327,7 @@ Ideas collected after the MVP. Not scheduled; pick from here if time allows.
 ## Decisions still needed
 
 - [x] **Day 5:** AI provider and API key: Groq, `openai/gpt-oss-120b`
-- [ ] **Day 6:** transfer penalty value (e.g. 5 min, fixed or configurable)
+- [ ] **Day 7:** transfer penalty value (e.g. 5 min, fixed or configurable)
 
 ## Session log
 
@@ -311,3 +338,4 @@ Ideas collected after the MVP. Not scheduled; pick from here if time allows.
 | 2026-11-11 | 3   | Scenario schema, simulation engine (bypass on stop closure), metrics, `POST /api/simulations`; 63 tests |
 | 2026-11-11 | 4   | Map, legend, scenario form, results panel and chart; lint + build pass; browser-checked |
 | 2026-11-11 | 5   | Groq AI layer (strict JSON, 3-step validation), AI input in UI; 95 tests; live API + browser check passed |
+| 2026-11-11 | 6   | UI redesign: floating panels over a muted full-screen map, design tokens, icon tabs, KPI results; browser-checked |
