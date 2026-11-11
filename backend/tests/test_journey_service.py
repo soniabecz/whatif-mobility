@@ -70,10 +70,11 @@ def test_change_of_route_starts_a_new_leg() -> None:
 
 
 def test_stays_on_the_same_bus_when_equally_fast() -> None:
-    # R1 and R2 both run A-B at 2 min; only R1 continues to C.
+    # R1 and R2 both run A-B at 2 min; only R1 continues to C. With a
+    # transfer penalty, switching to R2 and back can never be chosen.
     graph = _network({"R1": [("A", 2), ("B", 2), ("C", 0)], "R2": [("A", 2), ("B", 0)]})
 
-    plan = plan_journey(graph, "A", "C")
+    plan = plan_journey(graph, "A", "C", transfer_penalty_min=5)
 
     assert plan is not None
     assert [leg.route_id for leg in plan.legs] == ["R1"]
@@ -161,6 +162,7 @@ def test_never_connected_stops_are_unreachable() -> None:
 
 # --- Agreement with the simulation ---------------------------------------------------------
 
+@pytest.mark.parametrize("penalty", [0.0, 5.0])
 @pytest.mark.parametrize(
     "changes",
     [
@@ -171,16 +173,16 @@ def test_never_connected_stops_are_unreachable() -> None:
     ],
 )
 def test_explorer_agrees_with_simulation_for_every_journey(
-    sample: nx.DiGraph, changes: list[dict[str, Any]]
+    sample: nx.DiGraph, changes: list[dict[str, Any]], penalty: float
 ) -> None:
-    simulation = simulate(sample, Scenario.model_validate({"changes": changes}))
+    simulation = simulate(sample, Scenario.model_validate({"changes": changes}), penalty)
     changed = {(j.origin_id, j.destination_id): j for j in simulation.changed_journeys}
     _, closed = apply_scenario(sample, Scenario.model_validate({"changes": changes}))
 
     for origin, destination in permutations(sorted(sample.nodes), 2):
         if origin in closed or destination in closed:
             continue
-        result = compare_journey(sample, _request(origin, destination, *changes))
+        result = compare_journey(sample, _request(origin, destination, *changes), penalty)
         expected = changed.get((origin, destination))
         if expected is None:
             assert result.status == "unchanged", (origin, destination)
@@ -212,4 +214,3 @@ def test_baseline_is_never_modified(sample: nx.DiGraph) -> None:
     compare_journey(sample, _request("NTH", "STH", {"type": "close_stop", "stop_id": "CEN"}))
 
     assert list(sample.edges(data=True)) == list(snapshot.edges(data=True))
-    assert not any("route_via" in data for *_, data in sample.edges(data=True))

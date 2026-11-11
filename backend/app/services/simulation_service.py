@@ -1,21 +1,18 @@
-"""Apply a scenario to a copy of the baseline graph and measure the impact.
+"""Apply a scenario to a copy of the baseline network and measure the impact.
 
 Rules (CLAUDE.md, docs/IMPLEMENTATION_PLAN.md):
-- The baseline graph is never modified; all changes go to a deep copy.
+- The baseline is never modified; changes go to a newly built route graph.
 - Every number is computed deterministically from the two graphs.
 
 Passenger journeys = every ordered pair of distinct stops, weighted equally
 (there is no demand data, and inventing passenger numbers would be fake data).
-A journey's time is the fastest path; there is no transfer penalty.
+A journey's time is the fastest path in the route-aware graph
+(see route_graph.py): time on the bus plus a fixed penalty per change of bus.
 
-Closing a stop (option B): nobody can board, alight or transfer there, but
-buses still drive through. For every route that ran  P -> S -> N  a bypass
-edge  P -> N  is added with that route's own times (P->S + S->N).
-This assumes each route is a simple line or loop (no branches), which holds
-for the sample network.
+Closing a stop: nobody can board, alight or change bus there, but buses still
+drive through it (its platforms and ride edges stay in the route graph).
 """
 
-import copy
 from collections.abc import Sequence
 
 import networkx as nx
@@ -27,10 +24,15 @@ from app.schemas.simulation import (
     SimulationSummary,
     StopImpact,
 )
-from app.services.network_service import add_route_edge
+from app.services.route_graph import (
+    Platform,
+    build_route_graph,
+    is_open_stop,
+    ride_edges,
+    travel_times_from,
+)
 
-# Two travel times closer than this are equal (guards against float noise,
-# e.g. (a + b) + c vs a + (b + c) when a bypass edge replaces two edges).
+# Two travel times closer than this are equal (guards against float noise).
 _EPSILON = 1e-9
 _MOST_AFFECTED_LIMIT = 5
 
@@ -42,22 +44,26 @@ class ScenarioError(ValueError):
 # --- Applying changes -------------------------------------------------------
 
 def apply_scenario(
-    baseline: nx.DiGraph, scenario: Scenario
+    baseline: nx.DiGraph, scenario: Scenario, transfer_penalty_min: float = 0.0
 ) -> tuple[nx.DiGraph, set[str]]:
-    """Return (modified copy of the baseline, ids of closed stops)."""
-    graph = copy.deepcopy(baseline)
+    """Return (modified route graph built from the baseline, ids of closed stops).
+
+    ``baseline`` is the stop-level network graph; it is only read.
+    """
+    graph = build_route_graph(baseline, transfer_penalty_min)
     closed: set[str] = set()
 
     for number, change in enumerate(scenario.changes, start=1):
         try:
             if isinstance(change, CloseStop):
-                _close_stop(graph, change.stop_id, closed)
+                _require_open_stop(graph, change.stop_id, closed)
+                graph.remove_node(change.stop_id)  # platforms stay: buses drive through
+                closed.add(change.stop_id)
             elif isinstance(change, RemoveConnection):
-                for u, v in _target_edges(graph, change, closed):
-                    graph.remove_edge(u, v)
+                graph.remove_edges_from(_target_rides(graph, change, closed))
             elif isinstance(change, ChangeTravelTime):
-                for u, v in _target_edges(graph, change, closed):
-                    _set_travel_time(graph, u, v, change.travel_time_min)
+                for ride in _target_rides(graph, change, closed):
+                    graph.edges[ride]["weight"] = change.travel_time_min
             else:  # pragma: no cover - guarded by the Pydantic discriminator
                 raise ScenarioError(f"Unsupported change type: {change!r}")
         except ScenarioError as error:
@@ -68,75 +74,45 @@ def apply_scenario(
 def _require_open_stop(graph: nx.DiGraph, stop_id: str, closed: set[str]) -> None:
     if stop_id in closed:
         raise ScenarioError(f"stop '{stop_id}' is already closed by an earlier change")
-    if stop_id not in graph:
+    if not is_open_stop(graph, stop_id):
         raise ScenarioError(f"unknown stop '{stop_id}'")
 
 
-def _close_stop(graph: nx.DiGraph, stop_id: str, closed: set[str]) -> None:
-    _require_open_stop(graph, stop_id, closed)
-
-    bypasses: list[tuple[str, str, str, float, list[str]]] = []
-    for pred in graph.predecessors(stop_id):
-        edge_in = graph.edges[pred, stop_id]
-        for succ in graph.successors(stop_id):
-            if succ == pred:  # turning back is not a through movement
-                continue
-            edge_out = graph.edges[stop_id, succ]
-            for route_id in edge_in["route_times"].keys() & edge_out["route_times"].keys():
-                # Remember every closed stop the bus now drives through, so a
-                # journey can still be drawn along the real street.
-                via = [
-                    *edge_in.get("route_via", {}).get(route_id, []),
-                    stop_id,
-                    *edge_out.get("route_via", {}).get(route_id, []),
-                ]
-                minutes = edge_in["route_times"][route_id] + edge_out["route_times"][route_id]
-                bypasses.append((pred, succ, route_id, minutes, via))
-
-    graph.remove_node(stop_id)
-    for pred, succ, route_id, minutes, via in sorted(bypasses):  # sorted: deterministic
-        add_route_edge(graph, pred, succ, route_id, minutes, via)
-    closed.add(stop_id)
-
-
-def _target_edges(
+def _target_rides(
     graph: nx.DiGraph,
     change: RemoveConnection | ChangeTravelTime,
     closed: set[str],
-) -> list[tuple[str, str]]:
-    """Edges a link change applies to; all are validated before any is changed."""
+) -> list[tuple[Platform, Platform]]:
+    """Ride edges (all routes) a link change applies to; validated before any change."""
     a, b = change.from_stop_id, change.to_stop_id
     _require_open_stop(graph, a, closed)
     _require_open_stop(graph, b, closed)
 
-    edges = [(a, b), (b, a)] if change.both_directions else [(a, b)]
-    for u, v in edges:
-        if not graph.has_edge(u, v):
+    directions = [(a, b), (b, a)] if change.both_directions else [(a, b)]
+    rides: list[tuple[Platform, Platform]] = []
+    for u, v in directions:
+        found = ride_edges(graph, u, v)
+        if not found:
             raise ScenarioError(f"no connection from '{u}' to '{v}'")
-    return edges
-
-
-def _set_travel_time(graph: nx.DiGraph, u: str, v: str, minutes: float) -> None:
-    edge = graph.edges[u, v]
-    # add_edge updates the given attributes only, so route_via (if any) is kept.
-    graph.add_edge(
-        u,
-        v,
-        route_times={route_id: minutes for route_id in edge["route_times"]},
-        routes=list(edge["routes"]),
-        weight=minutes,
-    )
+        rides.extend(found)
+    return rides
 
 
 # --- Metrics ----------------------------------------------------------------
 
-def simulate(baseline: nx.DiGraph, scenario: Scenario) -> SimulationResult:
-    """Apply the scenario to a copy of the baseline and compare journeys."""
-    modified, closed = apply_scenario(baseline, scenario)
+def simulate(
+    baseline: nx.DiGraph, scenario: Scenario, transfer_penalty_min: float = 0.0
+) -> SimulationResult:
+    """Apply the scenario to a copy of the baseline and compare journeys.
 
-    before = dict(nx.all_pairs_dijkstra_path_length(baseline, weight="weight"))
-    after = dict(nx.all_pairs_dijkstra_path_length(modified, weight="weight"))
+    ``transfer_penalty_min``: minutes added per change of bus (0 = free).
+    """
+    before_graph = build_route_graph(baseline, transfer_penalty_min)
+    after_graph, closed = apply_scenario(baseline, scenario, transfer_penalty_min)
     stop_ids = sorted(baseline.nodes)
+
+    before = {s: travel_times_from(before_graph, s) for s in stop_ids}
+    after = {s: travel_times_from(after_graph, s) for s in stop_ids if s not in closed}
 
     changed: list[JourneyChange] = []
     unchanged = closed_count = 0
@@ -153,7 +129,7 @@ def simulate(baseline: nx.DiGraph, scenario: Scenario) -> SimulationResult:
                 continue
 
             time_before = before[origin].get(destination)
-            time_after = after.get(origin, {}).get(destination)
+            time_after = after[origin].get(destination)
             if time_before is None:
                 # Impossible already in the baseline; changes only remove or
                 # re-time links, so it cannot become possible. Not a change.
@@ -185,6 +161,7 @@ def simulate(baseline: nx.DiGraph, scenario: Scenario) -> SimulationResult:
         average_time_after_min=_round(sum_after / comparable) if comparable else None,
         total_time_change_min=_round(sum_after - sum_before),
         largest_increase=_largest_increase(changed),
+        transfer_penalty_min=transfer_penalty_min,
     )
     return SimulationResult(
         scenario=scenario,

@@ -5,7 +5,7 @@ Never hardcode secrets; see backend/.env.example for the available settings.
 
 from functools import lru_cache
 
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.database import BACKEND_DIR
@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     groq_api_key: SecretStr | None = None
     ai_model: str = "openai/gpt-oss-120b"
     ai_timeout_seconds: float = 30.0
+
+    # Minutes added to a journey for every change of bus (stands in for the
+    # waiting time, which is not modelled). 0 = changing bus is free.
+    transfer_penalty_min: float = Field(default=5.0, ge=0, le=60)
 
     @property
     def ai_enabled(self) -> bool:

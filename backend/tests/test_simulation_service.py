@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from app.models import Connection, Stop
 from app.schemas.scenario import Scenario
 from app.services.network_service import build_graph, build_graph_from_db
+from app.services.route_graph import ride_edges, travel_times_from
 from app.services.simulation_service import ScenarioError, apply_scenario, simulate
 
 
@@ -91,13 +92,14 @@ def test_failed_scenario_leaves_baseline_unmodified(sample: nx.DiGraph) -> None:
 
 # --- close_stop (buses drive through) ---------------------------------------
 
-def test_closed_stop_is_bypassed_on_the_same_route(line: nx.DiGraph) -> None:
+def test_buses_drive_through_a_closed_stop(line: nx.DiGraph) -> None:
     graph, closed = apply_scenario(line, _scenario({"type": "close_stop", "stop_id": "B"}))
 
     assert closed == {"B"}
-    assert "B" not in graph
-    assert graph.edges["A", "C"]["route_times"] == {"R1": 5}
-    assert graph.edges["C", "A"]["weight"] == 5
+    assert "B" not in graph  # no boarding, alighting or changing at B
+    assert ("B", "R1") in graph  # ...but the bus still passes through B
+    assert travel_times_from(graph, "A") == {"C": 5}
+    assert travel_times_from(graph, "C") == {"A": 5}
 
 
 def test_journeys_through_closed_stop_keep_their_time(line: nx.DiGraph) -> None:
@@ -120,18 +122,20 @@ def test_closing_a_transfer_stop_makes_transfers_impossible(cross: nx.DiGraph) -
         (o, d) for o in "AB" for d in "CD"} | {(o, d) for o in "CD" for d in "AB"}
 
 
-def test_bypass_uses_each_routes_own_travel_time(sample: nx.DiGraph) -> None:
+def test_driving_through_uses_each_routes_own_travel_time(sample: nx.DiGraph) -> None:
     graph, _ = apply_scenario(sample, _scenario({"type": "close_stop", "stop_id": "CEN"}))
+    from_mkt = travel_times_from(graph, "MKT")
 
-    # MKT->CEN is 3 min on R1 but 2 min on R4; the bypasses must not mix them.
-    assert graph.edges["MKT", "HOS"]["route_times"] == {"R1": 7.0}  # 3 + 4
-    assert graph.edges["MKT", "STD"]["route_times"] == {"R4": 6.0}  # 2 + 4
-    assert graph.edges["LIB", "RIV"]["route_times"] == {"R2": 8.0}  # 4 + 4
-    # No route runs MKT -> CEN -> RIV, so there is no such bypass.
-    assert not graph.has_edge("MKT", "RIV")
+    # MKT->CEN is 3 min on R1 but 2 min on R4; the routes must not be mixed.
+    assert from_mkt["HOS"] == 7.0  # R1 through CEN: 3 + 4
+    assert from_mkt["STD"] == 6.0  # R4 through CEN: 2 + 4
+    assert travel_times_from(graph, "LIB")["RIV"] == 8.0  # R2 through CEN: 4 + 4
+    # No route runs MKT -> CEN -> RIV and nobody can change bus at CEN:
+    # 6 min before (R4 to CEN, R2 on), now 9 (R4 through CEN to STD, R3 on).
+    assert from_mkt["RIV"] == 9.0
 
 
-def test_closing_two_adjacent_stops_chains_bypasses() -> None:
+def test_bus_drives_through_two_adjacent_closed_stops() -> None:
     graph = _network({"R1": [("A", 1), ("B", 2), ("C", 3), ("D", 0)]})
 
     modified, _ = apply_scenario(graph, _scenario(
@@ -139,7 +143,7 @@ def test_closing_two_adjacent_stops_chains_bypasses() -> None:
         {"type": "close_stop", "stop_id": "C"},
     ))
 
-    assert modified.edges["A", "D"]["route_times"] == {"R1": 6}
+    assert travel_times_from(modified, "A") == {"D": 6}
 
 
 # --- remove_connection ---------------------------------------------------------
@@ -171,8 +175,10 @@ def test_removing_a_shared_link_affects_every_route_on_it(sample: nx.DiGraph) ->
     graph, _ = apply_scenario(sample, _scenario(
         {"type": "remove_connection", "from_stop_id": "MKT", "to_stop_id": "CEN"}))
 
-    assert not graph.has_edge("MKT", "CEN")  # gone for R1 and R4
-    assert not graph.has_edge("CEN", "MKT")
+    assert ride_edges(graph, "MKT", "CEN") == []  # gone for R1 and R4
+    assert ride_edges(graph, "CEN", "MKT") == []
+    # Detour MKT-UNI (R1 3) - OLD - LIB (R3 3 + 3) - CEN (R2 4) = 13 min.
+    assert travel_times_from(graph, "MKT")["CEN"] == 13.0
 
 
 # --- change_travel_time --------------------------------------------------------
@@ -208,9 +214,10 @@ def test_new_time_applies_to_every_route_on_the_link(sample: nx.DiGraph) -> None
         {"type": "change_travel_time", "from_stop_id": "MKT", "to_stop_id": "CEN",
          "travel_time_min": 10, "both_directions": False}))
 
-    assert graph.edges["MKT", "CEN"]["route_times"] == {"R1": 10, "R4": 10}
-    assert graph.edges["MKT", "CEN"]["weight"] == 10
-    assert graph.edges["CEN", "MKT"]["weight"] == 2.0  # other direction untouched
+    assert {graph.edges[ride]["route_id"]: graph.edges[ride]["weight"]
+            for ride in ride_edges(graph, "MKT", "CEN")} == {"R1": 10, "R4": 10}
+    assert {graph.edges[ride]["route_id"]: graph.edges[ride]["weight"]
+            for ride in ride_edges(graph, "CEN", "MKT")} == {"R1": 3, "R4": 2}  # untouched
 
 
 # --- Errors --------------------------------------------------------------------

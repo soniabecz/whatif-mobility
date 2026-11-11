@@ -34,7 +34,10 @@ class JourneyLeg(BaseModel):
 
 
 class JourneyPlan(BaseModel):
-    travel_time_min: float
+    travel_time_min: float  # = in_vehicle_min + transfers * transfer_penalty_min
+    in_vehicle_min: float
+    transfers: int  # changes of bus (legs - 1)
+    transfer_penalty_min: float
     legs: list[JourneyLeg]
 
 

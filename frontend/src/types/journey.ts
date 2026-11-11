@@ -18,7 +18,11 @@ export interface JourneyLeg {
 }
 
 export interface JourneyPlan {
+  /** = in_vehicle_min + transfers * transfer_penalty_min */
   travel_time_min: number
+  in_vehicle_min: number
+  transfers: number
+  transfer_penalty_min: number
   legs: JourneyLeg[]
 }
 

@@ -5,14 +5,14 @@ Graph rules (see docs/IMPLEMENTATION_PLAN.md):
 - Edge attribute ``weight`` is the travel time in minutes.
 - If several routes connect the same ordered pair of stops, they become ONE
   edge: weight = the fastest travel time, ``routes`` = all serving route ids,
-  ``route_times`` = each route's own time (needed to bypass closed stops).
+  ``route_times`` = each route's own time (used by the route graph).
 - No transfer penalty: a journey is simply the fastest path.
 
 The graph-building and journey functions take plain data, not a database
 session, so they can be tested (and reused by the simulation) without a DB.
 """
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 import networkx as nx
@@ -74,12 +74,7 @@ def build_graph(
 
 
 def add_route_edge(
-    graph: nx.DiGraph,
-    u: str,
-    v: str,
-    route_id: str,
-    travel_time_min: float,
-    via: Sequence[str] = (),
+    graph: nx.DiGraph, u: str, v: str, route_id: str, travel_time_min: float
 ) -> None:
     """Add one route's u->v connection, merging with an existing edge.
 
@@ -87,37 +82,24 @@ def add_route_edge(
       route_times  {route_id: minutes} -- every route serving u->v
       routes       sorted route ids (convenience copy of route_times keys)
       weight       fastest of route_times (used for shortest paths)
-      route_via    {route_id: [stop ids]} -- only on bypass edges created by
-                   closing stops: the closed stops the bus drives through
 
-    Attribute values are always replaced, never mutated in place, so a shallow
+    Attributes are always replaced, never mutated in place, so a shallow
     graph copy can never leak changes back into the original.
     """
-    existing = graph.edges[u, v] if graph.has_edge(u, v) else {}
-    route_times: dict[str, float] = dict(existing.get("route_times", {}))
-    route_via: dict[str, list[str]] = {
-        r: list(stops) for r, stops in existing.get("route_via", {}).items()
-    }
-
+    route_times: dict[str, float] = {}
+    if graph.has_edge(u, v):
+        route_times = dict(graph.edges[u, v]["route_times"])
     current = route_times.get(route_id)
-    if current is None or travel_time_min < current:
-        route_times[route_id] = travel_time_min
-        if via:
-            route_via[route_id] = list(via)
-        else:
-            route_via.pop(route_id, None)
-
-    attributes: dict[str, object] = {
-        "route_times": route_times,
-        "routes": sorted(route_times),
-        "weight": min(route_times.values()),
-    }
-    if route_via:
-        attributes["route_via"] = route_via
-    graph.add_edge(u, v, **attributes)
-    # add_edge updates existing attributes, so a stale route_via must be removed.
-    if not route_via:
-        graph.edges[u, v].pop("route_via", None)
+    route_times[route_id] = (
+        travel_time_min if current is None else min(current, travel_time_min)
+    )
+    graph.add_edge(
+        u,
+        v,
+        route_times=route_times,
+        routes=sorted(route_times),
+        weight=min(route_times.values()),
+    )
 
 
 def build_graph_from_db(db: Session) -> nx.DiGraph:

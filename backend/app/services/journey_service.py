@@ -1,14 +1,9 @@
 """Journey explorer: explain ONE journey before and after a scenario.
 
-Uses the same graphs and shortest paths as the simulation, so its times and
-statuses always match the simulation results; it only adds the stop-by-stop
-route split into legs.
-
-Legs: there is no transfer penalty yet, so the path does not say which bus a
-passenger takes. Each stretch gets the route that is fastest on it; when
-several are equally fast the passenger stays on the current bus, otherwise the
-route that continues furthest is chosen (ties: alphabetical). Deterministic,
-and leg times always add up to the journey time.
+Uses the same route-aware graphs as the simulation (route_graph.py), so its
+times and statuses always match the simulation results. The legs come
+directly from the fastest path: consecutive platforms of the same route are
+one leg; every change of bus starts a new one.
 """
 
 import networkx as nx
@@ -21,7 +16,7 @@ from app.schemas.journey import (
     JourneyRequest,
 )
 from app.schemas.scenario import Scenario
-from app.services.network_service import shortest_journey
+from app.services.route_graph import build_route_graph, fastest_path
 from app.services.simulation_service import apply_scenario
 
 # Same tolerance as the simulation: guards against float noise.
@@ -32,7 +27,9 @@ class JourneyError(ValueError):
     """The request refers to something not in the network (e.g. unknown stop)."""
 
 
-def compare_journey(baseline: nx.DiGraph, request: JourneyRequest) -> JourneyComparison:
+def compare_journey(
+    baseline: nx.DiGraph, request: JourneyRequest, transfer_penalty_min: float = 0.0
+) -> JourneyComparison:
     """Fastest journey before and after the request's changes.
 
     Raises JourneyError for unknown stops and ScenarioError for invalid changes.
@@ -41,13 +38,16 @@ def compare_journey(baseline: nx.DiGraph, request: JourneyRequest) -> JourneyCom
         if stop_id not in baseline:
             raise JourneyError(f"Unknown stop '{stop_id}'")
 
+    before_graph = build_route_graph(baseline, transfer_penalty_min)
     if request.changes:
-        modified, closed = apply_scenario(baseline, Scenario(changes=request.changes))
+        after_graph, closed = apply_scenario(
+            baseline, Scenario(changes=request.changes), transfer_penalty_min
+        )
     else:
-        modified, closed = baseline, set()
+        after_graph, closed = before_graph, set()
 
     origin, destination = request.origin_id, request.destination_id
-    before = _plan(baseline, origin, destination)
+    before = _plan(before_graph, origin, destination, set())
 
     after: tuple[JourneyPlan, float] | None = None
     reason: str | None = None
@@ -56,12 +56,13 @@ def compare_journey(baseline: nx.DiGraph, request: JourneyRequest) -> JourneyCom
     elif destination in closed:
         reason = "The destination stop is closed in this scenario."
     else:
-        after = _plan(modified, origin, destination)
+        after = _plan(after_graph, origin, destination, closed)
         if after is None:
             reason = "No connection remains between these stops after the changes."
 
-    def comparison(status: JourneyComparisonStatus, change: float | None,
-                   why: str | None) -> JourneyComparison:
+    def comparison(
+        status: JourneyComparisonStatus, change: float | None, why: str | None
+    ) -> JourneyComparison:
         return JourneyComparison(
             origin_id=origin,
             destination_id=destination,
@@ -84,72 +85,56 @@ def compare_journey(baseline: nx.DiGraph, request: JourneyRequest) -> JourneyCom
     return comparison("slower" if difference > 0 else "faster", _round(difference), None)
 
 
-def plan_journey(graph: nx.DiGraph, origin: str, destination: str) -> JourneyPlan | None:
-    """Fastest journey split into legs, or None if unreachable."""
-    planned = _plan(graph, origin, destination)
+def plan_journey(
+    network: nx.DiGraph, origin: str, destination: str, transfer_penalty_min: float = 0.0
+) -> JourneyPlan | None:
+    """Fastest journey in the (unchanged) network split into legs, or None."""
+    planned = _plan(build_route_graph(network, transfer_penalty_min), origin, destination, set())
     return planned[0] if planned else None
 
 
-def _plan(graph: nx.DiGraph, origin: str, destination: str) -> tuple[JourneyPlan, float] | None:
+def _plan(
+    graph: nx.DiGraph, origin: str, destination: str, closed: set[str]
+) -> tuple[JourneyPlan, float] | None:
     """(plan, unrounded travel time) or None if unreachable."""
-    journey = shortest_journey(graph, origin, destination)
-    if journey is None:
+    path = fastest_path(graph, origin, destination)
+    if path is None:
         return None
-    hops = list(zip(journey.stop_ids, journey.stop_ids[1:]))
-    plan = JourneyPlan(
-        travel_time_min=_round(journey.travel_time_min),
-        legs=_split_into_legs(graph, hops),
-    )
-    return plan, journey.travel_time_min
-
-
-def _fastest_routes(graph: nx.DiGraph, u: str, v: str) -> list[str]:
-    edge = graph.edges[u, v]
-    return sorted(
-        route_id for route_id, minutes in edge["route_times"].items()
-        if abs(minutes - edge["weight"]) < _EPSILON
-    )
-
-
-def _split_into_legs(graph: nx.DiGraph, hops: list[tuple[str, str]]) -> list[JourneyLeg]:
-    candidates = [_fastest_routes(graph, u, v) for u, v in hops]
-
-    def run_length(route_id: str, start: int) -> int:
-        """How many consecutive hops from `start` this route is fastest on."""
-        length = 0
-        while start + length < len(hops) and route_id in candidates[start + length]:
-            length += 1
-        return length
-
-    # Assign a route to every hop: stay on the current bus while it is among
-    # the fastest; otherwise take the route that continues furthest.
-    assigned: list[str] = []
-    for index in range(len(hops)):
-        if assigned and assigned[-1] in candidates[index]:
-            assigned.append(assigned[-1])
-        else:
-            assigned.append(min(candidates[index], key=lambda r: (-run_length(r, index), r)))
 
     legs: list[JourneyLeg] = []
-    for index, ((u, v), route_id) in enumerate(zip(hops, assigned)):
-        edge = graph.edges[u, v]
-        via: list[str] = edge.get("route_via", {}).get(route_id, [])
-        minutes = edge["route_times"][route_id]
-        if index > 0 and assigned[index - 1] == route_id:
-            leg = legs[-1]
-            leg.stop_ids.extend([*via, v])
-            leg.passes_closed_stop_ids.extend(via)
-            leg.travel_time_min += minutes
-        else:
+    in_vehicle = 0.0
+    previous = None
+    for node in path.nodes:
+        if not isinstance(node, tuple):  # a stop node: boarding or alighting
+            previous = None
+            continue
+        stop_id, route_id = node
+        if previous is None:  # boarded: a new leg starts here
             legs.append(JourneyLeg(
-                route_id=route_id,
-                stop_ids=[u, *via, v],
-                travel_time_min=minutes,
-                passes_closed_stop_ids=list(via),
+                route_id=route_id, stop_ids=[stop_id], travel_time_min=0.0,
+                passes_closed_stop_ids=[],
             ))
+        else:
+            minutes: float = graph.edges[previous, node]["weight"]
+            legs[-1].stop_ids.append(stop_id)
+            legs[-1].travel_time_min += minutes
+            in_vehicle += minutes
+        previous = node
+
     for leg in legs:
+        # Stops passed (not the leg's first or last) that are closed.
+        leg.passes_closed_stop_ids = [s for s in leg.stop_ids[1:-1] if s in closed]
         leg.travel_time_min = _round(leg.travel_time_min)
-    return legs
+
+    penalty: float = graph.graph["transfer_penalty_min"]
+    plan = JourneyPlan(
+        travel_time_min=_round(path.travel_time_min),
+        in_vehicle_min=_round(in_vehicle),
+        transfers=len(legs) - 1,
+        transfer_penalty_min=penalty,
+        legs=legs,
+    )
+    return plan, path.travel_time_min
 
 
 def _round(value: float) -> float:

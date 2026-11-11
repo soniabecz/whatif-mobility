@@ -6,10 +6,8 @@
 
 ## Current status
 
-- **Last completed:** Day 6 (UI redesign), browser-checked by the user
-- **In progress:** Day 7 – parts 1 (CI) and 2 (journey explorer) done
-- **Next up:** Day 7 – part 3 (transfer penalty): decide the penalty value,
-  explain the graph design and wait for approval
+- **Last completed:** Day 7 (CI, journey explorer, transfer penalty); 131 tests
+- **Next up:** nothing scheduled; pick from "Possible future improvements"
 - **Repository:** https://github.com/soniabecz/whatif-mobility (private, branch `main`)
 
 ## Timeline
@@ -26,7 +24,7 @@ so the project is usable even if a later day is cut short.
 | 4   | Map and results UI        | ✅ Done |
 | 5   | AI layer and wrap-up      | ✅ Done |
 | 6   | UI redesign               | ✅ Done |
-| 7   | Quality and explainability | 🔄 In progress |
+| 7   | Quality and explainability | ✅ Done |
 
 ---
 
@@ -102,6 +100,11 @@ so the project is usable even if a later day is cut short.
 | Legs = fastest route per stretch; stay on the current bus when equally fast | Deterministic; honest about the missing transfer penalty (fixed in part 3) |
 | Bypass edges store `route_via` (closed stops passed) | Journeys are drawn along the real street, not straight across the map |
 | Explorer statuses checked against the simulation for every journey | Two views of one model can never disagree |
+| Transfer penalty 5 min, setting `TRANSFER_PENALTY_MIN`, counted in times and shown separately | Stands in for waiting; transparent assumption |
+| Route-aware graph: stop + platform nodes; journey = path − one penalty (first boarding free) | Changing bus becomes a real choice; legs come from the path |
+| Closing a stop removes only the stop node | Buses drive through naturally; replaces the bypass special case |
+| Services take the penalty as a parameter (default 0); the API passes the setting | Tests choose the value; API tests run isolated settings |
+| ~~Legs = fastest route per stretch~~ (Day 7 part 2) | Superseded: legs now come straight from the path |
 | Results collapsed by default (key figures), details on demand | Keeps the map visible after a run |
 | Scenario = ordered list of 1–20 changes, discriminated by `type`; unknown fields rejected | One input format for form and AI; typos fail loudly |
 | `both_directions` defaults to `true` for link changes | People think in streets, not one-way links |
@@ -246,7 +249,7 @@ floating panels. Light theme only. Frontend only; no behaviour changes.
 - [x] Type-check, lint, build
 - [x] Browser check by the user (desktop and phone width), commit
 
-## Day 7 – Quality and explainability
+## Day 7 – Quality and explainability ✅
 
 **Outcome:** every push is checked automatically, users can see *why* a
 journey changed, and journey times include the cost of changing buses.
@@ -277,16 +280,20 @@ after any of them with a working app.
 - [x] Browser check by the user, commit
 
 **3. Transfer penalty** (medium; largest change to the engine)
-- [ ] Explain the graph design and get approval, including the penalty value
-- [ ] Route-aware graph: one node per (stop, route) plus transfer edges
-      carrying the penalty; journeys start and end at stop level
-- [ ] Re-check closed-stop handling (buses drive through, no transfers there)
-      and parallel routes on one street (MKT–CEN)
-- [ ] Update metrics and tests: baseline journey times will change, so
-      hand-calculated expectations must be redone
-- [ ] Show the penalty in the UI (e.g. "includes 5 min per change")
-- [ ] Update the AI prompt only if the network description changes
-- [ ] Run all tests, browser check, commit
+- [x] Agree on the value: 5 min per change, counted in journey times, shown
+      separately; backend setting `TRANSFER_PENALTY_MIN` (default 5, 0–60)
+- [x] Explain the graph design and get approval
+- [x] Route-aware graph (`services/route_graph.py`): stop nodes + one platform
+      node per route and stop; board edge = penalty, alight 0, ride = route time
+- [x] Closed stops: only the stop node is removed, buses drive through its
+      platforms; bypass edges and `route_via` deleted
+- [x] Safety net: new engine at penalty 0 reproduced the old engine's full
+      output (6 scenarios, 1,440 journey comparisons, 0 differences)
+- [x] Tests: 5 structural bypass tests replaced by journey-level equivalents,
+      2 journey tests adapted, 13 new penalty tests (131 total)
+- [x] Explorer legs read directly from the path; time breakdown shown in the UI
+- [x] AI prompt unchanged (it describes physical links)
+- [x] Browser check by the user, commit
 
 **Fallback:** the transfer penalty is last because it is the riskiest. If it
 runs short, CI and the journey explorer are still complete.
@@ -340,7 +347,8 @@ Ideas collected after the MVP. Not scheduled; pick from here if time allows.
 ## Decisions still needed
 
 - [x] **Day 5:** AI provider and API key: Groq, `openai/gpt-oss-120b`
-- [ ] **Day 7:** transfer penalty value (e.g. 5 min, fixed or configurable)
+- [x] **Day 7:** transfer penalty value: 5 min per change of bus, counted in journey
+      times and shown separately; backend setting `TRANSFER_PENALTY_MIN` (default 5)
 
 ## Session log
 
@@ -353,3 +361,4 @@ Ideas collected after the MVP. Not scheduled; pick from here if time allows.
 | 2026-11-11 | 5   | Groq AI layer (strict JSON, 3-step validation), AI input in UI; 95 tests; live API + browser check passed |
 | 2026-11-11 | 6   | UI redesign: floating panels over a muted full-screen map, design tokens, icon tabs, KPI results; browser-checked |
 | 2026-11-11 | 7   | CI (green on GitHub); journey explorer API + UI, 118 tests; browser-checked |
+| 2026-11-11 | 7   | Transfer penalty: route-aware graph, 5 min/change; penalty-0 equivalence (0 diffs); 131 tests; browser-checked |

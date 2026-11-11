@@ -152,8 +152,18 @@ Configuration is read from environment variables. Real values go in local
 | `GROQ_API_KEY`      | `backend/.env`        | *(none)*                | Enables the AI input; without it the form still works |
 | `AI_MODEL`          | `backend/.env`        | `openai/gpt-oss-120b`   | Groq model used by the AI input |
 | `AI_TIMEOUT_SECONDS`| `backend/.env`        | `30`                    | How long to wait for the AI |
+| `TRANSFER_PENALTY_MIN` | `backend/.env`     | `5`                     | Minutes added per change of bus (0–60) |
 
 Restart the backend after changing `backend/.env`.
+
+## How journeys are calculated
+
+The simulation uses a route-aware graph: for every stop it knows which bus you
+are on. A journey's time is the time on the bus plus **5 minutes per change of
+bus** (`TRANSFER_PENALTY_MIN`), which stands in for waiting time; timetables
+are not modelled. Journeys are all ordered pairs of stops, weighted equally.
+A closed stop is driven through by buses, but nobody can board, alight or
+change bus there.
 
 ## How the AI is used
 

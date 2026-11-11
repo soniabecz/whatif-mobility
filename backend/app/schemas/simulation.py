@@ -32,6 +32,7 @@ class SimulationSummary(BaseModel):
     average_time_after_min: float | None
     total_time_change_min: float
     largest_increase: JourneyChange | None
+    transfer_penalty_min: float  # minutes counted per change of bus
 
 
 class StopImpact(BaseModel):

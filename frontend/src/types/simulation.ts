@@ -25,6 +25,8 @@ export interface SimulationSummary {
   average_time_after_min: number | null
   total_time_change_min: number
   largest_increase: JourneyChange | null
+  /** Minutes counted per change of bus (backend setting). */
+  transfer_penalty_min: number
 }
 
 export interface StopImpact {

@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app import models  # noqa: F401  (registers tables)
+from app.config import Settings, get_settings
 from app.database import Base, get_db
 from app.main import app
 from app.seed.seed_db import seed_database
@@ -48,6 +49,11 @@ def client(db: Session, session_factory: sessionmaker[Session]) -> Iterator[Test
             yield session
 
     app.dependency_overrides[get_db] = override_get_db
+    # Isolated settings (no .env): penalty 0 keeps the hand-calculated API
+    # expectations of Days 3-7 valid; tests needing 5 min override this.
+    app.dependency_overrides[get_settings] = lambda: Settings(
+        _env_file=None, groq_api_key=None, transfer_penalty_min=0.0  # type: ignore[call-arg]
+    )
     try:
         yield TestClient(app)
     finally:

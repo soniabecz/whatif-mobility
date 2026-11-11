@@ -185,8 +185,8 @@ function ComparisonView({
       )}
 
       <p className="text-[11px] leading-relaxed text-ink-subtle">
-        Legs show the fastest route on each stretch. Changing buses costs no time in
-        this model yet, so a leg change can appear where a passenger might stay on.
+        Journey times include {(after ?? before)?.transfer_penalty_min ?? 0} min per change
+        of bus. It stands in for waiting, which is not modelled.
       </p>
 
       <Button variant="ghost" size="sm" icon={X} onClick={onClear}>
@@ -212,13 +212,15 @@ function Timeline({
   const name = (id: string) => stops.get(id)?.name ?? id
   return (
     <section className={cx(muted && 'opacity-75')}>
-      <h3 className="flex items-center justify-between text-xs font-semibold text-ink-muted">
+      <h3 className="flex items-center justify-between gap-2 text-xs font-semibold text-ink-muted">
         {title}
-        <span className="font-normal tabular-nums">
-          {formatMinutes(plan.travel_time_min)} · {plan.legs.length}{' '}
-          {plan.legs.length === 1 ? 'bus' : 'buses'}
-        </span>
+        <span className="font-normal tabular-nums">{formatMinutes(plan.travel_time_min)}</span>
       </h3>
+      <p className="text-[11px] text-ink-subtle tabular-nums">
+        {plan.in_vehicle_min.toFixed(1)} min on the bus
+        {plan.transfers > 0 &&
+          ` + ${plan.transfers} ${plan.transfers === 1 ? 'change' : 'changes'} × ${plan.transfer_penalty_min} min`}
+      </p>
       <ol className="mt-2">
         {plan.legs.map((leg, index) => {
           const route = routes.get(leg.route_id)
@@ -233,7 +235,7 @@ function Timeline({
               {index > 0 && (
                 <p className="flex items-center gap-2 py-1 pl-0.5 text-[11px] text-ink-subtle">
                   <Repeat size={12} aria-hidden />
-                  Change bus at {name(first)}
+                  Change bus at {name(first)} (+{plan.transfer_penalty_min} min)
                 </p>
               )}
               <div className="flex gap-3">
