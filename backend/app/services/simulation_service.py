@@ -75,21 +75,27 @@ def _require_open_stop(graph: nx.DiGraph, stop_id: str, closed: set[str]) -> Non
 def _close_stop(graph: nx.DiGraph, stop_id: str, closed: set[str]) -> None:
     _require_open_stop(graph, stop_id, closed)
 
-    bypasses: list[tuple[str, str, str, float]] = []
+    bypasses: list[tuple[str, str, str, float, list[str]]] = []
     for pred in graph.predecessors(stop_id):
-        times_in: dict[str, float] = graph.edges[pred, stop_id]["route_times"]
+        edge_in = graph.edges[pred, stop_id]
         for succ in graph.successors(stop_id):
             if succ == pred:  # turning back is not a through movement
                 continue
-            times_out: dict[str, float] = graph.edges[stop_id, succ]["route_times"]
-            for route_id in times_in.keys() & times_out.keys():
-                bypasses.append(
-                    (pred, succ, route_id, times_in[route_id] + times_out[route_id])
-                )
+            edge_out = graph.edges[stop_id, succ]
+            for route_id in edge_in["route_times"].keys() & edge_out["route_times"].keys():
+                # Remember every closed stop the bus now drives through, so a
+                # journey can still be drawn along the real street.
+                via = [
+                    *edge_in.get("route_via", {}).get(route_id, []),
+                    stop_id,
+                    *edge_out.get("route_via", {}).get(route_id, []),
+                ]
+                minutes = edge_in["route_times"][route_id] + edge_out["route_times"][route_id]
+                bypasses.append((pred, succ, route_id, minutes, via))
 
     graph.remove_node(stop_id)
-    for pred, succ, route_id, minutes in sorted(bypasses):  # sorted: deterministic
-        add_route_edge(graph, pred, succ, route_id, minutes)
+    for pred, succ, route_id, minutes, via in sorted(bypasses):  # sorted: deterministic
+        add_route_edge(graph, pred, succ, route_id, minutes, via)
     closed.add(stop_id)
 
 
@@ -112,6 +118,7 @@ def _target_edges(
 
 def _set_travel_time(graph: nx.DiGraph, u: str, v: str, minutes: float) -> None:
     edge = graph.edges[u, v]
+    # add_edge updates the given attributes only, so route_via (if any) is kept.
     graph.add_edge(
         u,
         v,

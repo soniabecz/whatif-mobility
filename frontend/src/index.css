@@ -66,3 +66,19 @@ body {
   border-top-left-radius: 0.5rem;
   background: rgb(255 255 255 / 0.8) !important;
 }
+
+/* A/B markers of the journey explorer (Leaflet divIcon, so plain CSS). */
+.journey-pin {
+  display: flex;
+  height: 26px;
+  width: 26px;
+  align-items: center;
+  justify-content: center;
+  border: 3px solid #ffffff;
+  border-radius: 9999px;
+  background: var(--color-ink);
+  box-shadow: var(--shadow-soft);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+}

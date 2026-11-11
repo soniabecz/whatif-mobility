@@ -88,6 +88,7 @@ uvicorn app.main:app --reload
 | `GET /api/routes`   | all routes (id, name, color)                 |
 | `GET /api/network`  | stops, routes and directed connections       |
 | `POST /api/simulations` | before/after metrics for a scenario (nothing is stored) |
+| `POST /api/journeys` | one journey before/after a scenario, split into legs (journey explorer) |
 | `POST /api/ai/interpret` | plain-language text → scenario changes for review (needs `GROQ_API_KEY`) |
 
 Example scenario (changes are applied in order; `both_directions` defaults to `true`):

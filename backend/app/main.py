@@ -13,6 +13,7 @@ from pydantic import BaseModel
 
 from app import models  # noqa: F401  (registers tables on Base.metadata)
 from app.api.ai import router as ai_router
+from app.api.journeys import router as journeys_router
 from app.api.network import router as network_router
 from app.api.simulations import router as simulations_router
 from app.database import Base, engine
@@ -59,3 +60,4 @@ def health() -> HealthResponse:
 app.include_router(network_router)
 app.include_router(simulations_router)
 app.include_router(ai_router)
+app.include_router(journeys_router)

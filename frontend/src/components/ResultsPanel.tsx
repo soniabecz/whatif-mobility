@@ -4,6 +4,7 @@ import {
   ChevronDown,
   ChevronUp,
   Clock,
+  Route as RouteIcon,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -18,15 +19,30 @@ import { stopLabel } from '../lib/network'
 import type { Stop } from '../types/network'
 import type { JourneyChange, JourneyStatus, SimulationResult } from '../types/simulation'
 import { IMPACT_ICONS } from './impactIcons'
+import type { JourneySelection } from './JourneyExplorer'
 import { ResultsChart } from './ResultsChart'
 import { Button } from './ui/Button'
 import { SectionTitle } from './ui/SectionTitle'
+import { SegmentedControl } from './ui/SegmentedControl'
 import { cx } from './ui/cx'
+
+export type ResultsTab = 'summary' | 'journey'
 
 interface ResultsPanelProps {
   result: SimulationResult
   stops: Map<string, Stop>
+  tab: ResultsTab
+  onTabChange: (tab: ResultsTab) => void
+  /** Called when a row of the changed-journeys table is clicked. */
+  onSelectJourney: (selection: JourneySelection) => void
+  /** Rendered in the Journey tab. */
+  journeyExplorer: ReactNode
 }
+
+const TABS = [
+  { value: 'summary' as const, label: 'Summary', icon: ChartColumn },
+  { value: 'journey' as const, label: 'Journey', icon: RouteIcon },
+]
 
 const TABLE_PREVIEW_ROWS = 10
 
@@ -75,7 +91,14 @@ function DetailRow({ label, children }: { label: string; children: ReactNode }) 
   )
 }
 
-export function ResultsPanel({ result, stops }: ResultsPanelProps) {
+export function ResultsPanel({
+  result,
+  stops,
+  tab,
+  onTabChange,
+  onSelectJourney,
+  journeyExplorer,
+}: ResultsPanelProps) {
   const [expanded, setExpanded] = useState(false)
   const [showAll, setShowAll] = useState(false)
   const { summary } = result
@@ -88,20 +111,26 @@ export function ResultsPanel({ result, stops }: ResultsPanelProps) {
   const visibleJourneys = showAll ? sortedJourneys : sortedJourneys.slice(0, TABLE_PREVIEW_ROWS)
   const impacts = new Map(result.stop_impacts.map((i) => [i.stop_id, i]))
 
+  function select(journey: JourneyChange) {
+    onSelectJourney({ originId: journey.origin_id, destinationId: journey.destination_id })
+  }
+
   return (
     <section className="space-y-3">
       <SectionTitle
         icon={ChartColumn}
         aside={
-          <Button
-            variant="ghost"
-            size="sm"
-            icon={expanded ? ChevronDown : ChevronUp}
-            onClick={() => setExpanded(!expanded)}
-            aria-expanded={expanded}
-          >
-            {expanded ? 'Less' : 'Details'}
-          </Button>
+          tab === 'summary' && (
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={expanded ? ChevronDown : ChevronUp}
+              onClick={() => setExpanded(!expanded)}
+              aria-expanded={expanded}
+            >
+              {expanded ? 'Less' : 'Details'}
+            </Button>
+          )
         }
       >
         Results
@@ -110,6 +139,12 @@ export function ResultsPanel({ result, stops }: ResultsPanelProps) {
         </span>
       </SectionTitle>
 
+      <SegmentedControl label="Results view" options={TABS} value={tab} onChange={onTabChange} />
+
+      {tab === 'journey' && journeyExplorer}
+
+      {tab === 'summary' && (
+      <>
       <div className="grid grid-cols-2 gap-2">
         <Kpi
           icon={IMPACT_ICONS.slower}
@@ -199,6 +234,7 @@ export function ResultsPanel({ result, stops }: ResultsPanelProps) {
           <div>
             <h3 className="text-xs font-semibold text-ink-muted">
               Changed journeys ({sortedJourneys.length})
+              <span className="ml-1 font-normal text-ink-subtle">· click one to explore</span>
             </h3>
             {sortedJourneys.length === 0 ? (
               <p className="mt-1 text-sm text-ink-subtle">No journey changed.</p>
@@ -221,10 +257,22 @@ export function ResultsPanel({ result, stops }: ResultsPanelProps) {
                         return (
                           <tr
                             key={`${j.origin_id}-${j.destination_id}`}
-                            className="hover:bg-surface-muted/60"
+                            className="cursor-pointer hover:bg-accent-soft/60"
+                            onClick={() => select(j)}
                           >
                             <td className="px-3 py-1.5 text-ink">
-                              {name(j.origin_id)} → {name(j.destination_id)}
+                              {/* A real button keeps rows reachable by keyboard. */}
+                              <button
+                                type="button"
+                                className="text-left hover:text-accent focus-visible:text-accent focus-visible:outline-none"
+                                title="Show this journey on the map"
+                                onClick={(event) => {
+                                  event.stopPropagation()
+                                  select(j)
+                                }}
+                              >
+                                {name(j.origin_id)} → {name(j.destination_id)}
+                              </button>
                             </td>
                             <td className="px-2 py-1.5 text-right text-ink-muted">
                               {j.time_before_min.toFixed(1)}
@@ -261,6 +309,8 @@ export function ResultsPanel({ result, stops }: ResultsPanelProps) {
             )}
           </div>
         </div>
+      )}
+      </>
       )}
     </section>
   )

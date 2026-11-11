@@ -7,9 +7,9 @@
 ## Current status
 
 - **Last completed:** Day 6 (UI redesign), browser-checked by the user
-- **In progress:** Day 7 – part 1 (CI) committed; first GitHub run pending
-- **Next up:** Day 7 – part 2 (journey explorer): explain the API and UI
-  design and wait for approval
+- **In progress:** Day 7 – parts 1 (CI) and 2 (journey explorer) done
+- **Next up:** Day 7 – part 3 (transfer penalty): decide the penalty value,
+  explain the graph design and wait for approval
 - **Repository:** https://github.com/soniabecz/whatif-mobility (private, branch `main`)
 
 ## Timeline
@@ -98,6 +98,10 @@ so the project is usable even if a later day is cut short.
 | CI: GitHub Actions, 2 parallel jobs, Python 3.11 + Node 24, no secrets, read-only permissions | Matches local versions; proves the app works without the AI key |
 | Actions pinned to major versions (`@v7`) | Bug fixes automatically, no breaking changes |
 | No branch protection | User pushes directly to `main`; add if pull requests are used |
+| Journey explorer: stateless `POST /api/journeys` with the scenario in the body | Same pattern as simulations; avoids paths for all 240 journeys in every response |
+| Legs = fastest route per stretch; stay on the current bus when equally fast | Deterministic; honest about the missing transfer penalty (fixed in part 3) |
+| Bypass edges store `route_via` (closed stops passed) | Journeys are drawn along the real street, not straight across the map |
+| Explorer statuses checked against the simulation for every journey | Two views of one model can never disagree |
 | Results collapsed by default (key figures), details on demand | Keeps the map visible after a run |
 | Scenario = ordered list of 1–20 changes, discriminated by `type`; unknown fields rejected | One input format for form and AI; typos fail loudly |
 | `both_directions` defaults to `true` for link changes | People think in streets, not one-way links |
@@ -257,16 +261,20 @@ after any of them with a working app.
 - [x] No secrets needed (AI tests use a fake model)
 - [x] Simulated both jobs on a clean checkout locally (95 tests, lint, build)
 - [x] Add a status badge to the README; commit
-- [ ] Push and confirm the first run on GitHub passes
+- [x] Push and confirm the first run on GitHub passes (run 43022437316: both jobs green)
 
 **2. Journey explorer** (small–medium)
-- [ ] Explain the API and UI design and get approval
-- [ ] Backend: return the stop sequence of a journey before and after a
-      scenario (reuse `shortest_journey` on baseline and modified graph)
-- [ ] Tests: path before/after, journey that becomes impossible, closed stop
-- [ ] UI: pick origin and destination (or a row in the changed-journeys
-      table) and draw both paths on the map with times
-- [ ] Lint, build, browser check, commit
+- [x] Explain the API and UI design and get approval
+- [x] Backend: `POST /api/journeys` returns the journey before and after a
+      scenario, split into legs (reuses `shortest_journey`)
+- [x] Bypass edges remember the closed stops they pass (`route_via`);
+      no simulation numbers change (all 95 earlier tests unchanged)
+- [x] Tests (23 new, 118 total): legs, closed stops, reasons, unknown stops,
+      baseline untouched, and agreement with the simulation for all 240 journeys
+- [x] UI: Summary/Journey tabs in the results card, clickable table rows,
+      From/To pickers, leg timeline; map draws both paths, A/B pins, zooms in
+- [x] Lint, build, live API check
+- [x] Browser check by the user, commit
 
 **3. Transfer penalty** (medium; largest change to the engine)
 - [ ] Explain the graph design and get approval, including the penalty value
@@ -293,6 +301,8 @@ runs short, CI and the journey explorer are still complete.
       Fine for the MVP; code-split the chart if it matters later
 - [ ] Routes sharing a street (R1/R4 on MKT–CEN) draw on top of each other;
       the tooltip names the route under the cursor only
+- [x] Pushing workflow files needs the `workflow` scope on the GitHub token
+      (fixed once with `gh auth refresh -h github.com -s workflow`)
 - [ ] `fsevents` install script not approved by npm (optional; only needed
       if hot reload stops working: `npm install-scripts approve fsevents`)
 
@@ -342,3 +352,4 @@ Ideas collected after the MVP. Not scheduled; pick from here if time allows.
 | 2026-11-11 | 4   | Map, legend, scenario form, results panel and chart; lint + build pass; browser-checked |
 | 2026-11-11 | 5   | Groq AI layer (strict JSON, 3-step validation), AI input in UI; 95 tests; live API + browser check passed |
 | 2026-11-11 | 6   | UI redesign: floating panels over a muted full-screen map, design tokens, icon tabs, KPI results; browser-checked |
+| 2026-11-11 | 7   | CI (green on GitHub); journey explorer API + UI, 118 tests; browser-checked |

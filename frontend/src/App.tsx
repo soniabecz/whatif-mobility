@@ -2,13 +2,19 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { BusFront, ChevronDown, ChevronUp, Loader2, RotateCcw, TriangleAlert } from 'lucide-react'
 
 import { describeApiError } from './api/errors'
+import { compareJourney } from './api/journeys'
 import { fetchNetwork } from './api/network'
 import { runSimulation } from './api/simulations'
 import { AiScenarioInput } from './components/AiScenarioInput'
 import { ChangeList } from './components/ChangeList'
+import {
+  JourneyExplorer,
+  type JourneySelection,
+  type JourneyState,
+} from './components/JourneyExplorer'
 import { MapLegend } from './components/MapLegend'
-import { NetworkMap } from './components/NetworkMap'
-import { ResultsPanel } from './components/ResultsPanel'
+import { NetworkMap, type MapPadding } from './components/NetworkMap'
+import { ResultsPanel, type ResultsTab } from './components/ResultsPanel'
 import { RunBar } from './components/RunBar'
 import { ScenarioForm } from './components/ScenarioForm'
 import { Badge } from './components/ui/Badge'
@@ -33,9 +39,11 @@ type SimulationState =
   | { kind: 'error'; message: string }
   | { kind: 'success'; result: SimulationResult }
 
-// Map padding so the network is fitted beside the floating panels.
-const DESKTOP_FIT = { topLeft: [460, 60] as [number, number], bottomRight: [60, 60] as [number, number] }
-const MOBILE_FIT = { topLeft: [24, 64] as [number, number], bottomRight: [24, 120] as [number, number] }
+// Map padding so the network (or a journey) is fitted beside the floating panels.
+const DESKTOP_FIT: MapPadding = { topLeft: [460, 60], bottomRight: [60, 60] }
+const MOBILE_FIT: MapPadding = { topLeft: [24, 64], bottomRight: [24, 120] }
+// While a journey is shown the results card (420 px, right) is open too.
+const DESKTOP_JOURNEY_FIT: MapPadding = { topLeft: [460, 60], bottomRight: [460, 60] }
 
 function App() {
   const [networkState, setNetworkState] = useState<NetworkState>({ kind: 'loading' })
@@ -43,6 +51,10 @@ function App() {
   const [changes, setChanges] = useState<ScenarioChange[]>([])
   const [simulation, setSimulation] = useState<SimulationState>({ kind: 'idle' })
   const [sheetOpen, setSheetOpen] = useState(true)
+  const [resultsTab, setResultsTab] = useState<ResultsTab>('summary')
+  const [journeySelection, setJourneySelection] = useState<JourneySelection | null>(null)
+  const [journeyState, setJourneyState] = useState<JourneyState>({ kind: 'idle' })
+  const journeyRequestId = useRef(0)
   const isDesktop = useMediaQuery(DESKTOP_QUERY)
   // Incremented on every run and every edit, so a slow response for an
   // outdated scenario is ignored instead of overwriting newer state.
@@ -75,10 +87,38 @@ function App() {
     setReloadToken((token) => token + 1)
   }
 
+  function clearJourney() {
+    journeyRequestId.current += 1
+    setJourneySelection(null)
+    setJourneyState({ kind: 'idle' })
+  }
+
   function handleChangesChange(next: ScenarioChange[]) {
     requestId.current += 1
     setChanges(next)
     setSimulation({ kind: 'idle' }) // results always match the listed changes
+    clearJourney()
+  }
+
+  /** Explore one journey under the scenario that produced the shown results. */
+  async function selectJourney(selection: JourneySelection) {
+    if (simulation.kind !== 'success') return
+    const id = ++journeyRequestId.current
+    setResultsTab('journey')
+    setJourneySelection(selection)
+    setJourneyState({ kind: 'loading' })
+    try {
+      const comparison = await compareJourney({
+        origin_id: selection.originId,
+        destination_id: selection.destinationId,
+        changes: simulation.result.scenario.changes,
+      })
+      if (id === journeyRequestId.current) setJourneyState({ kind: 'success', comparison })
+    } catch (error: unknown) {
+      if (id === journeyRequestId.current) {
+        setJourneyState({ kind: 'error', message: describeApiError(error) })
+      }
+    }
   }
 
   /** Append AI-interpreted changes (up to the limit); returns how many fitted. */
@@ -90,6 +130,8 @@ function App() {
 
   async function handleRun() {
     const id = ++requestId.current
+    clearJourney()
+    setResultsTab('summary')
     setSimulation({ kind: 'running' })
     try {
       const result = await runSimulation({ changes })
@@ -107,11 +149,40 @@ function App() {
   )
   const result = simulation.kind === 'success' ? simulation.result : null
   const running = simulation.kind === 'running'
+  const shownJourney =
+    result && resultsTab === 'journey' && journeyState.kind === 'success'
+      ? journeyState.comparison
+      : null
+  // Phone: keep the journey above the bottom sheet (about 72% of the screen when open).
+  const mobileJourneyFit = useMemo<MapPadding>(
+    () => ({ topLeft: [24, 64], bottomRight: [24, sheetOpen ? Math.round(window.innerHeight * 0.72) : 120] }),
+    [sheetOpen],
+  )
 
   if (networkState.kind !== 'ready') {
     return <StatusScreen state={networkState} onRetry={retryNetwork} />
   }
   const { network } = networkState
+
+  const resultsPanel = result && (
+    <ResultsPanel
+      result={result}
+      stops={stops}
+      tab={resultsTab}
+      onTabChange={setResultsTab}
+      onSelectJourney={selectJourney}
+      journeyExplorer={
+        <JourneyExplorer
+          key={journeySelection ? `${journeySelection.originId}-${journeySelection.destinationId}` : 'none'}
+          network={network}
+          selection={journeySelection}
+          state={journeyState}
+          onSelect={selectJourney}
+          onClear={clearJourney}
+        />
+      }
+    />
+  )
 
   const scenarioSections = (
     <>
@@ -147,6 +218,8 @@ function App() {
           changes={changes}
           result={result}
           fitPadding={isDesktop ? DESKTOP_FIT : MOBILE_FIT}
+          journey={shownJourney}
+          journeyPadding={isDesktop ? DESKTOP_JOURNEY_FIT : mobileJourneyFit}
         />
       </div>
 
@@ -156,6 +229,7 @@ function App() {
         routes={network.routes}
         showImpact={result !== null}
         showScenario={changes.length > 0}
+        showJourney={shownJourney !== null}
         defaultOpen={isDesktop}
         className="absolute top-3 left-3 z-[1100] lg:top-4 lg:left-[436px]"
       />
@@ -170,7 +244,7 @@ function App() {
 
           {result && (
             <Card className="absolute right-2.5 bottom-7 z-[1100] max-h-[calc(100dvh-7rem)] w-[420px] overflow-y-auto p-4">
-              <ResultsPanel result={result} stops={stops} />
+              {resultsPanel}
             </Card>
           )}
         </>
@@ -206,7 +280,7 @@ function App() {
           {sheetOpen && (
             <>
               <div className="flex-1 space-y-7 overflow-y-auto px-4 pt-2 pb-4">
-                {result && <ResultsPanel result={result} stops={stops} />}
+                {resultsPanel}
                 {scenarioSections}
               </div>
               <div className="border-t border-line bg-white/70 p-3">{runBar}</div>

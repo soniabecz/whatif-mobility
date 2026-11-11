@@ -13,6 +13,8 @@ interface MapLegendProps {
   showImpact: boolean
   /** A scenario is being built: explain the preview marks. */
   showScenario: boolean
+  /** A journey is drawn by the explorer. */
+  showJourney: boolean
   defaultOpen: boolean
   className?: string
 }
@@ -21,6 +23,7 @@ export function MapLegend({
   routes,
   showImpact,
   showScenario,
+  showJourney,
   defaultOpen,
   className,
 }: MapLegendProps) {
@@ -55,6 +58,23 @@ export function MapLegend({
               </li>
             ))}
           </ul>
+
+          {showJourney && (
+            <ul className="space-y-1.5 border-t border-line pt-2.5">
+              <li className="flex items-center gap-2">
+                <span className="h-1.5 w-6 rounded-full bg-linear-to-r from-red-600 via-blue-600 to-orange-500" />
+                Journey after (route colours)
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="w-6 border-t-[3px] border-dotted border-slate-600" /> Journey before
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="journey-pin scale-75">A</span>
+                <span className="journey-pin -ml-3 scale-75">B</span>
+                Start · destination
+              </li>
+            </ul>
+          )}
 
           {levels.length > 0 && (
             <>
