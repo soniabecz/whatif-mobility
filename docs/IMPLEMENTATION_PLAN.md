@@ -7,12 +7,14 @@
 ## Current status
 
 - **Last completed:** Day 7 (CI, journey explorer, transfer penalty); 131 tests
-- **Next up:** nothing scheduled; pick from "Possible future improvements"
+- **Next up:** Day 8, part 1 (OpenAPI-generated types): explain the tool
+  choice and wait for approval
 - **Repository:** https://github.com/soniabecz/whatif-mobility (private, branch `main`)
 
 ## Timeline
 
-Total: **7 working days** (MVP in Days 1–5, Days 6–7 added afterwards). A "day" is one
+Total: **7 working days done** (MVP in Days 1–5, Days 6–7 added afterwards);
+Days 8–14 hold all later extensions (≈ 9–10 sessions; Days 10, 11 and 14 run long). A "day" is one
 working session. Every day must end with something working and committed,
 so the project is usable even if a later day is cut short.
 
@@ -25,6 +27,13 @@ so the project is usable even if a later day is cut short.
 | 5   | AI layer and wrap-up      | ✅ Done |
 | 6   | UI redesign               | ✅ Done |
 | 7   | Quality and explainability | ✅ Done |
+| 8   | Safety nets               | ⬜ Todo |
+| 9   | Quick product wins        | ⬜ Todo |
+| 10  | More realistic simulation | ⬜ Todo |
+| 11  | New scenario types        | ⬜ Todo |
+| 12  | AI features               | ⬜ Todo |
+| 13  | Saving and comparing      | ⬜ Todo |
+| 14  | Deployment and real data  | ⬜ Todo |
 
 ---
 
@@ -298,6 +307,153 @@ after any of them with a working app.
 **Fallback:** the transfer penalty is last because it is the riskiest. If it
 runs short, CI and the journey explorer are still complete.
 
+## Days 8–14 – Extensions (all former "maybes")
+
+All ideas collected after the MVP, one phase per day, in a safe order: safety
+nets first, then quick wins, then model changes (each with an equivalence
+check like the transfer penalty at 0), then new scenario types, AI features
+and saving, and the largest, most open-ended items last.
+
+Rules as on Day 7: every part is its own commit and ends with a working app,
+so a day can stop after any part. Substantial parts start with "explain the
+design and get approval" (CLAUDE.md). Sizes: S ≈ under 1 h, M ≈ half a
+session, L ≈ a full session or more. **Total ≈ 9–10 sessions**: Days 10, 11
+and 14 are larger than one session and are marked as such.
+
+## Day 8 – Safety nets
+
+**Outcome:** every later change is protected by generated types, frontend tests and an easy start.
+**Size:** ≈ 1 session.
+
+**1. Generate TypeScript types from OpenAPI** (S)
+- [ ] Explain the tool choice and get approval (new dev dependency)
+- [ ] Generate `src/types/` from FastAPI's `/openapi.json`; replace hand-copied types
+- [ ] CI check that generated types are up to date
+- [ ] Commit
+
+**2. Frontend tests** (M)
+- [ ] Explain the setup and get approval (Vitest; Playwright for one smoke test)
+- [ ] Vitest for `lib/network.ts` and `lib/impact.ts`
+- [ ] One Playwright end-to-end test: load map, close a stop, run, see results
+- [ ] Add both to CI; commit
+
+**3. One-command start** (S)
+- [ ] Decide: Docker Compose or a plain script
+- [ ] Start backend + frontend (and seed if the DB is empty) with one command
+- [ ] README; commit
+
+## Day 9 – Quick product wins
+
+**Outcome:** three small, visible improvements; the simulation is untouched.
+**Size:** ≈ 1 session (light).
+
+**1. Click a stop on the map to fill in the form** (S)
+- [ ] Clicking a stop sets the stop / from / to field; clicking a line selects the link
+- [ ] Browser check, commit
+
+**2. Shareable link** (S)
+- [ ] Encode the change list in the URL; opening the link restores it (validated)
+- [ ] Copy-link button; browser check, commit
+
+**3. CSV export of changed journeys** (S)
+- [ ] Export from the results card (frontend only, values as computed)
+- [ ] Commit
+
+## Day 10 – More realistic simulation
+
+**Outcome:** waiting from frequencies, demand weighting and walking, each with an equivalence check.
+**Size:** ≈ 2 sessions – will overrun.
+
+Each part keeps the earlier behaviour reproducible with a setting (like the
+transfer penalty at 0) and checks equivalence before changing defaults.
+
+**1. Waiting time from route frequencies** (L)
+- [ ] Decide invented frequencies per route (clearly labelled) and how they
+      relate to the transfer penalty (wait = half the interval?)
+- [ ] Explain the model and get approval
+- [ ] Frequencies in the data model and seed; waiting added at each boarding
+- [ ] New scenario type "change frequency" (schema, engine, form, AI prompt)
+- [ ] Equivalence check, tests, UI breakdown, commit
+
+**2. Passenger demand weighting** (M)
+- [ ] Decide the demand model (e.g. invented stop weights, labelled as an
+      assumption) and get approval; must not look like real data
+- [ ] Weighted metrics next to the current unweighted ones (equal weights =
+      today's numbers)
+- [ ] Tests, UI labelling, commit
+
+**3. Walking to a nearby stop** (M)
+- [ ] Decide walking speed and maximum distance; get approval
+- [ ] Walking edges between nearby stops (distance from coordinates); used
+      only where it helps (e.g. when a stop is closed)
+- [ ] Equivalence check with walking off, tests, explorer shows walking legs, commit
+
+**Fallback:** parts 2 and 3 are independent of each other; either can move to a later day.
+
+## Day 11 – New scenario types
+
+**Outcome:** users can add connections, stops and routes, not only remove or slow them.
+**Size:** ≈ 2 sessions – will overrun.
+
+**1. Add a connection** (M)
+- [ ] Schema, engine (new ride edges), validation, form, AI prompt, tests, commit
+
+**2. Add a stop** (M)
+- [ ] Position on the map (click), connect to a route; schema, engine, form,
+      AI prompt, tests, commit
+
+**3. Add a route** (L)
+- [ ] Draw a sequence of stops with times; schema, engine, form/map editor,
+      AI prompt, tests, commit
+
+**Fallback:** "add a route" (part 3) is the largest; parts 1–2 stand on their own.
+
+## Day 12 – AI features
+
+**Outcome:** the AI knows the current changes and can summarise results without inventing numbers.
+**Size:** ≈ 1 session.
+
+**1. AI aware of the current change list** (S)
+- [ ] Send the current list with the request; support "undo the last one",
+      "and also …"; tests with the fake model; commit
+
+**2. AI summary of results** (M)
+- [ ] Explain the safeguard and get approval: the AI may only rephrase
+      computed numbers; every number in its text is checked against the
+      results, otherwise the summary is rejected
+- [ ] Endpoint, tests (including a fake model that invents a number), UI, commit
+
+## Day 13 – Saving and comparing
+
+**Outcome:** scenarios can be saved and compared side by side.
+**Size:** ≈ 1 session.
+
+**1. Save and compare scenarios** (L)
+- [ ] Explain the data model and get approval (SQLAlchemy tables for saved
+      scenarios; results are recomputed, never stored as truth)
+- [ ] Save, list, delete; compare two scenarios side by side
+- [ ] Tests, UI, commit
+
+## Day 14 – Deployment and real data
+
+**Outcome:** the app is ready to be public, and it can simulate a real city.
+**Size:** ≥ 2 sessions – open-ended.
+
+**1. Deployment hardening** (M) – only if the app will be public
+- [ ] Decide the hosting target
+- [ ] Rate-limit the AI endpoint, production map tiles, authentication
+- [ ] Commit
+
+**2. Real city data (GTFS import)** (L, possibly several sessions)
+- [ ] Choose a city and feed; check its licence
+- [ ] Import stops, routes, travel times (and frequencies, if Day 10 part 1 is done)
+- [ ] Performance: all-pairs journeys will not scale to thousands of stops
+      (sampling, caching or limiting journeys); decide and get approval
+- [ ] Tests on a small extract; commit
+
+**Fallback:** both parts are optional; part 1 is only needed if the app goes public, and
+part 2 can stop after a small extract of the city works.
+
 ---
 
 ## Open issues
@@ -313,40 +469,17 @@ runs short, CI and the journey explorer are still complete.
 - [ ] `fsevents` install script not approved by npm (optional; only needed
       if hot reload stops working: `npm install-scripts approve fsevents`)
 
-## Possible future improvements (maybes, not planned)
+## Possible future improvements
 
-Ideas collected after the MVP. Not scheduled; pick from here if time allows.
-
-**Simulation realism**
-- Waiting time from route frequencies (headways), plus a "change frequency"
-  scenario type
-- Passenger demand weighting (invented demand clearly labelled as an
-  assumption, to stay within the "no fake metrics" rule)
-- Walking to a nearby stop when a stop is closed (distance from coordinates)
-- Scenario types cut from the MVP: add a connection, a stop or a route
-
-**Product**
-- Save and compare scenarios side by side (cut from the MVP)
-- Click a stop on the map to fill in the form
-- Shareable link that encodes the scenario in the URL
-- AI summary of results, which may only rephrase computed numbers (check that
-  every number in the text appears in the results)
-- AI aware of the current change list ("undo the last one", "and also…")
-- CSV export of changed journeys
-
-**Engineering**
-- Generate TypeScript types from the backend's OpenAPI schema instead of
-  copying them by hand
-- Frontend tests: Vitest for `lib/`, one Playwright end-to-end smoke test
-- One-command start (Docker Compose or a script)
-- Before any public deployment: rate-limit the AI endpoint, use a different
-  map tile provider, add authentication
-- Real city data (GTFS import), including performance work for thousands of
-  stops (all-pairs journeys will not scale)
+All former "maybes" are now scheduled as Days 8–14. New ideas go here.
 
 ## Decisions still needed
 
 - [x] **Day 5:** AI provider and API key: Groq, `openai/gpt-oss-120b`
+- [ ] **Days 8–14:** decisions asked when each part starts: type generator
+      (Day 8.1), Docker vs script (8.3), bus frequencies (10.1), demand model
+      (10.2), walking speed/distance (10.3), hosting target (14.1), GTFS city
+      and licence (14.2)
 - [x] **Day 7:** transfer penalty value: 5 min per change of bus, counted in journey
       times and shown separately; backend setting `TRANSFER_PENALTY_MIN` (default 5)
 
