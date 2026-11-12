@@ -6,9 +6,10 @@
 
 ## Current status
 
-- **Last completed:** Day 10, part 1b (scenario type "change frequency", backend + AI);
-  168 backend + 76 Vitest + 5 Playwright tests
-- **Next up:** Day 10, part 1c: "Frequency" tab in the form, map/legend feedback, e2e
+- **Last completed:** Day 10, part 1 (waiting from headways + "change frequency",
+  backend, AI and UI); 168 backend + 82 Vitest + 6 Playwright tests
+- **Next up:** Day 10, part 2 (passenger demand weighting): decide the demand
+  model and wait for approval
 - **Repository:** https://github.com/soniabecz/whatif-mobility (private, branch `main`)
 
 ## Timeline
@@ -441,7 +442,10 @@ transfer penalty at 0) and checks equivalence before changing defaults.
       with headways; "twice as often" / "12 buses an hour" → absolute headway);
       frontend keeps working: union derived from the generated `Scenario`, change text,
       icon, share-link code `freq:R3:7.5`; 16 backend tests (168), 3 Vitest (76)
-- [ ] Part 1c: frontend for it (form tab, share link `freq:R1:5`, e2e), commit
+- [x] Part 1c: "Frequency" form tab (route + minutes, current headway filled in);
+      clicking a line on that tab selects its route (whole route haloed); legend shows
+      "every ~~15~~ 7.5 min"; 6 Vitest (82), Playwright `e2e/frequency.spec.ts` (6 e2e)
+- [x] Commit (approved by the user; no separate browser check reported)
 
 **2. Passenger demand weighting** (M)
 - [ ] Decide the demand model (e.g. invented stop weights, labelled as an
@@ -571,3 +575,4 @@ All former "maybes" are now scheduled as Days 8–14. New ideas go here.
 | 2026-11-12 | 9   | CSV export of changed journeys (backend values, table order); 73 Vitest, 5 e2e; Day 9 done |
 | 2026-11-12 | 10  | Waiting = half the headway at every boarding, penalty 5 → 2; waiting-off equivalence 0 diffs (3,374 results); 152 tests |
 | 2026-11-12 | 10  | Scenario type `change_frequency` (engine, validation, AI prompt, share link); 168 backend, 76 Vitest |
+| 2026-11-12 | 10  | "Frequency" form tab, route halo, legend headways; 82 Vitest, 6 e2e; Day 10 part 1 done |

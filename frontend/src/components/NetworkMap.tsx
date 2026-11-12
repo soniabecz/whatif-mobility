@@ -39,7 +39,8 @@ export interface MapSelect {
   /** What the form currently points at; ringed on the map. */
   selection: DraftSelection
   onStopClick: (stopId: string) => void
-  onLinkClick: (fromId: string, toId: string) => void
+  /** A line is one route's segment, so the route is known too. */
+  onLinkClick: (fromId: string, toId: string, routeId: string) => void
 }
 
 export interface MapPadding {
@@ -82,8 +83,8 @@ export function NetworkMap({
   const selectedStops = network.stops.filter((stop) => selection?.stopIds.includes(stop.id))
   const clickHint = mapSelect && <><br /><em style={{ color: '#8b95a5' }}>Click to select</em></>
   // Handlers read the latest mapSelect; react-leaflet rebinds them when they change.
-  const linkClick = (from: string, to: string) => ({
-    click: () => mapSelect?.onLinkClick(from, to),
+  const linkClick = (from: string, to: string, routeId: string) => ({
+    click: () => mapSelect?.onLinkClick(from, to, routeId),
   })
 
   return (
@@ -109,10 +110,15 @@ export function NetworkMap({
           and stops. Leaflet stacks shapes in the order they are added, so without
           the pane a selection made later would cover the bus lines. */}
       <Pane name="selection" style={{ zIndex: 390 }}>
-        {/* Indigo halo around the link selected in the form. */}
-        {selection?.link &&
+        {/* Indigo halo around the link (or, for "frequency", the whole route)
+            selected in the form. */}
+        {selection &&
           segments
-            .filter((segment) => linkKey(segment.from.id, segment.to.id) === selection.link)
+            .filter((segment) =>
+              selection.routeId !== null
+                ? segment.routeId === selection.routeId
+                : linkKey(segment.from.id, segment.to.id) === selection.link,
+            )
             .map((segment) => (
               <Polyline
                 key={`${segment.key}:selected`}
@@ -146,7 +152,7 @@ export function NetworkMap({
             [segment.from.lat, segment.from.lon],
             [segment.to.lat, segment.to.lon],
           ]}
-          eventHandlers={linkClick(segment.from.id, segment.to.id)}
+          eventHandlers={linkClick(segment.from.id, segment.to.id, segment.routeId)}
           pathOptions={{
             className: `link-hit link-${segment.from.id}-${segment.to.id}`,
             color: '#ffffff',
@@ -169,7 +175,7 @@ export function NetworkMap({
               [segment.from.lat, segment.from.lon],
               [segment.to.lat, segment.to.lon],
             ]}
-            eventHandlers={linkClick(segment.from.id, segment.to.id)}
+            eventHandlers={linkClick(segment.from.id, segment.to.id, segment.routeId)}
             pathOptions={{
               className: `route-line route-${segment.routeId} link-${segment.from.id}-${segment.to.id}`,
               color: removed ? REMOVED : (route?.color ?? REMOVED),

@@ -9,6 +9,7 @@ import {
   initialDraft,
   withFrom,
   withLink,
+  withRoute,
   withType,
   type ChangeDraft,
 } from './changeDraft'
@@ -27,6 +28,8 @@ describe('initialDraft', () => {
       travelTime: '2', // fastest route on ALP→BRK
       bothDirections: true,
       awaitingTo: false,
+      routeId: 'R1', // first route by id, with its current headway
+      headway: '10',
     })
   })
 })
@@ -90,33 +93,74 @@ describe('clickStop', () => {
 
 describe('clickLink', () => {
   it('switches "close stop" to "remove link"', () => {
-    const draft = clickLink(network, start, 'BRK', 'CAS')
+    const draft = clickLink(network, start, 'BRK', 'CAS', 'R1')
     expect(draft.type).toBe('remove_connection')
     expect([draft.fromId, draft.toId]).toEqual(['BRK', 'CAS'])
   })
 
   it('keeps "travel time" and fills in the current time', () => {
-    const draft = clickLink(network, linkDraft('change_travel_time'), 'ALP', 'BRK')
+    const draft = clickLink(network, linkDraft('change_travel_time'), 'ALP', 'BRK', 'R2')
     expect(draft.type).toBe('change_travel_time')
     expect(draft.travelTime).toBe('2')
   })
 
   it('ends a half-finished stop selection', () => {
-    const draft = clickLink(network, clickStop(network, linkDraft(), 'CAS'), 'BRK', 'DUN')
+    const draft = clickLink(network, clickStop(network, linkDraft(), 'CAS'), 'BRK', 'DUN', 'R2')
     expect(draft.awaitingTo).toBe(false)
   })
 })
 
 describe('draftSelection', () => {
   it('highlights the stop to close', () => {
-    expect(draftSelection(clickStop(network, start, 'CAS'))).toEqual({ stopIds: ['CAS'], link: null })
+    expect(draftSelection(clickStop(network, start, 'CAS'))).toEqual({
+      stopIds: ['CAS'],
+      link: null,
+      routeId: null,
+    })
   })
 
   it('highlights both stops and the street of a link', () => {
     expect(draftSelection(withLink(network, linkDraft(), 'DUN', 'BRK'))).toEqual({
       stopIds: ['DUN', 'BRK'],
       link: linkKey('BRK', 'DUN'),
+      routeId: null,
     })
+  })
+})
+
+describe('frequency', () => {
+  const freq = withType(start, 'change_frequency')
+
+  it('choosing a route fills in its current headway', () => {
+    expect(withRoute(network, freq, 'R2')).toMatchObject({ routeId: 'R2', headway: '20' })
+  })
+
+  it('clicking a line selects its route', () => {
+    expect(clickLink(network, freq, 'BRK', 'DUN', 'R2')).toMatchObject({
+      type: 'change_frequency',
+      routeId: 'R2',
+      headway: '20',
+    })
+  })
+
+  it('clicking a stop does nothing (a stop can serve several routes)', () => {
+    expect(clickStop(network, freq, 'BRK')).toBe(freq)
+  })
+
+  it('highlights the whole route', () => {
+    expect(draftSelection(freq)).toEqual({ stopIds: [], link: null, routeId: 'R1' })
+  })
+
+  it('builds the change and checks the 1-120 min range', () => {
+    expect(buildChange({ ...freq, headway: '7.5' }, 0)).toEqual({
+      type: 'change_frequency',
+      route_id: 'R1',
+      headway_min: 7.5,
+    })
+    for (const headway of ['', '0.5', '121', 'x']) {
+      expect(buildChange({ ...freq, headway }, 0)).toBe('A bus can run every 1 to 120 minutes.')
+    }
+    expect(buildChange({ ...freq, routeId: '' }, 0)).toBe('Choose a route.')
   })
 })
 

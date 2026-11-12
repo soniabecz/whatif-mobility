@@ -122,11 +122,24 @@ describe('scenarioHighlights', () => {
     expect(highlights.retimedLinks.has(linkKey('DUN', 'BRK'))).toBe(true)
   })
 
+  it('collects new headways per route, the last change winning', () => {
+    const highlights = scenarioHighlights([
+      { type: 'change_frequency', route_id: 'R1', headway_min: 5 },
+      { type: 'change_frequency', route_id: 'R2', headway_min: 30 },
+      { type: 'change_frequency', route_id: 'R1', headway_min: 4 },
+    ])
+    expect([...highlights.headways]).toEqual([
+      ['R1', 4],
+      ['R2', 30],
+    ])
+  })
+
   it('is empty without changes', () => {
     const highlights = scenarioHighlights([])
     expect(highlights.closedStopIds.size).toBe(0)
     expect(highlights.removedLinks.size).toBe(0)
     expect(highlights.retimedLinks.size).toBe(0)
+    expect(highlights.headways.size).toBe(0)
   })
 })
 

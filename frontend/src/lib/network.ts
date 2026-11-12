@@ -72,6 +72,8 @@ export interface ScenarioHighlights {
   closedStopIds: Set<string>
   removedLinks: Set<string>
   retimedLinks: Set<string>
+  /** New headway per route (the last change to a route wins, as in the backend). */
+  headways: Map<string, number>
 }
 
 export function scenarioHighlights(changes: ScenarioChange[]): ScenarioHighlights {
@@ -79,6 +81,7 @@ export function scenarioHighlights(changes: ScenarioChange[]): ScenarioHighlight
     closedStopIds: new Set(),
     removedLinks: new Set(),
     retimedLinks: new Set(),
+    headways: new Map(),
   }
   for (const change of changes) {
     switch (change.type) {
@@ -92,7 +95,8 @@ export function scenarioHighlights(changes: ScenarioChange[]): ScenarioHighlight
         highlights.retimedLinks.add(linkKey(change.from_stop_id, change.to_stop_id))
         break
       case 'change_frequency':
-        break // affects waiting, not a street: nothing to highlight on the map
+        highlights.headways.set(change.route_id, change.headway_min)
+        break
     }
   }
   return highlights

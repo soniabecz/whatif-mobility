@@ -2,13 +2,17 @@ import { useState } from 'react'
 import { ChevronDown, ChevronUp, Layers } from 'lucide-react'
 
 import { IMPACT_ORDER, IMPACT_STYLES, type ImpactLevel } from '../lib/impact'
+import { scenarioHighlights } from '../lib/network'
 import type { Route } from '../types/network'
+import type { ScenarioChange } from '../types/scenario'
 import { IMPACT_ICONS } from './impactIcons'
 import { Card } from './ui/Card'
 import { cx } from './ui/cx'
 
 interface MapLegendProps {
   routes: Route[]
+  /** The scenario being built: changed frequencies are shown per route. */
+  changes: ScenarioChange[]
   /** Results are shown: explain every stop colour. */
   showImpact: boolean
   /** A scenario is being built: explain the preview marks. */
@@ -21,6 +25,7 @@ interface MapLegendProps {
 
 export function MapLegend({
   routes,
+  changes,
   showImpact,
   showScenario,
   showJourney,
@@ -28,6 +33,7 @@ export function MapLegend({
   className,
 }: MapLegendProps) {
   const [open, setOpen] = useState(defaultOpen)
+  const newHeadways = scenarioHighlights(changes).headways
   const levels: ImpactLevel[] = showImpact ? IMPACT_ORDER : showScenario ? ['closed'] : []
 
   return (
@@ -55,9 +61,16 @@ export function MapLegend({
                   style={{ backgroundColor: route.color }}
                 />
                 <span className="font-semibold text-ink">{route.id}</span> {route.name}
-                <span className="ml-auto pl-3 text-[11px] text-ink-subtle tabular-nums">
-                  every {route.headway_min} min
-                </span>
+                {newHeadways.has(route.id) ? (
+                  <span className="ml-auto pl-3 text-[11px] font-semibold text-accent tabular-nums">
+                    every <s className="font-normal text-ink-subtle">{route.headway_min}</s>{' '}
+                    {newHeadways.get(route.id)} min
+                  </span>
+                ) : (
+                  <span className="ml-auto pl-3 text-[11px] text-ink-subtle tabular-nums">
+                    every {route.headway_min} min
+                  </span>
+                )}
               </li>
             ))}
           </ul>

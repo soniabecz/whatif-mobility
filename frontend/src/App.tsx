@@ -214,8 +214,8 @@ function App() {
     : {
         selection: draftSelection(currentDraft),
         onStopClick: (stopId: string) => setDraft(clickStop(network, currentDraft, stopId)),
-        onLinkClick: (fromId: string, toId: string) =>
-          setDraft(clickLink(network, currentDraft, fromId, toId)),
+        onLinkClick: (fromId: string, toId: string, routeId: string) =>
+          setDraft(clickLink(network, currentDraft, fromId, toId, routeId)),
       }
 
   const resultsPanel = result && (
@@ -286,6 +286,7 @@ function App() {
       <MapLegend
         key={isDesktop ? 'desktop' : 'mobile'}
         routes={network.routes}
+        changes={changes}
         showImpact={result !== null}
         showScenario={changes.length > 0}
         showJourney={shownJourney !== null}

@@ -5,6 +5,7 @@ import {
   buildChange,
   withFrom,
   withLink,
+  withRoute,
   withType,
   type ChangeDraft,
 } from '../lib/changeDraft'
@@ -12,7 +13,9 @@ import { currentTravelTime, neighbours, sortedStops, stopLabel, stopsById } from
 import type { Network } from '../types/network'
 import {
   MAX_CHANGES,
+  MAX_HEADWAY_MIN,
   MAX_TRAVEL_TIME_MIN,
+  MIN_HEADWAY_MIN,
   type ChangeType,
   type ScenarioChange,
 } from '../types/scenario'
@@ -38,6 +41,7 @@ const CHANGE_TYPES: SegmentOption<ChangeType>[] = [
   { value: 'close_stop', label: 'Close stop', icon: CHANGE_ICONS.close_stop },
   { value: 'remove_connection', label: 'Remove link', icon: CHANGE_ICONS.remove_connection },
   { value: 'change_travel_time', label: 'Travel time', icon: CHANGE_ICONS.change_travel_time },
+  { value: 'change_frequency', label: 'Frequency', icon: CHANGE_ICONS.change_frequency },
 ]
 
 /** Builds one change at a time and hands it to the parent's list. */
@@ -53,6 +57,11 @@ export function ScenarioForm({
   const stopNames = useMemo(() => stopsById(network), [network])
   const toOptions = useMemo(() => neighbours(network, draft.fromId), [network, draft.fromId])
   const currentTime = currentTravelTime(network, draft.fromId, draft.toId)
+  const routes = useMemo(
+    () => [...network.routes].sort((a, b) => a.id.localeCompare(b.id)),
+    [network],
+  )
+  const currentRoute = routes.find((route) => route.id === draft.routeId)
   const update = (patch: Partial<ChangeDraft>) => onDraftChange({ ...draft, ...patch })
 
   const change = buildChange(draft, changeCount)
@@ -70,9 +79,11 @@ export function ScenarioForm({
         <MousePointerClick size={13} className="shrink-0" aria-hidden />
         {draft.type === 'close_stop'
           ? 'Or click a stop on the map.'
-          : draft.awaitingTo
+          : draft.type === 'change_frequency'
+            ? 'Or click a line of the route on the map.'
+            : draft.awaitingTo
             ? `Now click a stop next to ${stopLabel(stopNames, draft.fromId)} on the map.`
-            : 'Or click a line, or two neighbouring stops, on the map.'}
+              : 'Or click a line, or two neighbouring stops, on the map.'}
       </p>
 
       <form onSubmit={handleAdd} className="space-y-3">
@@ -99,6 +110,41 @@ export function ScenarioForm({
               ))}
             </select>
           </Field>
+        ) : draft.type === 'change_frequency' ? (
+          <>
+            <Field label="Route">
+              <select
+                className={inputClass}
+                value={draft.routeId}
+                onChange={(e) => onDraftChange(withRoute(network, draft, e.target.value))}
+                disabled={disabled}
+              >
+                {routes.map((route) => (
+                  <option key={route.id} value={route.id}>
+                    {route.id} {route.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field
+              label="A bus every (minutes)"
+              hint={
+                currentRoute &&
+                `Currently every ${currentRoute.headway_min} min (invented timetable). Waiting is half of it on average.`
+              }
+            >
+              <input
+                className={cx(inputClass, 'tabular-nums')}
+                type="number"
+                min={MIN_HEADWAY_MIN}
+                max={MAX_HEADWAY_MIN}
+                step={0.5}
+                value={draft.headway}
+                onChange={(e) => update({ headway: e.target.value })}
+                disabled={disabled}
+              />
+            </Field>
+          </>
         ) : (
           <>
             <div className="grid grid-cols-2 gap-2">
