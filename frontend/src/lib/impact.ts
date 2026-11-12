@@ -1,7 +1,7 @@
 // How a stop's simulation result is shown: one level, one colour, one label.
 // The numbers themselves always come from the backend.
 
-import type { StopImpact } from '../types/simulation'
+import type { JourneyChange, StopImpact } from '../types/simulation'
 
 export type ImpactLevel = 'closed' | 'impossible' | 'slower' | 'faster' | 'unaffected'
 
@@ -57,4 +57,12 @@ export function describeImpact(impact: StopImpact | undefined): string {
     parts.push(`average ${formatChange(impact.average_change_min)}`)
   }
   return parts.join(', ')
+}
+
+/** Table and CSV order: impossible journeys first, then the largest changes. */
+export function compareJourneys(a: JourneyChange, b: JourneyChange): number {
+  if ((a.status === 'impossible') !== (b.status === 'impossible')) {
+    return a.status === 'impossible' ? -1 : 1
+  }
+  return Math.abs(b.change_min ?? 0) - Math.abs(a.change_min ?? 0)
 }

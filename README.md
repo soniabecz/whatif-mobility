@@ -151,6 +151,13 @@ Changes are separated by `~`; `:oneway` limits a link change to one direction.
 A link with any invalid change (unknown stop, no such link, time out of range,
 more than 20 changes) loads nothing and says why.
 
+**CSV export:** the **CSV** button in the results header downloads all changed
+journeys (`origin_id, origin_name, destination_id, destination_name, status,
+time_before_min, time_after_min, change_min`), exactly as the backend computed
+them; times are empty for impossible journeys. The file is comma-separated
+UTF-8 with `.` as the decimal point; in Excel with a locale that uses `;`,
+open it via *Data → From Text/CSV*.
+
 If the page says the network is empty, run `python -m app.seed` in `backend/`.
 
 Map tiles come from the public OpenStreetMap tile server, which is fine for
@@ -176,7 +183,8 @@ npm run build    # type-check with TypeScript and build for production
 `npm run test:e2e` opens the app in Chromium and runs two tests: close a stop
 with the form, run the simulation and check that the results show exactly the
 numbers the backend computes; fill in the form by clicking stops and lines on
-the map; and open, update and copy shareable links (including an invalid one). It uses the real backend and the seeded sample network
+the map; open, update and copy shareable links (including an invalid one); and
+download the CSV export and compare every row with the backend. It uses the real backend and the seeded sample network
 (`python -m app.seed`); nothing is written to the database.
 
 Playwright starts the backend (from `backend/.venv`) and the Vite dev server

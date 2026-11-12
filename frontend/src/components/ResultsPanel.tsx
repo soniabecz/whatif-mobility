@@ -4,17 +4,20 @@ import {
   ChevronDown,
   ChevronUp,
   Clock,
+  Download,
   Route as RouteIcon,
   type LucideIcon,
 } from 'lucide-react'
 
 import {
   IMPACT_STYLES,
+  compareJourneys,
   describeImpact,
   formatChange,
   formatMinutes,
   impactLevel,
 } from '../lib/impact'
+import { changedJourneysCsv, csvFileName, downloadCsv } from '../lib/exportCsv'
 import { stopLabel } from '../lib/network'
 import type { Stop } from '../types/network'
 import type { JourneyChange, JourneyStatus, SimulationResult } from '../types/simulation'
@@ -50,14 +53,6 @@ const STATUS_TEXT: Record<JourneyStatus, { label: string; className: string }> =
   impossible: { label: 'Impossible', className: 'text-red-700' },
   slower: { label: 'Slower', className: 'text-amber-700' },
   faster: { label: 'Faster', className: 'text-green-700' },
-}
-
-/** Impossible journeys first, then the largest changes. */
-function compareJourneys(a: JourneyChange, b: JourneyChange): number {
-  if ((a.status === 'impossible') !== (b.status === 'impossible')) {
-    return a.status === 'impossible' ? -1 : 1
-  }
-  return Math.abs(b.change_min ?? 0) - Math.abs(a.change_min ?? 0)
 }
 
 interface KpiProps {
@@ -122,15 +117,36 @@ export function ResultsPanel({
         icon={ChartColumn}
         aside={
           tab === 'summary' && (
-            <Button
-              variant="ghost"
-              size="sm"
-              icon={expanded ? ChevronDown : ChevronUp}
-              onClick={() => setExpanded(!expanded)}
-              aria-expanded={expanded}
-            >
-              {expanded ? 'Less' : 'Details'}
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={Download}
+                onClick={() =>
+                  downloadCsv(
+                    csvFileName(result.scenario.changes),
+                    changedJourneysCsv(result.changed_journeys, stops),
+                  )
+                }
+                disabled={result.changed_journeys.length === 0}
+                title={
+                  result.changed_journeys.length === 0
+                    ? 'No journey changed'
+                    : `Download all ${result.changed_journeys.length} changed journeys as CSV`
+                }
+              >
+                CSV
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={expanded ? ChevronDown : ChevronUp}
+                onClick={() => setExpanded(!expanded)}
+                aria-expanded={expanded}
+              >
+                {expanded ? 'Less' : 'Details'}
+              </Button>
+            </div>
           )
         }
       >

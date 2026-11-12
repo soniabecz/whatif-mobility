@@ -6,13 +6,16 @@
 
 ## Current status
 
-- **Last completed:** Day 9, part 2 (shareable link); 134 backend + 65 Vitest + 4 Playwright tests
-- **Next up:** Day 9, part 3 (CSV export of changed journeys)
+- **Last completed:** Day 9 (map clicks, shareable link, CSV export);
+  134 backend + 73 Vitest + 5 Playwright tests
+- **Next up:** Day 10, part 1 (waiting time from route frequencies): decide the
+  invented frequencies and their relation to the transfer penalty, explain the
+  model and wait for approval
 - **Repository:** https://github.com/soniabecz/whatif-mobility (private, branch `main`)
 
 ## Timeline
 
-Total: **8 working days done** (MVP in Days 1–5, Days 6–8 added afterwards);
+Total: **9 working days done** (MVP in Days 1–5, Days 6–9 added afterwards);
 Days 8–14 hold all later extensions (≈ 9–10 sessions; Days 10, 11 and 14 run long). A "day" is one
 working session. Every day must end with something working and committed,
 so the project is usable even if a later day is cut short.
@@ -27,7 +30,7 @@ so the project is usable even if a later day is cut short.
 | 6   | UI redesign               | ✅ Done |
 | 7   | Quality and explainability | ✅ Done |
 | 8   | Safety nets               | ✅ Done |
-| 9   | Quick product wins        | 🟡 In progress |
+| 9   | Quick product wins        | ✅ Done |
 | 10  | More realistic simulation | ⬜ Todo |
 | 11  | New scenario types        | ⬜ Todo |
 | 12  | AI features               | ⬜ Todo |
@@ -140,6 +143,7 @@ so the project is usable even if a later day is cut short.
 | ~~No frontend test runner~~ (superseded Day 8) | Vitest for pure `lib/` helpers, one Playwright end-to-end test |
 | Playwright e2e against the real backend + seeded data, not a mocked API | Only test that proves frontend and backend work together; simulations are read-only |
 | E2E checks UI numbers against `POST /api/simulations`, not hardcoded values | Survives model changes (Day 10) while still catching display bugs |
+| CSV: commas and `.` decimals, UTF-8 BOM, values exactly as computed | Standard for tools; BOM keeps accents in Excel; no numbers made in the browser |
 | Shared link: readable `?s=` text, not base64 JSON; `:oneway` instead of `>` | Visible and hand-editable; browsers percent-encode `>` in URLs |
 | Shared links are all or nothing, never auto-run | No silently incomplete scenarios; same "review, then run" step as the AI |
 | Address bar synced on every list edit via `replaceState` | Always shareable, survives reload, no back-button spam |
@@ -397,8 +401,12 @@ and 14 are larger than one session and are marked as such.
 - [x] Browser check by the user, commit
 
 **3. CSV export of changed journeys** (S)
-- [ ] Export from the results card (frontend only, values as computed)
-- [ ] Commit
+- [x] Outline approved: all changed journeys, table order, 8 columns, commas (standard
+      CSV), UTF-8 BOM, file named after the share code (timestamp if long)
+- [x] `lib/exportCsv.ts` (RFC 4180 quoting, CRLF); "CSV" button in the results header;
+      table sort order moved to `lib/impact.ts` so table and file agree
+- [x] Tests: 8 Vitest (73 total), Playwright compares every row with the API (5 e2e total)
+- [x] Commit (approved by the user; no separate browser check reported)
 
 ## Day 10 – More realistic simulation
 
@@ -541,3 +549,4 @@ All former "maybes" are now scheduled as Days 8–14. New ideas go here.
 | 2026-11-12 | 8   | `./dev.sh` one-command start, `app.seed --if-empty`; 134 tests; Day 8 done |
 | 2026-11-12 | 9   | Map clicks fill in the form (draft lifted to `App`, selection pane); 51 Vitest, 2 e2e; browser-checked |
 | 2026-11-12 | 9   | Shareable link (`?s=`, readable, all-or-nothing, synced URL, Copy link); 65 Vitest, 4 e2e; browser-checked |
+| 2026-11-12 | 9   | CSV export of changed journeys (backend values, table order); 73 Vitest, 5 e2e; Day 9 done |
