@@ -13,7 +13,7 @@ import {
 import { divIcon, type LatLngBoundsExpression, type LatLngTuple, type PointTuple } from 'leaflet'
 
 import type { DraftSelection } from '../lib/changeDraft'
-import { IMPACT_STYLES, describeImpact, impactLevel } from '../lib/impact'
+import { ACTIVITY_LABELS, IMPACT_STYLES, describeImpact, impactLevel } from '../lib/impact'
 import { linkKey, routeSegments, scenarioHighlights } from '../lib/network'
 import type { JourneyComparison, JourneyLeg } from '../types/journey'
 import type { Network, Route, Stop } from '../types/network'
@@ -225,6 +225,10 @@ export function NetworkMap({
           >
             <Tooltip direction="top" offset={[0, -8]}>
               <strong>{stop.name}</strong> <span style={{ color: '#8b95a5' }}>{stop.id}</span>
+              <br />
+              <span style={{ color: '#8b95a5' }}>
+                Activity: {ACTIVITY_LABELS[stop.activity] ?? stop.activity} (invented)
+              </span>
               {style && (
                 <>
                   <br />

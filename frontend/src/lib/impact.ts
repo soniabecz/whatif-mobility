@@ -50,6 +50,14 @@ export function describeTimeModel(includeWaiting: boolean, transferPenaltyMin: n
     : `Journey times include ${penalty}; waiting is not modelled.`
 }
 
+/** A share of trips computed by the backend, e.g. "11.8%". */
+export function formatShare(pct: number): string {
+  return `${pct.toFixed(1)}%`
+}
+
+/** Invented stop activity levels (demand weighting), as words. */
+export const ACTIVITY_LABELS: Record<number, string> = { 1: 'quiet', 2: 'medium', 3: 'major' }
+
 export function formatChange(value: number): string {
   const sign = value > 0 ? '+' : value < 0 ? '−' : '±'
   return `${sign}${Math.abs(value).toFixed(1)} min`

@@ -1,6 +1,6 @@
 """SQLAlchemy tables describing the baseline bus network."""
 
-from sqlalchemy import CheckConstraint, Float, ForeignKey, String, UniqueConstraint
+from sqlalchemy import CheckConstraint, Float, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -10,6 +10,7 @@ class Stop(Base):
     """A bus stop. Becomes a node in the network graph."""
 
     __tablename__ = "stops"
+    __table_args__ = (CheckConstraint("activity BETWEEN 1 AND 3", name="activity_level"),)
 
     # Short readable code (e.g. "CEN") so scenarios and AI output can
     # reference stops without opaque numeric ids.
@@ -17,6 +18,9 @@ class Stop(Base):
     name: Mapped[str] = mapped_column(String(100), unique=True)
     lat: Mapped[float] = mapped_column(Float)
     lon: Mapped[float] = mapped_column(Float)
+    # INVENTED activity level (1 quiet, 2 medium, 3 major) for demand
+    # weighting: a journey weighs origin level x destination level.
+    activity: Mapped[int] = mapped_column(Integer, default=1)
 
 
 class Route(Base):

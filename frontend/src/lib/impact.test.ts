@@ -8,6 +8,7 @@ import {
   describeTimeModel,
   formatChange,
   formatMinutes,
+  formatShare,
   impactLevel,
 } from './impact'
 
@@ -104,6 +105,14 @@ describe('describeImpact', () => {
     expect(describeImpact(impact({ affected_journeys: 3, impossible_journeys: 3 }))).toBe(
       '3 journeys affected, 3 impossible',
     )
+  })
+})
+
+describe('formatShare', () => {
+  it('shows a backend share with one decimal', () => {
+    expect(formatShare(11.8)).toBe('11.8%')
+    expect(formatShare(0)).toBe('0.0%')
+    expect(formatShare(100)).toBe('100.0%')
   })
 })
 

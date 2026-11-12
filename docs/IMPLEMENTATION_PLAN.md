@@ -6,10 +6,10 @@
 
 ## Current status
 
-- **Last completed:** Day 10, part 1 (waiting from headways + "change frequency",
-  backend, AI and UI); 168 backend + 82 Vitest + 6 Playwright tests
-- **Next up:** Day 10, part 2 (passenger demand weighting): decide the demand
-  model and wait for approval
+- **Last completed:** Day 10, part 2 (demand weighting, invented stop activity);
+  187 backend + 83 Vitest + 6 Playwright tests
+- **Next up:** Day 10, part 3 (walking to a nearby stop): decide walking speed and
+  maximum distance, explain the model and wait for approval
 - **Repository:** https://github.com/soniabecz/whatif-mobility (private, branch `main`)
 
 ## Timeline
@@ -148,6 +148,8 @@ so the project is usable even if a later day is cut short.
 | Transfer penalty default 5 → 2 min once waiting is modelled | 5 min stood in for waiting; keeping it would count waiting twice |
 | No migrations: outdated tables are dropped and re-seeded | The database only holds generated sample data (until Day 13) |
 | One route per boarding, even where routes share a street | Simple and deterministic; combined frequency documented as a limitation |
+| Demand = invented stop activity 1–3, journey weight = origin × destination | Simple gravity model without distance (times change with the scenario); clearly labelled |
+| Weighted figures only as shares (%) and averages, next to the unweighted counts | Absolute passenger numbers from invented demand would be fake metrics |
 | Frequency change = new headway (absolute), never "+N buses" | One unambiguous number; the AI converts relative requests, as for travel times |
 | Frontend `ScenarioChange` derived from the generated `Scenario` type | A new backend change type shows up in TypeScript (and its exhaustive switches) automatically |
 | Shared link: readable `?s=` text, not base64 JSON; `:oneway` instead of `>` | Visible and hand-editable; browsers percent-encode `>` in URLs |
@@ -448,11 +450,17 @@ transfer penalty at 0) and checks equivalence before changing defaults.
 - [x] Commit (approved by the user; no separate browser check reported)
 
 **2. Passenger demand weighting** (M)
-- [ ] Decide the demand model (e.g. invented stop weights, labelled as an
-      assumption) and get approval; must not look like real data
-- [ ] Weighted metrics next to the current unweighted ones (equal weights =
-      today's numbers)
-- [ ] Tests, UI labelling, commit
+- [x] Decided: invented stop activity 1–3 (major: CEN, MKT, UNI; quiet: NTH, WST,
+      LIB, RIV, EST, MUS; others medium); journey weight = origin × destination,
+      no distance decay; only shares (%) and averages, never passenger numbers
+- [x] `stops.activity` (model, seed, API; outdated table rebuilt); `summary.demand_weighted`
+      (unchanged/slower/faster/impossible/closed %, weighted averages)
+- [x] Equal levels reproduce the unweighted figures (4 scenarios × 2 models, tested);
+      hand-calculated cases; shares add up to 100
+- [x] UI: "11.8% of trips" under each count, weighted average and closed-stop share in
+      Details with an "invented, not real passenger data" note; stop tooltip shows activity
+- [x] Tests: 19 backend (187), 1 Vitest (83); e2e checks one share per tile against the API
+- [x] Commit (approved by the user; no separate browser check reported)
 
 **3. Walking to a nearby stop** (M)
 - [ ] Decide walking speed and maximum distance; get approval
@@ -550,7 +558,7 @@ All former "maybes" are now scheduled as Days 8–14. New ideas go here.
 - [x] **Day 5:** AI provider and API key: Groq, `openai/gpt-oss-120b`
 - [ ] **Days 8–14:** decisions asked when each part starts: type generator
       (Day 8.1 ✅ openapi-typescript), Docker vs script (8.3 ✅ script), bus frequencies (10.1 ✅), demand model
-      (10.2), walking speed/distance (10.3), hosting target (14.1), GTFS city
+      (10.2 ✅ activity 1–3), walking speed/distance (10.3), hosting target (14.1), GTFS city
       and licence (14.2)
 - [x] **Day 7:** transfer penalty value: 5 min per change of bus, counted in journey
       times and shown separately; backend setting `TRANSFER_PENALTY_MIN` (default 5)
@@ -576,3 +584,4 @@ All former "maybes" are now scheduled as Days 8–14. New ideas go here.
 | 2026-11-12 | 10  | Waiting = half the headway at every boarding, penalty 5 → 2; waiting-off equivalence 0 diffs (3,374 results); 152 tests |
 | 2026-11-12 | 10  | Scenario type `change_frequency` (engine, validation, AI prompt, share link); 168 backend, 76 Vitest |
 | 2026-11-12 | 10  | "Frequency" form tab, route halo, legend headways; 82 Vitest, 6 e2e; Day 10 part 1 done |
+| 2026-11-12 | 10  | Demand weighting (invented activity 1–3, shares only; equal levels = unweighted); 187 backend, 83 Vitest |

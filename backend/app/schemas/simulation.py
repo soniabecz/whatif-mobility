@@ -20,6 +20,20 @@ class JourneyChange(BaseModel):
     status: JourneyStatus
 
 
+class DemandWeighted(BaseModel):
+    """The same figures weighted by INVENTED demand: a journey weighs
+    origin activity x destination activity (stop levels 1-3). Only shares
+    and averages: absolute passenger numbers would be fake data."""
+
+    unchanged_pct: float  # share of all trips, 0-100
+    slower_pct: float
+    faster_pct: float
+    impossible_pct: float
+    to_or_from_closed_stop_pct: float
+    average_time_before_min: float | None  # over journeys possible before and after
+    average_time_after_min: float | None
+
+
 class SimulationSummary(BaseModel):
     total_journeys: int  # every ordered pair of distinct stops
     unchanged: int
@@ -34,6 +48,7 @@ class SimulationSummary(BaseModel):
     largest_increase: JourneyChange | None
     transfer_penalty_min: float  # minutes counted per change of bus
     include_waiting: bool  # True: half the headway is waited at every boarding
+    demand_weighted: DemandWeighted
 
 
 class StopImpact(BaseModel):

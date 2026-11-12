@@ -267,8 +267,16 @@ time on the bus + waiting at every boarding + 2 min per change of bus
 - Known simplification: where two routes share a street, a real passenger
   takes whichever bus comes first; the model waits for one specific route.
 
-Journeys are all ordered pairs of stops, weighted equally. A closed stop is
-driven through by buses, but nobody can board, alight or change bus there.
+Journeys are all ordered pairs of stops (240). The counts (slower, faster,
+impossible) weigh every journey the same. Next to them, **"% of trips"** weighs
+each journey by an **invented** activity level of its two stops (quiet 1,
+medium 2, major 3; weight = origin × destination; Central Station, Market Square
+and University are major). Only shares and averages are reported, never
+passenger numbers, because the demand is not real data. With equal levels the
+weighted figures equal the unweighted ones (tested).
+
+A closed stop is driven through by buses, but nobody can board, alight or
+change bus there.
 
 After pulling a change that adds database columns, `./dev.sh` (or
 `python -m app.seed`) rebuilds the tables automatically; the database only

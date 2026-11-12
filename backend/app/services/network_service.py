@@ -73,7 +73,10 @@ def build_graph(
         route_names={route.id: route.name for route in routes},
     )
     for stop in stops:
-        graph.add_node(stop.id, name=stop.name, lat=stop.lat, lon=stop.lon)
+        # activity: missing (stops built in tests) counts as 1, i.e. equal weights.
+        graph.add_node(
+            stop.id, name=stop.name, lat=stop.lat, lon=stop.lon, activity=stop.activity or 1
+        )
 
     for conn in connections:
         for stop_id in (conn.from_stop_id, conn.to_stop_id):

@@ -16,6 +16,7 @@ import {
   describeTimeModel,
   formatChange,
   formatMinutes,
+  formatShare,
   impactLevel,
 } from '../lib/impact'
 import { changedJourneysCsv, csvFileName, downloadCsv } from '../lib/exportCsv'
@@ -99,6 +100,7 @@ export function ResultsPanel({
   const [expanded, setExpanded] = useState(false)
   const [showAll, setShowAll] = useState(false)
   const { summary } = result
+  const weighted = summary.demand_weighted
   const name = (id: string) => stopLabel(stops, id)
 
   const sortedJourneys = useMemo(
@@ -172,18 +174,21 @@ export function ResultsPanel({
           color={IMPACT_STYLES.slower.color}
           label="Slower"
           value={String(summary.slower)}
+          hint={`${formatShare(weighted.slower_pct)} of trips`}
         />
         <Kpi
           icon={IMPACT_ICONS.faster}
           color={IMPACT_STYLES.faster.color}
           label="Faster"
           value={String(summary.faster)}
+          hint={`${formatShare(weighted.faster_pct)} of trips`}
         />
         <Kpi
           icon={IMPACT_ICONS.impossible}
           color={IMPACT_STYLES.impossible.color}
           label="Impossible"
           value={String(summary.impossible)}
+          hint={`${formatShare(weighted.impossible_pct)} of trips`}
         />
         <Kpi
           icon={Clock}
@@ -212,6 +217,14 @@ export function ResultsPanel({
             <DetailRow label="Total change, all possible journeys">
               {formatChange(summary.total_time_change_min)}
             </DetailRow>
+            <DetailRow label="Avg time, demand-weighted">
+              {weighted.average_time_before_min === null || weighted.average_time_after_min === null
+                ? '–'
+                : `${formatMinutes(weighted.average_time_before_min)} → ${formatMinutes(weighted.average_time_after_min)}`}
+            </DetailRow>
+            <DetailRow label="Trips to/from closed stops">
+              {formatShare(weighted.to_or_from_closed_stop_pct)}
+            </DetailRow>
             {summary.largest_increase && summary.largest_increase.change_min !== null && (
               <DetailRow label="Largest increase">
                 {name(summary.largest_increase.origin_id)} →{' '}
@@ -220,6 +233,11 @@ export function ResultsPanel({
               </DetailRow>
             )}
           </dl>
+          <p className="-mt-3 text-[11px] text-ink-subtle">
+            Counts are journeys between stops (all {summary.total_journeys} weigh the same).
+            "% of trips" weighs each journey by an invented activity level of its two stops
+            (quiet 1, medium 2, major 3: origin × destination). It is not real passenger data.
+          </p>
 
           {result.most_affected_stop_ids.length > 0 && (
             <div>

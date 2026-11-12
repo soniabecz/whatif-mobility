@@ -10,6 +10,7 @@ class StopOut(BaseModel):
     name: str
     lat: float
     lon: float
+    activity: int  # invented demand level: 1 quiet, 2 medium, 3 major
 
 
 class RouteOut(BaseModel):

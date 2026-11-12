@@ -21,10 +21,10 @@ function both(routeId: string, a: string, b: string, minutes: number): Connectio
 
 export const smallNetwork: Network = {
   stops: [
-    { id: 'BRK', name: 'Brook Street', lat: 0, lon: 1 },
-    { id: 'ALP', name: 'Alpine Road', lat: 0, lon: 0 },
-    { id: 'DUN', name: 'Dunes', lat: -1, lon: 1 },
-    { id: 'CAS', name: 'Castle', lat: 0, lon: 2 },
+    { id: 'BRK', name: 'Brook Street', lat: 0, lon: 1, activity: 1 },
+    { id: 'ALP', name: 'Alpine Road', lat: 0, lon: 0, activity: 1 },
+    { id: 'DUN', name: 'Dunes', lat: -1, lon: 1, activity: 1 },
+    { id: 'CAS', name: 'Castle', lat: 0, lon: 2, activity: 1 },
   ],
   routes: [
     { id: 'R1', name: 'Red', color: '#ff0000', headway_min: 10 },

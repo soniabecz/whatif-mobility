@@ -199,6 +199,28 @@ export interface components {
             /** Travel Time Min */
             travel_time_min: number;
         };
+        /**
+         * DemandWeighted
+         * @description The same figures weighted by INVENTED demand: a journey weighs
+         *     origin activity x destination activity (stop levels 1-3). Only shares
+         *     and averages: absolute passenger numbers would be fake data.
+         */
+        DemandWeighted: {
+            /** Unchanged Pct */
+            unchanged_pct: number;
+            /** Slower Pct */
+            slower_pct: number;
+            /** Faster Pct */
+            faster_pct: number;
+            /** Impossible Pct */
+            impossible_pct: number;
+            /** To Or From Closed Stop Pct */
+            to_or_from_closed_stop_pct: number;
+            /** Average Time Before Min */
+            average_time_before_min: number | null;
+            /** Average Time After Min */
+            average_time_after_min: number | null;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -399,6 +421,7 @@ export interface components {
             transfer_penalty_min: number;
             /** Include Waiting */
             include_waiting: boolean;
+            demand_weighted: components["schemas"]["DemandWeighted"];
         };
         /**
          * StopImpact
@@ -426,6 +449,8 @@ export interface components {
             lat: number;
             /** Lon */
             lon: number;
+            /** Activity */
+            activity: number;
         };
         /** ValidationError */
         ValidationError: {

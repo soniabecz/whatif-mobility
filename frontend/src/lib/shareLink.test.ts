@@ -51,8 +51,8 @@ describe('round trip', () => {
     const odd: Network = {
       ...network,
       stops: [
-        { id: 'A-1:x', name: 'Odd A', lat: 0, lon: 0 },
-        { id: 'B~2 é', name: 'Odd B', lat: 0, lon: 1 },
+        { id: 'A-1:x', name: 'Odd A', lat: 0, lon: 0, activity: 1 },
+        { id: 'B~2 é', name: 'Odd B', lat: 0, lon: 1, activity: 1 },
       ],
       connections: [
         { id: 1, route_id: 'R1', from_stop_id: 'A-1:x', to_stop_id: 'B~2 é', travel_time_min: 3 },

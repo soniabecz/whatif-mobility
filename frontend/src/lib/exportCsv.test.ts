@@ -59,8 +59,8 @@ describe('changedJourneysCsv', () => {
 
   it('quotes names with commas, quotes or line breaks', () => {
     const odd = new Map<string, Stop>([
-      ['ALP', { id: 'ALP', name: 'Main St, North', lat: 0, lon: 0 }],
-      ['CAS', { id: 'CAS', name: 'The "Castle"\nGate', lat: 0, lon: 0 }],
+      ['ALP', { id: 'ALP', name: 'Main St, North', lat: 0, lon: 0, activity: 1 }],
+      ['CAS', { id: 'CAS', name: 'The "Castle"\nGate', lat: 0, lon: 0, activity: 1 }],
     ])
     const csv = changedJourneysCsv([slower], odd)
     expect(csv).toContain(',"Main St, North",')

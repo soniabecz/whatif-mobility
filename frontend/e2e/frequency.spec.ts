@@ -27,8 +27,8 @@ test('change how often a route runs', async ({ page, request }) => {
   })
   const { summary } = await response.json()
   expect(summary.faster).toBeGreaterThan(0) // needs waiting on (the default)
-  await expect(page.getByRole('group', { name: 'Faster', exact: true })).toHaveText(
-    new RegExp(`^Faster${summary.faster}(\\D|$)`),
-  )
-  await expect(page.getByRole('group', { name: 'Slower', exact: true })).toHaveText(/^Slower0(\D|$)/)
+  const value = (label: string) =>
+    page.getByRole('group', { name: label, exact: true }).locator('p').nth(1)
+  await expect(value('Faster')).toHaveText(String(summary.faster))
+  await expect(value('Slower')).toHaveText('0')
 })

@@ -44,7 +44,7 @@ def seed_database(db: Session) -> None:
 
         for s in STOPS:
             lat, lon = stop_coordinates(s)
-            db.add(Stop(id=s.id, name=s.name, lat=lat, lon=lon))
+            db.add(Stop(id=s.id, name=s.name, lat=lat, lon=lon, activity=s.activity))
         for r in ROUTES:
             db.add(Route(id=r.id, name=r.name, color=r.color, headway_min=r.headway_min))
         db.flush()  # stops and routes must exist before connections (FKs)

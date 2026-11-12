@@ -37,6 +37,8 @@ class SampleStop:
     name: str
     x: float
     y: float
+    # INVENTED demand level (1 quiet, 2 medium, 3 major); not real data.
+    activity: int
 
 
 @dataclass(frozen=True)
@@ -55,22 +57,22 @@ class SampleRoute:
 
 
 STOPS: list[SampleStop] = [
-    SampleStop("CEN", "Central Station", 0, 0),
-    SampleStop("MKT", "Market Square", 0, 1),
-    SampleStop("UNI", "University", 0, 2),
-    SampleStop("NTH", "North Park", 0, 3),
-    SampleStop("HOS", "City Hospital", 0, -1),
-    SampleStop("STH", "South Terminal", 0, -2),
-    SampleStop("LIB", "Library", -1, 0),
-    SampleStop("WST", "West End", -2, 0),
-    SampleStop("RIV", "Riverside", 1, 0),
-    SampleStop("EST", "East Gate", 2, 0),
-    SampleStop("MUS", "Museum", 1, 2),
-    SampleStop("OLD", "Old Town", -1, 2),
-    SampleStop("SCH", "School Lane", -1, -1),
-    SampleStop("STD", "Stadium", 1, -1),
-    SampleStop("TEC", "Tech Park", 2, -1),
-    SampleStop("AIR", "Airport", 3, -2),
+    SampleStop("CEN", "Central Station", 0, 0, activity=3),
+    SampleStop("MKT", "Market Square", 0, 1, activity=3),
+    SampleStop("UNI", "University", 0, 2, activity=3),
+    SampleStop("NTH", "North Park", 0, 3, activity=1),
+    SampleStop("HOS", "City Hospital", 0, -1, activity=2),
+    SampleStop("STH", "South Terminal", 0, -2, activity=2),
+    SampleStop("LIB", "Library", -1, 0, activity=1),
+    SampleStop("WST", "West End", -2, 0, activity=1),
+    SampleStop("RIV", "Riverside", 1, 0, activity=1),
+    SampleStop("EST", "East Gate", 2, 0, activity=1),
+    SampleStop("MUS", "Museum", 1, 2, activity=1),
+    SampleStop("OLD", "Old Town", -1, 2, activity=2),
+    SampleStop("SCH", "School Lane", -1, -1, activity=2),
+    SampleStop("STD", "Stadium", 1, -1, activity=2),
+    SampleStop("TEC", "Tech Park", 2, -1, activity=2),
+    SampleStop("AIR", "Airport", 3, -2, activity=2),
 ]
 
 ROUTES: list[SampleRoute] = [

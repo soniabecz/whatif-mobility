@@ -13,7 +13,8 @@ def test_list_stops(client: TestClient) -> None:
     assert len(stops) == len(STOPS)
     central = next(s for s in stops if s["id"] == "CEN")
     assert central["name"] == "Central Station"
-    assert set(central) == {"id", "name", "lat", "lon"}
+    assert set(central) == {"id", "name", "lat", "lon", "activity"}
+    assert central["activity"] == 3  # invented demand level: major
 
 
 def test_list_routes(client: TestClient) -> None:

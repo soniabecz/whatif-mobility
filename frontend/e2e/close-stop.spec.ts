@@ -34,15 +34,16 @@ test('close a stop and see the simulation results', async ({ page, request }) =>
   const { summary } = await response.json()
 
   await expect(page.getByText(`${summary.total_journeys} journeys`)).toBeVisible()
-  for (const [label, value] of [
-    ['Slower', summary.slower],
-    ['Faster', summary.faster],
-    ['Impossible', summary.impossible],
+  const weighted = summary.demand_weighted
+  for (const [label, value, pct] of [
+    ['Slower', summary.slower, weighted.slower_pct],
+    ['Faster', summary.faster, weighted.faster_pct],
+    ['Impossible', summary.impossible, weighted.impossible_pct],
   ] as const) {
-    // Tile text is label + value (+ optional hint); the value must match exactly.
-    await expect(page.getByRole('group', { name: label, exact: true })).toHaveText(
-      new RegExp(`^${label}${value}(\\D|$)`),
-    )
+    // Tile paragraphs: label, value (journeys), hint (share of demand-weighted trips).
+    const tile = page.getByRole('group', { name: label, exact: true }).locator('p')
+    await expect(tile.nth(1)).toHaveText(String(value))
+    await expect(tile.nth(2)).toHaveText(`${pct.toFixed(1)}% of trips`)
   }
   // Closing the central hub must make some journeys slower or impossible.
   expect(summary.slower + summary.impossible).toBeGreaterThan(0)

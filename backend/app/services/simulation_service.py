@@ -6,6 +6,9 @@ Rules (CLAUDE.md, docs/IMPLEMENTATION_PLAN.md):
 
 Passenger journeys = every ordered pair of distinct stops, weighted equally
 (there is no demand data, and inventing passenger numbers would be fake data).
+Next to these, ``demand_weighted`` repeats the figures with each journey
+weighted by origin activity x destination activity (INVENTED stop levels 1-3),
+reported only as shares and averages. Equal levels give the unweighted figures.
 A journey's time is the fastest path in the route-aware graph
 (see route_graph.py): time on the bus, plus (optionally) waiting half the
 headway at every boarding, plus a fixed penalty per change of bus.
@@ -26,6 +29,7 @@ from app.schemas.scenario import (
     Scenario,
 )
 from app.schemas.simulation import (
+    DemandWeighted,
     JourneyChange,
     SimulationResult,
     SimulationSummary,
@@ -140,14 +144,23 @@ def simulate(
     unchanged = closed_count = 0
     sum_before = sum_after = 0.0
     comparable = 0
+    # Demand weights: invented activity level of origin x destination.
+    activity = {s: baseline.nodes[s].get("activity", 1) for s in stop_ids}
+    weight_of: dict[str, float] = {}  # category -> summed weight
+    weighted_before = weighted_after = weighted_comparable = 0.0
+
+    def add_weight(category: str, weight: float) -> None:
+        weight_of[category] = weight_of.get(category, 0.0) + weight
     per_stop: dict[str, list[JourneyChange]] = {s: [] for s in stop_ids}
 
     for origin in stop_ids:
         for destination in stop_ids:
             if origin == destination:
                 continue
+            weight = float(activity[origin] * activity[destination])
             if origin in closed or destination in closed:
                 closed_count += 1
+                add_weight("closed", weight)
                 continue
 
             time_before = before[origin].get(destination)
@@ -156,17 +169,23 @@ def simulate(
                 # Impossible already in the baseline; changes only remove or
                 # re-time links, so it cannot become possible. Not a change.
                 unchanged += 1
+                add_weight("unchanged", weight)
                 continue
 
             if time_after is not None:
                 comparable += 1
                 sum_before += time_before
                 sum_after += time_after
+                weighted_comparable += weight
+                weighted_before += weight * time_before
+                weighted_after += weight * time_after
                 if abs(time_after - time_before) < _EPSILON:
                     unchanged += 1
+                    add_weight("unchanged", weight)
                     continue
 
             journey = _journey_change(origin, destination, time_before, time_after)
+            add_weight(journey.status, weight)
             changed.append(journey)
             per_stop[origin].append(journey)
             per_stop[destination].append(journey)
@@ -185,6 +204,9 @@ def simulate(
         largest_increase=_largest_increase(changed),
         transfer_penalty_min=transfer_penalty_min,
         include_waiting=include_waiting,
+        demand_weighted=_demand_weighted(
+            weight_of, weighted_comparable, weighted_before, weighted_after
+        ),
     )
     return SimulationResult(
         scenario=scenario,
@@ -197,6 +219,25 @@ def simulate(
 
 def _round(value: float) -> float:
     return round(value, 1) + 0.0  # "+ 0.0" turns -0.0 into 0.0
+
+
+def _demand_weighted(
+    weight_of: dict[str, float], comparable: float, before: float, after: float
+) -> DemandWeighted:
+    total = sum(weight_of.values())
+
+    def pct(category: str) -> float:
+        return _round(100 * weight_of.get(category, 0.0) / total) if total else 0.0
+
+    return DemandWeighted(
+        unchanged_pct=pct("unchanged"),
+        slower_pct=pct("slower"),
+        faster_pct=pct("faster"),
+        impossible_pct=pct("impossible"),
+        to_or_from_closed_stop_pct=pct("closed"),
+        average_time_before_min=_round(before / comparable) if comparable else None,
+        average_time_after_min=_round(after / comparable) if comparable else None,
+    )
 
 
 def _journey_change(
