@@ -6,7 +6,7 @@ import { compareJourney } from './api/journeys'
 import { fetchNetwork } from './api/network'
 import { runSimulation } from './api/simulations'
 import { AiScenarioInput } from './components/AiScenarioInput'
-import { ChangeList } from './components/ChangeList'
+import { ChangeList, type ListNotice } from './components/ChangeList'
 import {
   JourneyExplorer,
   type JourneySelection,
@@ -30,6 +30,7 @@ import {
   type ChangeDraft,
 } from './lib/changeDraft'
 import { stopsById } from './lib/network'
+import { decodeChanges, readShareParam, sharePath } from './lib/shareLink'
 import type { Network } from './types/network'
 import { MAX_CHANGES, type ScenarioChange } from './types/scenario'
 import type { SimulationResult } from './types/simulation'
@@ -46,6 +47,28 @@ type SimulationState =
   | { kind: 'error'; message: string }
   | { kind: 'success'; result: SimulationResult }
 
+/**
+ * Restore a shared change list from the URL (?s=...), once the network is known.
+ * All or nothing; results are not shared, the user presses Run. An invalid
+ * link stays in the address bar until the list is edited.
+ */
+function openSharedLink(network: Network): { changes: ScenarioChange[]; notice: ListNotice } | null {
+  const raw = readShareParam(window.location.search)
+  if (raw === null || raw === '') return null
+  const decoded = decodeChanges(raw, network)
+  if (!decoded.ok) {
+    return { changes: [], notice: { tone: 'error', text: `This link could not be opened: ${decoded.error}.` } }
+  }
+  const count = decoded.changes.length
+  return {
+    changes: decoded.changes,
+    notice: {
+      tone: 'info',
+      text: `Loaded ${count} ${count === 1 ? 'change' : 'changes'} from a shared link. Check them, then run the simulation.`,
+    },
+  }
+}
+
 // Map padding so the network (or a journey) is fitted beside the floating panels.
 const DESKTOP_FIT: MapPadding = { topLeft: [460, 60], bottomRight: [60, 60] }
 const MOBILE_FIT: MapPadding = { topLeft: [24, 64], bottomRight: [24, 120] }
@@ -59,6 +82,8 @@ function App() {
   // The change being built in the form; null until the user edits it
   // (then the initial draft for the loaded network is used).
   const [draft, setDraft] = useState<ChangeDraft | null>(null)
+  // Result of opening a shared link (?s=...), shown above the change list.
+  const [listNotice, setListNotice] = useState<ListNotice | null>(null)
   const [simulation, setSimulation] = useState<SimulationState>({ kind: 'idle' })
   const [sheetOpen, setSheetOpen] = useState(true)
   const [resultsTab, setResultsTab] = useState<ResultsTab>('summary')
@@ -82,6 +107,11 @@ function App() {
           })
         } else {
           setNetworkState({ kind: 'ready', network })
+          const shared = openSharedLink(network)
+          if (shared) {
+            setChanges(shared.changes)
+            setListNotice(shared.notice)
+          }
         }
       })
       .catch((error: unknown) => {
@@ -106,6 +136,10 @@ function App() {
   function handleChangesChange(next: ScenarioChange[]) {
     requestId.current += 1
     setChanges(next)
+    setListNotice(null)
+    // The address bar always holds a shareable link to the current list.
+    // replaceState: edits do not fill the back-button history.
+    window.history.replaceState(window.history.state, '', sharePath(window.location.pathname, next))
     setSimulation({ kind: 'idle' }) // results always match the listed changes
     clearJourney()
   }
@@ -211,6 +245,8 @@ function App() {
         network={network}
         changes={changes}
         onChangesChange={handleChangesChange}
+        notice={listNotice}
+        onDismissNotice={() => setListNotice(null)}
         disabled={running}
       />
       <ScenarioForm

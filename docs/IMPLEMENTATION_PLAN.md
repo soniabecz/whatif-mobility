@@ -6,9 +6,8 @@
 
 ## Current status
 
-- **Last completed:** Day 9, part 1 (click the map to fill in the form);
-  134 backend + 51 Vitest + 2 Playwright tests
-- **Next up:** Day 9, part 2 (shareable link): explain the URL format and wait for approval
+- **Last completed:** Day 9, part 2 (shareable link); 134 backend + 65 Vitest + 4 Playwright tests
+- **Next up:** Day 9, part 3 (CSV export of changed journeys)
 - **Repository:** https://github.com/soniabecz/whatif-mobility (private, branch `main`)
 
 ## Timeline
@@ -141,6 +140,9 @@ so the project is usable even if a later day is cut short.
 | ~~No frontend test runner~~ (superseded Day 8) | Vitest for pure `lib/` helpers, one Playwright end-to-end test |
 | Playwright e2e against the real backend + seeded data, not a mocked API | Only test that proves frontend and backend work together; simulations are read-only |
 | E2E checks UI numbers against `POST /api/simulations`, not hardcoded values | Survives model changes (Day 10) while still catching display bugs |
+| Shared link: readable `?s=` text, not base64 JSON; `:oneway` instead of `>` | Visible and hand-editable; browsers percent-encode `>` in URLs |
+| Shared links are all or nothing, never auto-run | No silently incomplete scenarios; same "review, then run" step as the AI |
+| Address bar synced on every list edit via `replaceState` | Always shareable, survives reload, no back-button spam |
 | Form draft lifted to `App`; click rules as pure functions in `lib/changeDraft.ts` | Map and form edit one state; rules unit-tested without React |
 | Map selection in its own Leaflet pane (z-index 390, below lines) | Leaflet stacks shapes by insertion order; a later selection would cover the lines |
 | E2E clicks lines at their midpoint with the mouse | Vertical/horizontal SVG lines have a 0-px bounding box, which Playwright treats as invisible |
@@ -386,8 +388,13 @@ and 14 are larger than one session and are marked as such.
 - [x] Browser check by the user, commit
 
 **2. Shareable link** (S)
-- [ ] Encode the change list in the URL; opening the link restores it (validated)
-- [ ] Copy-link button; browser check, commit
+- [x] Design approved: readable `?s=close:CEN~remove:MKT-UNI~time:RIV-EST:9:oneway`;
+      no auto-run on open; address bar kept in sync (`replaceState`)
+- [x] `lib/shareLink.ts`: encode/decode, stop ids escaped, all-or-nothing validation
+      with the form's rules (stops, links, 0 < time ≤ 600, ≤ 20 changes)
+- [x] Notice above the list (loaded / could not be opened); "Copy link" button
+- [x] Tests: 14 Vitest (65 total), 2 Playwright (4 e2e total)
+- [x] Browser check by the user, commit
 
 **3. CSV export of changed journeys** (S)
 - [ ] Export from the results card (frontend only, values as computed)
@@ -533,3 +540,4 @@ All former "maybes" are now scheduled as Days 8–14. New ideas go here.
 | 2026-11-12 | 8   | Frontend tests: Vitest (32, lib helpers), Playwright e2e vs real backend; both in CI |
 | 2026-11-12 | 8   | `./dev.sh` one-command start, `app.seed --if-empty`; 134 tests; Day 8 done |
 | 2026-11-12 | 9   | Map clicks fill in the form (draft lifted to `App`, selection pane); 51 Vitest, 2 e2e; browser-checked |
+| 2026-11-12 | 9   | Shareable link (`?s=`, readable, all-or-nothing, synced URL, Copy link); 65 Vitest, 4 e2e; browser-checked |

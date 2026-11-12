@@ -138,6 +138,19 @@ Instead of the dropdowns you can click the map: a stop (to close it), a line
 (to select that link), or two neighbouring stops one after the other (From,
 then To). The current selection is ringed in indigo on the map.
 
+**Sharing a scenario:** the address bar always holds a link to the current list
+of changes (**Copy link** next to *Clear* copies it). Opening the link restores
+the changes; the recipient presses *Run* and gets the same results, because
+the simulation is deterministic. The format is readable and can be edited by hand:
+
+```
+http://localhost:5173/?s=close:CEN~remove:MKT-UNI~time:RIV-EST:9:oneway
+```
+
+Changes are separated by `~`; `:oneway` limits a link change to one direction.
+A link with any invalid change (unknown stop, no such link, time out of range,
+more than 20 changes) loads nothing and says why.
+
 If the page says the network is empty, run `python -m app.seed` in `backend/`.
 
 Map tiles come from the public OpenStreetMap tile server, which is fine for
@@ -162,8 +175,8 @@ npm run build    # type-check with TypeScript and build for production
 
 `npm run test:e2e` opens the app in Chromium and runs two tests: close a stop
 with the form, run the simulation and check that the results show exactly the
-numbers the backend computes; and fill in the form by clicking stops and lines
-on the map. It uses the real backend and the seeded sample network
+numbers the backend computes; fill in the form by clicking stops and lines on
+the map; and open, update and copy shareable links (including an invalid one). It uses the real backend and the seeded sample network
 (`python -m app.seed`); nothing is written to the database.
 
 Playwright starts the backend (from `backend/.venv`) and the Vite dev server

@@ -1,7 +1,8 @@
-import { useMemo } from 'react'
-import { ListChecks, Trash2, X } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Check, Info, Link2, ListChecks, Trash2, TriangleAlert, X } from 'lucide-react'
 
 import { describeChange, stopsById } from '../lib/network'
+import { sharePath } from '../lib/shareLink'
 import type { Network } from '../types/network'
 import { MAX_CHANGES, type ScenarioChange } from '../types/scenario'
 import { CHANGE_ICONS } from './impactIcons'
@@ -10,15 +11,51 @@ import { Button } from './ui/Button'
 import { IconButton } from './ui/IconButton'
 import { SectionTitle } from './ui/SectionTitle'
 
+/** Message about the list itself, e.g. the result of opening a shared link. */
+export interface ListNotice {
+  tone: 'info' | 'error'
+  text: string
+}
+
 interface ChangeListProps {
   network: Network
   changes: ScenarioChange[]
   onChangesChange: (changes: ScenarioChange[]) => void
   disabled: boolean
+  notice: ListNotice | null
+  onDismissNotice: () => void
 }
 
-export function ChangeList({ network, changes, onChangesChange, disabled }: ChangeListProps) {
+type CopyState = 'idle' | 'copied' | 'failed'
+
+export function ChangeList({
+  network,
+  changes,
+  onChangesChange,
+  disabled,
+  notice,
+  onDismissNotice,
+}: ChangeListProps) {
   const stops = useMemo(() => stopsById(network), [network])
+  const [copyState, setCopyState] = useState<CopyState>('idle')
+
+  // Reset the "Copied" / "Copy failed" label after a moment.
+  useEffect(() => {
+    if (copyState === 'idle') return
+    const timer = window.setTimeout(() => setCopyState('idle'), 2000)
+    return () => window.clearTimeout(timer)
+  }, [copyState])
+
+  async function copyLink() {
+    const url = `${window.location.origin}${sharePath(window.location.pathname, changes)}`
+    try {
+      // Throws (or is missing) without permission or outside a secure context.
+      await navigator.clipboard.writeText(url)
+      setCopyState('copied')
+    } catch {
+      setCopyState('failed')
+    }
+  }
 
   return (
     <section className="space-y-3">
@@ -29,6 +66,21 @@ export function ChangeList({ network, changes, onChangesChange, disabled }: Chan
             <Badge tone={changes.length > 0 ? 'accent' : 'neutral'}>
               {changes.length}/{MAX_CHANGES}
             </Badge>
+            {changes.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={copyState === 'copied' ? Check : Link2}
+                onClick={copyLink}
+                title={
+                  copyState === 'failed'
+                    ? 'The browser blocked the clipboard: copy the address bar instead'
+                    : 'Copy a link to this list of changes'
+                }
+              >
+                {copyState === 'copied' ? 'Copied' : copyState === 'failed' ? 'Copy failed' : 'Copy link'}
+              </Button>
+            )}
             {changes.length > 0 && (
               <Button
                 variant="ghost"
@@ -45,6 +97,25 @@ export function ChangeList({ network, changes, onChangesChange, disabled }: Chan
       >
         Scenario
       </SectionTitle>
+
+      {notice && (
+        <div
+          role={notice.tone === 'error' ? 'alert' : 'status'}
+          className={
+            notice.tone === 'error'
+              ? 'flex items-start gap-2 rounded-xl bg-red-50 py-2 pr-1.5 pl-3 text-xs text-red-800'
+              : 'flex items-start gap-2 rounded-xl bg-accent-soft py-2 pr-1.5 pl-3 text-xs text-ink'
+          }
+        >
+          {notice.tone === 'error' ? (
+            <TriangleAlert size={14} className="mt-0.5 shrink-0" aria-hidden />
+          ) : (
+            <Info size={14} className="mt-0.5 shrink-0 text-accent" aria-hidden />
+          )}
+          <p className="flex-1">{notice.text}</p>
+          <IconButton icon={X} label="Dismiss" onClick={onDismissNotice} className="-my-1.5" />
+        </div>
+      )}
 
       {changes.length === 0 ? (
         <p className="rounded-xl border border-dashed border-line px-3 py-4 text-center text-xs text-ink-subtle">
