@@ -64,9 +64,20 @@ class AIChangeFrequency(_AIModel):
     headway_min: float
 
 
+class AIAddConnection(_AIModel):
+    type: Literal["add_connection"]
+    route_id: str
+    from_stop_id: str
+    to_stop_id: str
+    travel_time_min: float
+    both_directions: bool
+
+
 class AIInterpretation(_AIModel):
     status: Literal["ok", "unclear"]
-    changes: list[AICloseStop | AIRemoveConnection | AIChangeTravelTime | AIChangeFrequency]
+    changes: list[
+        AICloseStop | AIRemoveConnection | AIChangeTravelTime | AIChangeFrequency | AIAddConnection
+    ]
     message: str
 
 

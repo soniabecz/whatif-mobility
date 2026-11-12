@@ -223,6 +223,55 @@
   },
   "components": {
     "schemas": {
+      "AddConnection": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "add_connection",
+            "title": "Type"
+          },
+          "route_id": {
+            "type": "string",
+            "maxLength": 10,
+            "minLength": 1,
+            "title": "Route Id"
+          },
+          "from_stop_id": {
+            "type": "string",
+            "maxLength": 10,
+            "minLength": 1,
+            "title": "From Stop Id"
+          },
+          "to_stop_id": {
+            "type": "string",
+            "maxLength": 10,
+            "minLength": 1,
+            "title": "To Stop Id"
+          },
+          "travel_time_min": {
+            "type": "number",
+            "maximum": 600.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Travel Time Min"
+          },
+          "both_directions": {
+            "type": "boolean",
+            "title": "Both Directions",
+            "default": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "route_id",
+          "from_stop_id",
+          "to_stop_id",
+          "travel_time_min"
+        ],
+        "title": "AddConnection",
+        "description": "An existing route also runs directly between two stops (an extension or\na shortcut). At least one of the stops must already be on the route."
+      },
       "ChangeFrequency": {
         "properties": {
           "type": {
@@ -369,6 +418,10 @@
             "type": "number",
             "title": "Impossible Pct"
           },
+          "newly_possible_pct": {
+            "type": "number",
+            "title": "Newly Possible Pct"
+          },
           "to_or_from_closed_stop_pct": {
             "type": "number",
             "title": "To Or From Closed Stop Pct"
@@ -402,6 +455,7 @@
           "slower_pct",
           "faster_pct",
           "impossible_pct",
+          "newly_possible_pct",
           "to_or_from_closed_stop_pct",
           "average_time_before_min",
           "average_time_after_min"
@@ -476,11 +530,15 @@
                 },
                 {
                   "$ref": "#/components/schemas/ChangeFrequency"
+                },
+                {
+                  "$ref": "#/components/schemas/AddConnection"
                 }
               ],
               "discriminator": {
                 "propertyName": "type",
                 "mapping": {
+                  "add_connection": "#/components/schemas/AddConnection",
                   "change_frequency": "#/components/schemas/ChangeFrequency",
                   "change_travel_time": "#/components/schemas/ChangeTravelTime",
                   "close_stop": "#/components/schemas/CloseStop",
@@ -600,7 +658,8 @@
               "slower",
               "faster",
               "impossible",
-              "unreachable"
+              "unreachable",
+              "new"
             ],
             "title": "Status"
           },
@@ -775,11 +834,15 @@
                 },
                 {
                   "$ref": "#/components/schemas/ChangeFrequency"
+                },
+                {
+                  "$ref": "#/components/schemas/AddConnection"
                 }
               ],
               "discriminator": {
                 "propertyName": "type",
                 "mapping": {
+                  "add_connection": "#/components/schemas/AddConnection",
                   "change_frequency": "#/components/schemas/ChangeFrequency",
                   "change_travel_time": "#/components/schemas/ChangeTravelTime",
                   "close_stop": "#/components/schemas/CloseStop",
@@ -912,11 +975,15 @@
                 },
                 {
                   "$ref": "#/components/schemas/ChangeFrequency"
+                },
+                {
+                  "$ref": "#/components/schemas/AddConnection"
                 }
               ],
               "discriminator": {
                 "propertyName": "type",
                 "mapping": {
+                  "add_connection": "#/components/schemas/AddConnection",
                   "change_frequency": "#/components/schemas/ChangeFrequency",
                   "change_travel_time": "#/components/schemas/ChangeTravelTime",
                   "close_stop": "#/components/schemas/CloseStop",
@@ -1000,6 +1067,10 @@
             "type": "integer",
             "title": "Impossible"
           },
+          "newly_possible": {
+            "type": "integer",
+            "title": "Newly Possible"
+          },
           "to_or_from_closed_stop": {
             "type": "integer",
             "title": "To Or From Closed Stop"
@@ -1063,6 +1134,7 @@
           "slower",
           "faster",
           "impossible",
+          "newly_possible",
           "to_or_from_closed_stop",
           "walked_to_or_from_closed_stop",
           "average_time_before_min",

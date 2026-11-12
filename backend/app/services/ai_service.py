@@ -123,12 +123,19 @@ def describe_network(graph: nx.DiGraph) -> str:
 
     headways: dict[str, float] = graph.graph.get("headways", {})
     names: dict[str, str] = graph.graph.get("route_names", {})
+    served: dict[str, set[str]] = {}
+    for u, v, edge in graph.edges(data=True):
+        for route_id in edge["routes"]:
+            served.setdefault(route_id, set()).update((u, v))
     if headways:
         lines.append("")
-        lines.append("ROUTES (id: name, current headway = minutes between buses):")
+        lines.append("ROUTES (id: name, current headway = minutes between buses; stops served):")
         for route_id in sorted(headways):
             name = names.get(route_id, route_id)
-            lines.append(f"- {route_id}: {name}, a bus every {headways[route_id]:g} min")
+            stops = ", ".join(sorted(served.get(route_id, set())))
+            lines.append(
+                f"- {route_id}: {name}, a bus every {headways[route_id]:g} min; stops: {stops}"
+            )
 
     lines.append("")
     lines.append("LINKS between directly connected stops (current fastest travel time):")
@@ -153,13 +160,19 @@ def build_system_prompt(graph: nx.DiGraph) -> str:
 network into a structured scenario. You only translate; you never estimate or \
 describe the impact of the changes (a separate simulation computes all results).
 
-The four possible change types:
+The five possible change types:
 - close_stop: a stop is closed (buses drive through without stopping). Needs stop_id.
 - remove_connection: the link between two DIRECTLY connected stops disappears.
 - change_travel_time: a link between two DIRECTLY connected stops gets a new \
 travel time in minutes (travel_time_min, greater than 0, at most 600).
 - change_frequency: a route runs more or less often. Needs route_id and \
 headway_min = minutes between two buses ({MIN_HEADWAY_MIN} to {MAX_HEADWAY_MIN}).
+- add_connection: an existing route also runs directly between two stops (an \
+extension or a shortcut). Needs route_id, from_stop_id, to_stop_id, \
+travel_time_min and both_directions. At least one of the two stops must already \
+be served by that route (see ROUTES), the stops must differ, and the route must \
+not already run between them. The user must give the travel time; never guess \
+it: without one the request is unclear.
 
 Rules:
 - Use only stop ids from the list below. Match names flexibly ("the airport" = AIR).
@@ -175,7 +188,7 @@ one decimal.
 ("R3"), name ("the ring") or line number ("line 3").
 - At most {MAX_CHANGES} changes.
 - If the request is ambiguous, refers to something not in the network, asks \
-for something other than these four change types (for example new routes or \
+for something other than these five change types (for example new routes or \
 new stops), or is not about changing the network: status "unclear", no \
 changes, and a short message that explains why or asks a clarifying question.
 - Otherwise status "ok" and a one-sentence message summarising what you \

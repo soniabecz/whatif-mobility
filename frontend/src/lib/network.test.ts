@@ -4,6 +4,7 @@ import { smallNetwork } from '../test/smallNetwork'
 import type { Network } from '../types/network'
 import type { ScenarioChange } from '../types/scenario'
 import {
+  addedConnectionProblem,
   currentTravelTime,
   describeChange,
   linkKey,
@@ -163,6 +164,22 @@ describe('describeChange', () => {
     ).toBe('Remove Alpine Road → Brook Street')
   })
 
+  it('describes an added connection', () => {
+    expect(
+      describeChange(
+        {
+          type: 'add_connection',
+          route_id: 'R1',
+          from_stop_id: 'CAS',
+          to_stop_id: 'DUN',
+          travel_time_min: 6,
+          both_directions: true,
+        },
+        stops,
+      ),
+    ).toBe('Add R1: Castle ↔ Dunes, 6 min')
+  })
+
   it('describes a frequency change by route', () => {
     expect(
       describeChange({ type: 'change_frequency', route_id: 'R2', headway_min: 7.5 }, stops),
@@ -182,5 +199,25 @@ describe('describeChange', () => {
         stops,
       ),
     ).toBe('Brook Street ↔ Dunes: 7.5 min')
+  })
+})
+
+describe('addedConnectionProblem', () => {
+  it('allows an extension from a stop on the route', () => {
+    // R1 serves ALP, BRK, CAS; DUN is new for R1.
+    expect(addedConnectionProblem(network, 'R1', 'CAS', 'DUN', true)).toBeNull()
+  })
+
+  it('needs one stop on the route, two different stops and a new link', () => {
+    const lonely = { ...network, connections: network.connections.filter((c) => c.route_id === 'R2') }
+    expect(addedConnectionProblem(lonely, 'R1', 'CAS', 'DUN', true)).toBe(
+      'route R1 stops at neither CAS nor DUN',
+    )
+    expect(addedConnectionProblem(network, 'R1', 'CAS', 'CAS', true)).toBe(
+      'a connection needs two different stops',
+    )
+    expect(addedConnectionProblem(network, 'R1', 'BRK', 'ALP', false)).toBe(
+      'route R1 already runs from BRK to ALP',
+    )
   })
 })

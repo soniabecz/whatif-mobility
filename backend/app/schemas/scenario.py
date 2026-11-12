@@ -6,7 +6,7 @@ and the AI layer (Day 5) both produce exactly this shape.
 
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 StopId = Annotated[str, Field(min_length=1, max_length=10)]
 RouteId = Annotated[str, Field(min_length=1, max_length=10)]
@@ -55,8 +55,26 @@ class ChangeFrequency(_Change):
     headway_min: float = Field(ge=MIN_HEADWAY_MIN, le=MAX_HEADWAY_MIN, allow_inf_nan=False)
 
 
+class AddConnection(_Change):
+    """An existing route also runs directly between two stops (an extension or
+    a shortcut). At least one of the stops must already be on the route."""
+
+    type: Literal["add_connection"]
+    route_id: RouteId
+    from_stop_id: StopId
+    to_stop_id: StopId
+    travel_time_min: float = Field(gt=0, le=600, allow_inf_nan=False)
+    both_directions: bool = True
+
+    @model_validator(mode="after")
+    def _different_stops(self) -> "AddConnection":
+        if self.from_stop_id == self.to_stop_id:
+            raise ValueError("a connection needs two different stops")
+        return self
+
+
 ScenarioChange = Annotated[
-    CloseStop | RemoveConnection | ChangeTravelTime | ChangeFrequency,
+    CloseStop | RemoveConnection | ChangeTravelTime | ChangeFrequency | AddConnection,
     Field(discriminator="type"),
 ]
 

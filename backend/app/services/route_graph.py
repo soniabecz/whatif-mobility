@@ -63,21 +63,33 @@ def build_route_graph(
 
     for u, v, data in sorted(network.edges(data=True), key=lambda edge: (edge[0], edge[1])):
         for route_id, minutes in sorted(data["route_times"].items()):
-            for stop_id in (u, v):
-                platform = (stop_id, route_id)
-                if platform not in graph:
-                    graph.add_node(platform, kind="platform", stop_id=stop_id, route_id=route_id)
-                    wait = _wait_min(headways, route_id) if include_waiting else 0.0
-                    graph.add_edge(
-                        stop_id, platform, kind="board", route_id=route_id,
-                        wait_min=wait, penalty_min=transfer_penalty_min,
-                        weight=transfer_penalty_min + wait,
-                    )
-                    graph.add_edge(platform, stop_id, kind="alight", weight=0.0)
-            graph.add_edge(
-                (u, route_id), (v, route_id), kind="ride", route_id=route_id, weight=minutes
-            )
+            add_ride(graph, u, v, route_id, minutes)
     return graph
+
+
+def add_platform(graph: nx.DiGraph, stop_id: str, route_id: str) -> None:
+    """Let ``route_id`` stop at ``stop_id`` (board/alight edges), if it does not yet.
+
+    The wait uses the route's current headway in this graph.
+    """
+    platform = (stop_id, route_id)
+    if platform in graph:
+        return
+    penalty: float = graph.graph["transfer_penalty_min"]
+    wait = _wait_min(graph.graph["headways"], route_id) if graph.graph["include_waiting"] else 0.0
+    graph.add_node(platform, kind="platform", stop_id=stop_id, route_id=route_id)
+    graph.add_edge(
+        stop_id, platform, kind="board", route_id=route_id,
+        wait_min=wait, penalty_min=penalty, weight=penalty + wait,
+    )
+    graph.add_edge(platform, stop_id, kind="alight", weight=0.0)
+
+
+def add_ride(graph: nx.DiGraph, u: str, v: str, route_id: str, minutes: float) -> None:
+    """Route ``route_id`` runs directly u -> v in ``minutes`` (platforms added as needed)."""
+    add_platform(graph, u, route_id)
+    add_platform(graph, v, route_id)
+    graph.add_edge((u, route_id), (v, route_id), kind="ride", route_id=route_id, weight=minutes)
 
 
 def route_ids(graph: nx.DiGraph) -> set[str]:

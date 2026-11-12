@@ -89,6 +89,8 @@ def compare_journey(
             reason=why,
         )
 
+    if before is None and after is not None:
+        return comparison("new", None, "Not possible in the current network; the changes connect these stops.")
     if before is None:
         return comparison("unreachable", None, "These stops are not connected in the current network.")
     if after is None:

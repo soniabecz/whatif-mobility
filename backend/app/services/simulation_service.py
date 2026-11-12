@@ -25,6 +25,7 @@ from collections.abc import Sequence
 import networkx as nx
 
 from app.schemas.scenario import (
+    AddConnection,
     ChangeFrequency,
     ChangeTravelTime,
     CloseStop,
@@ -40,6 +41,7 @@ from app.schemas.simulation import (
 )
 from app.services.route_graph import (
     Platform,
+    add_ride,
     build_route_graph,
     is_open_stop,
     ride_edges,
@@ -88,6 +90,9 @@ def apply_scenario(
                 if change.route_id not in route_ids(graph):
                     raise ScenarioError(f"unknown route '{change.route_id}'")
                 set_headway(graph, change.route_id, change.headway_min)
+            elif isinstance(change, AddConnection):
+                for u, v in _new_rides(graph, change, closed):
+                    add_ride(graph, u, v, change.route_id, change.travel_time_min)
             else:  # pragma: no cover - guarded by the Pydantic discriminator
                 raise ScenarioError(f"Unsupported change type: {change!r}")
         except ScenarioError as error:
@@ -122,6 +127,30 @@ def _target_rides(
     return rides
 
 
+def _new_rides(
+    graph: nx.DiGraph, change: AddConnection, closed: set[str]
+) -> list[tuple[str, str]]:
+    """(from, to) pairs an added connection creates; validated before any change."""
+    a, b, route = change.from_stop_id, change.to_stop_id, change.route_id
+    _require_open_stop(graph, a, closed)
+    _require_open_stop(graph, b, closed)
+    if route not in route_ids(graph):
+        raise ScenarioError(f"unknown route '{route}'")
+    if (a, route) not in graph and (b, route) not in graph:
+        raise ScenarioError(
+            f"route '{route}' stops at neither '{a}' nor '{b}': "
+            "a new link must start or end at a stop on the route"
+        )
+    directions = [(a, b), (b, a)] if change.both_directions else [(a, b)]
+    for u, v in directions:
+        if graph.has_edge((u, route), (v, route)):
+            raise ScenarioError(
+                f"route '{route}' already runs from '{u}' to '{v}' "
+                "(use change_travel_time to change its time)"
+            )
+    return directions
+
+
 # --- Metrics ----------------------------------------------------------------
 
 def simulate(
@@ -147,7 +176,7 @@ def simulate(
     after = {s: travel_times_from(after_graph, s) for s in stop_ids if s not in closed}
 
     changed: list[JourneyChange] = []
-    unchanged = closed_count = walked_count = 0
+    unchanged = closed_count = walked_count = newly_possible = 0
     sum_before = sum_after = 0.0
     comparable = 0
     # Demand weights: invented activity level of origin x destination.
@@ -179,10 +208,14 @@ def simulate(
             else:
                 time_after = after[origin].get(destination)
             if time_before is None:
-                # Impossible already in the baseline; changes only remove or
-                # re-time links, so it cannot become possible. Not a change.
-                unchanged += 1
-                add_weight("unchanged", weight)
+                # Impossible already in the baseline. An added connection can
+                # make it possible; there is no "before" time to compare with.
+                if time_after is None:
+                    unchanged += 1
+                    add_weight("unchanged", weight)
+                else:
+                    newly_possible += 1
+                    add_weight("newly_possible", weight)
                 continue
 
             if time_after is not None:
@@ -210,6 +243,7 @@ def simulate(
         slower=sum(j.status == "slower" for j in changed),
         faster=sum(j.status == "faster" for j in changed),
         impossible=sum(j.status == "impossible" for j in changed),
+        newly_possible=newly_possible,
         to_or_from_closed_stop=closed_count,
         walked_to_or_from_closed_stop=walked_count,
         average_time_before_min=_round(sum_before / comparable) if comparable else None,
@@ -248,6 +282,7 @@ def _demand_weighted(
         slower_pct=pct("slower"),
         faster_pct=pct("faster"),
         impossible_pct=pct("impossible"),
+        newly_possible_pct=pct("newly_possible"),
         to_or_from_closed_stop_pct=pct("closed"),
         average_time_before_min=_round(before / comparable) if comparable else None,
         average_time_after_min=_round(after / comparable) if comparable else None,

@@ -29,6 +29,7 @@ class DemandWeighted(BaseModel):
     slower_pct: float
     faster_pct: float
     impossible_pct: float
+    newly_possible_pct: float
     to_or_from_closed_stop_pct: float
     average_time_before_min: float | None  # over journeys possible before and after
     average_time_after_min: float | None
@@ -40,6 +41,9 @@ class SimulationSummary(BaseModel):
     slower: int
     faster: int
     impossible: int
+    # Impossible in the baseline, possible after (only an added connection can
+    # do this); no "before" time, so not in changed_journeys or the averages.
+    newly_possible: int
     to_or_from_closed_stop: int  # excluded from all other figures
     # Journeys to/from a closed stop compared WITH walking (included in the
     # figures above); 0 when walking is off.

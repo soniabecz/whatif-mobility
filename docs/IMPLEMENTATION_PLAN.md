@@ -6,9 +6,9 @@
 
 ## Current status
 
-- **Last completed:** Day 10 (waiting from headways, change frequency, demand
-  weighting, walking to/from closed stops); 203 backend + 83 Vitest + 7 Playwright tests
-- **Next up:** Day 11, part 1 (add a connection): explain the design and wait for approval
+- **Last completed:** Day 11, part 1a (scenario type "add connection", backend + AI);
+  221 backend + 87 Vitest + 7 Playwright tests
+- **Next up:** Day 11, part 1b: "Add link" form tab, map preview, e2e
 - **Repository:** https://github.com/soniabecz/whatif-mobility (private, branch `main`)
 
 ## Timeline
@@ -30,7 +30,7 @@ so the project is usable even if a later day is cut short.
 | 8   | Safety nets               | ✅ Done |
 | 9   | Quick product wins        | ✅ Done |
 | 10  | More realistic simulation | ✅ Done |
-| 11  | New scenario types        | ⬜ Todo |
+| 11  | New scenario types        | 🟡 In progress |
 | 12  | AI features               | ⬜ Todo |
 | 13  | Saving and comparing      | ⬜ Todo |
 | 14  | Deployment and real data  | ⬜ Todo |
@@ -147,6 +147,9 @@ so the project is usable even if a later day is cut short.
 | Transfer penalty default 5 → 2 min once waiting is modelled | 5 min stood in for waiting; keeping it would count waiting twice |
 | No migrations: outdated tables are dropped and re-seeded | The database only holds generated sample data (until Day 13) |
 | One route per boarding, even where routes share a street | Simple and deterministic; combined frequency documented as a limitation |
+| Added connections belong to an existing route that already serves one of the stops | Extensions and shortcuts only; new lines come with "add a route" (Day 11.3) |
+| Travel time of an added link always entered by the user (form and AI) | A suggested time would be an invented number |
+| Journeys impossible in the baseline but possible after: `newly_possible`, not "changed" | No "before" time to compare; kept out of averages, counted and weighted separately |
 | Walking only to/from closed stops, computed on top of the graph (not walk edges) | Graph and penalty rule untouched; walk-only paths would break "path − one penalty" |
 | Walking distance = straight line × 1.3, 5 km/h, max 1,000 m (settings) | Invented but common planning values; reaches grid neighbours, not diagonals |
 | Journeys to/from closed stops compared when walking is on | They are real trips that get slower, not trips that vanish |
@@ -486,7 +489,18 @@ transfer penalty at 0) and checks equivalence before changing defaults.
 **Size:** ≈ 2 sessions – will overrun.
 
 **1. Add a connection** (M)
-- [ ] Schema, engine (new ride edges), validation, form, AI prompt, tests, commit
+- [x] Design approved: link on an EXISTING route; one stop must already be on it;
+      the user always gives the travel time (no invented speed)
+- [x] Part 1a: `add_connection` schema (different stops), engine (`add_ride`/`add_platform`
+      refactor; new platform waits with the route's headway), validation before any
+      change (unknown/closed stop, unknown route, neither stop on the route, link exists);
+      AI schema + prompt (routes list their stops; "never guess the time")
+- [x] Found and fixed: a baseline-impossible journey can now become possible →
+      `newly_possible` count and share, explorer status "new" (was silently "unchanged")
+- [x] Refactor check: previous engine vs new, full model, 4,338 results, 0 differences
+- [x] Frontend display support (icon, text, share code `add:R2:EST-TEC:5`, shared rule
+      `addedConnectionProblem`); 18 backend tests (221), 4 Vitest (87)
+- [ ] Part 1b: "Add link" form tab, map clicks and dashed preview, legend, e2e; commit
 
 **2. Add a stop** (M)
 - [ ] Position on the map (click), connect to a route; schema, engine, form,
@@ -596,3 +610,4 @@ All former "maybes" are now scheduled as Days 8–14. New ideas go here.
 | 2026-11-12 | 10  | "Frequency" form tab, route halo, legend headways; 82 Vitest, 6 e2e; Day 10 part 1 done |
 | 2026-11-12 | 10  | Demand weighting (invented activity 1–3, shares only; equal levels = unweighted); 187 backend, 83 Vitest |
 | 2026-11-12 | 10  | Walking to/from closed stops (5 km/h, ×1.3, ≤1 km); walking-off equivalence 0 diffs (4,338); 203 backend, 7 e2e; Day 10 done |
+| 2026-11-12 | 11  | Scenario type `add_connection` (backend, AI, share link); `newly_possible` fix; refactor 0 diffs; 221 backend, 87 Vitest |

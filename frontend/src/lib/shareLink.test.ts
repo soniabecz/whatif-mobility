@@ -24,12 +24,20 @@ const all: ScenarioChange[] = [
     both_directions: false,
   },
   { type: 'change_frequency', route_id: 'R2', headway_min: 7.5 },
+  {
+    type: 'add_connection',
+    route_id: 'R1',
+    from_stop_id: 'CAS',
+    to_stop_id: 'DUN',
+    travel_time_min: 6,
+    both_directions: false,
+  },
 ]
 
 describe('encodeChanges', () => {
   it('writes a short, readable text', () => {
     expect(encodeChanges(all)).toBe(
-      'close:CAS~remove:ALP-BRK~remove:BRK-DUN:oneway~time:BRK-CAS:9~time:DUN-BRK:7.5:oneway~freq:R2:7.5',
+      'close:CAS~remove:ALP-BRK~remove:BRK-DUN:oneway~time:BRK-CAS:9~time:DUN-BRK:7.5:oneway~freq:R2:7.5~add:R1:CAS-DUN:6:oneway',
     )
   })
 
@@ -125,6 +133,17 @@ describe('decodeChanges rejects', () => {
     rejects('freq:R1:5:oneway', 'not a valid frequency change')
     rejects('freq:R1:fast', 'is not a number of minutes')
     expect(decodeChanges('freq:R1:120', network).ok).toBe(true)
+  })
+
+  it('added connections the backend would refuse', () => {
+    rejects('add:R9:CAS-DUN:6', 'unknown route "R9"')
+    rejects('add:R1:CAS-XYZ:6', 'unknown stop "XYZ"')
+    rejects('add:R1:CAS-DUN:0', 'more than 0')
+    rejects('add:R1:CAS-CAS:6', 'two different stops')
+    rejects('add:R2:CAS-CAS:6', 'two different stops')
+    rejects('add:R1:ALP-BRK:6', 'already runs from ALP to BRK')
+    rejects('add:R1:DUN-DUN:6', 'two different stops')
+    rejects('add:R1:CAS', 'not a valid added connection')
   })
 
   it('more than 20 changes', () => {

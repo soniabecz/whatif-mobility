@@ -137,6 +137,31 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * AddConnection
+         * @description An existing route also runs directly between two stops (an extension or
+         *     a shortcut). At least one of the stops must already be on the route.
+         */
+        AddConnection: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "add_connection";
+            /** Route Id */
+            route_id: string;
+            /** From Stop Id */
+            from_stop_id: string;
+            /** To Stop Id */
+            to_stop_id: string;
+            /** Travel Time Min */
+            travel_time_min: number;
+            /**
+             * Both Directions
+             * @default true
+             */
+            both_directions: boolean;
+        };
+        /**
          * ChangeFrequency
          * @description The route runs every ``headway_min`` minutes (affects waiting time only).
          */
@@ -214,6 +239,8 @@ export interface components {
             faster_pct: number;
             /** Impossible Pct */
             impossible_pct: number;
+            /** Newly Possible Pct */
+            newly_possible_pct: number;
             /** To Or From Closed Stop Pct */
             to_or_from_closed_stop_pct: number;
             /** Average Time Before Min */
@@ -251,7 +278,7 @@ export interface components {
              */
             status: "ok" | "unclear";
             /** Changes */
-            changes: (components["schemas"]["CloseStop"] | components["schemas"]["RemoveConnection"] | components["schemas"]["ChangeTravelTime"] | components["schemas"]["ChangeFrequency"])[];
+            changes: (components["schemas"]["CloseStop"] | components["schemas"]["RemoveConnection"] | components["schemas"]["ChangeTravelTime"] | components["schemas"]["ChangeFrequency"] | components["schemas"]["AddConnection"])[];
             /** Message */
             message: string;
         };
@@ -288,7 +315,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "unchanged" | "slower" | "faster" | "impossible" | "unreachable";
+            status: "unchanged" | "slower" | "faster" | "impossible" | "unreachable" | "new";
             /** Change Min */
             change_min: number | null;
             /** Reason */
@@ -336,7 +363,7 @@ export interface components {
             /** Destination Id */
             destination_id: string;
             /** Changes */
-            changes?: (components["schemas"]["CloseStop"] | components["schemas"]["RemoveConnection"] | components["schemas"]["ChangeTravelTime"] | components["schemas"]["ChangeFrequency"])[];
+            changes?: (components["schemas"]["CloseStop"] | components["schemas"]["RemoveConnection"] | components["schemas"]["ChangeTravelTime"] | components["schemas"]["ChangeFrequency"] | components["schemas"]["AddConnection"])[];
         };
         /**
          * NetworkOut
@@ -387,7 +414,7 @@ export interface components {
          */
         Scenario: {
             /** Changes */
-            changes: (components["schemas"]["CloseStop"] | components["schemas"]["RemoveConnection"] | components["schemas"]["ChangeTravelTime"] | components["schemas"]["ChangeFrequency"])[];
+            changes: (components["schemas"]["CloseStop"] | components["schemas"]["RemoveConnection"] | components["schemas"]["ChangeTravelTime"] | components["schemas"]["ChangeFrequency"] | components["schemas"]["AddConnection"])[];
         };
         /** SimulationResult */
         SimulationResult: {
@@ -412,6 +439,8 @@ export interface components {
             faster: number;
             /** Impossible */
             impossible: number;
+            /** Newly Possible */
+            newly_possible: number;
             /** To Or From Closed Stop */
             to_or_from_closed_stop: number;
             /** Walked To Or From Closed Stop */

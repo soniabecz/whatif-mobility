@@ -132,6 +132,7 @@ const STATUS_CHIP: Record<JourneyComparisonStatus, { label: string; className: s
   impossible: { label: 'Impossible', className: 'bg-red-50 text-red-800' },
   unchanged: { label: 'No change', className: 'bg-surface-muted text-ink-muted' },
   unreachable: { label: 'Not connected', className: 'bg-surface-muted text-ink-muted' },
+  new: { label: 'New connection', className: 'bg-green-50 text-green-800' },
 }
 
 function ComparisonView({

@@ -74,6 +74,14 @@ export interface ScenarioHighlights {
   retimedLinks: Set<string>
   /** New headway per route (the last change to a route wins, as in the backend). */
   headways: Map<string, number>
+  /** Links added to a route, drawn as dashed lines in the route's colour. */
+  addedLinks: AddedLink[]
+}
+
+export interface AddedLink {
+  routeId: string
+  fromId: string
+  toId: string
 }
 
 export function scenarioHighlights(changes: ScenarioChange[]): ScenarioHighlights {
@@ -82,6 +90,7 @@ export function scenarioHighlights(changes: ScenarioChange[]): ScenarioHighlight
     removedLinks: new Set(),
     retimedLinks: new Set(),
     headways: new Map(),
+    addedLinks: [],
   }
   for (const change of changes) {
     switch (change.type) {
@@ -96,6 +105,13 @@ export function scenarioHighlights(changes: ScenarioChange[]): ScenarioHighlight
         break
       case 'change_frequency':
         highlights.headways.set(change.route_id, change.headway_min)
+        break
+      case 'add_connection':
+        highlights.addedLinks.push({
+          routeId: change.route_id,
+          fromId: change.from_stop_id,
+          toId: change.to_stop_id,
+        })
         break
     }
   }
@@ -113,9 +129,38 @@ export function describeChange(change: ScenarioChange, stops: Map<string, Stop>)
       return `${name(change.from_stop_id)} ${arrow(change.both_directions)} ${name(change.to_stop_id)}: ${change.travel_time_min} min`
     case 'change_frequency':
       return `${change.route_id}: a bus every ${change.headway_min} min`
+    case 'add_connection':
+      return `Add ${change.route_id}: ${name(change.from_stop_id)} ${arrow(change.both_directions)} ${name(change.to_stop_id)}, ${change.travel_time_min} min`
   }
 }
 
 function arrow(bothDirections: boolean): string {
   return bothDirections ? '↔' : '→'
+}
+
+/**
+ * Why a route cannot get a new link a -> b (null if it can). Same rules as the
+ * backend: two different stops, at least one already on the route, and the
+ * route does not already run between them (in a requested direction).
+ */
+export function addedConnectionProblem(
+  network: Network,
+  routeId: string,
+  fromId: string,
+  toId: string,
+  bothDirections: boolean,
+): string | null {
+  if (fromId === toId) return 'a connection needs two different stops'
+  const onRoute = network.connections.filter((c) => c.route_id === routeId)
+  const served = new Set(onRoute.flatMap((c) => [c.from_stop_id, c.to_stop_id]))
+  if (!served.has(fromId) && !served.has(toId)) {
+    return `route ${routeId} stops at neither ${fromId} nor ${toId}`
+  }
+  const directions = bothDirections ? [[fromId, toId], [toId, fromId]] : [[fromId, toId]]
+  for (const [a, b] of directions) {
+    if (onRoute.some((c) => c.from_stop_id === a && c.to_stop_id === b)) {
+      return `route ${routeId} already runs from ${a} to ${b}`
+    }
+  }
+  return null
 }

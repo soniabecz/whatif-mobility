@@ -110,7 +110,8 @@ def test_shares_add_up_to_100(sample: nx.DiGraph, changes: list[dict[str, Any]])
     weighted = simulate(sample, _scenario(*changes), 2.0, True).summary.demand_weighted
     total = (
         weighted.unchanged_pct + weighted.slower_pct + weighted.faster_pct
-        + weighted.impossible_pct + weighted.to_or_from_closed_stop_pct
+        + weighted.impossible_pct + weighted.newly_possible_pct
+        + weighted.to_or_from_closed_stop_pct
     )
     assert total == pytest.approx(100, abs=0.3)  # each share is rounded to 0.1
 
@@ -140,6 +141,6 @@ def test_api_returns_the_weighted_figures(client: TestClient) -> None:
     assert response.status_code == 200
     weighted = response.json()["summary"]["demand_weighted"]
     assert set(weighted) == {
-        "unchanged_pct", "slower_pct", "faster_pct", "impossible_pct",
+        "unchanged_pct", "slower_pct", "faster_pct", "impossible_pct", "newly_possible_pct",
         "to_or_from_closed_stop_pct", "average_time_before_min", "average_time_after_min",
     }

@@ -6,6 +6,7 @@ import {
   BusFront,
   CircleDot,
   CircleSlash,
+  Link,
   Timer,
   TrendingDown,
   TrendingUp,
@@ -30,4 +31,5 @@ export const CHANGE_ICONS: Record<ChangeType, LucideIcon> = {
   remove_connection: Unlink,
   change_travel_time: Timer,
   change_frequency: BusFront,
+  add_connection: Link,
 }

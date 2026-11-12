@@ -56,7 +56,10 @@ class JourneyPlan(BaseModel):
     legs: list[JourneyLeg]
 
 
-JourneyComparisonStatus = Literal["unchanged", "slower", "faster", "impossible", "unreachable"]
+# "new": not possible in the baseline, possible after the changes (added connection).
+JourneyComparisonStatus = Literal[
+    "unchanged", "slower", "faster", "impossible", "unreachable", "new"
+]
 
 
 class JourneyComparison(BaseModel):
