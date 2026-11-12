@@ -3,6 +3,7 @@ import {
   CircleMarker,
   MapContainer,
   Marker,
+  Pane,
   Polyline,
   TileLayer,
   Tooltip,
@@ -11,6 +12,7 @@ import {
 } from 'react-leaflet'
 import { divIcon, type LatLngBoundsExpression, type LatLngTuple, type PointTuple } from 'leaflet'
 
+import type { DraftSelection } from '../lib/changeDraft'
 import { IMPACT_STYLES, describeImpact, impactLevel } from '../lib/impact'
 import { linkKey, routeSegments, scenarioHighlights } from '../lib/network'
 import type { JourneyComparison, JourneyLeg } from '../types/journey'
@@ -29,6 +31,15 @@ interface NetworkMapProps {
   journey: JourneyComparison | null
   /** Free map area while a journey is shown (results card is open then). */
   journeyPadding: MapPadding
+  /** Clicking stops and lines fills in the scenario form; null = clicks ignored. */
+  mapSelect: MapSelect | null
+}
+
+export interface MapSelect {
+  /** What the form currently points at; ringed on the map. */
+  selection: DraftSelection
+  onStopClick: (stopId: string) => void
+  onLinkClick: (fromId: string, toId: string) => void
 }
 
 export interface MapPadding {
@@ -38,6 +49,7 @@ export interface MapPadding {
 
 const INK = '#0f172a'
 const REMOVED = '#71717a'
+const SELECTED = '#4f46e5' // --color-accent
 
 export function NetworkMap({
   network,
@@ -46,6 +58,7 @@ export function NetworkMap({
   fitPadding,
   journey,
   journeyPadding,
+  mapSelect,
 }: NetworkMapProps) {
   const segments = useMemo(() => routeSegments(network), [network])
   const routes = useMemo(
@@ -64,6 +77,14 @@ export function NetworkMap({
     () => new Map<string, StopImpact>(result?.stop_impacts.map((i) => [i.stop_id, i]) ?? []),
     [result],
   )
+  // The form's selection is hidden while a journey is shown (it would compete with it).
+  const selection = journey ? null : (mapSelect?.selection ?? null)
+  const selectedStops = network.stops.filter((stop) => selection?.stopIds.includes(stop.id))
+  const clickHint = mapSelect && <><br /><em style={{ color: '#8b95a5' }}>Click to select</em></>
+  // Handlers read the latest mapSelect; react-leaflet rebinds them when they change.
+  const linkClick = (from: string, to: string) => ({
+    click: () => mapSelect?.onLinkClick(from, to),
+  })
 
   return (
     // Initial bounds only: MapContainer ignores later prop changes, so the
@@ -84,7 +105,40 @@ export function NetworkMap({
       />
       <ZoomControl position="topright" />
 
-      {/* White casing under every line: crisp edges on any background. */}
+      {/* The form's selection (halo + rings) lives in its own pane BELOW the lines
+          and stops. Leaflet stacks shapes in the order they are added, so without
+          the pane a selection made later would cover the bus lines. */}
+      <Pane name="selection" style={{ zIndex: 390 }}>
+        {/* Indigo halo around the link selected in the form. */}
+        {selection?.link &&
+          segments
+            .filter((segment) => linkKey(segment.from.id, segment.to.id) === selection.link)
+            .map((segment) => (
+              <Polyline
+                key={`${segment.key}:selected`}
+                positions={[
+                  [segment.from.lat, segment.from.lon],
+                  [segment.to.lat, segment.to.lon],
+                ]}
+                interactive={false}
+                pathOptions={{ color: SELECTED, weight: 19, opacity: 0.6, lineCap: 'round' }}
+              />
+            ))}
+
+        {/* Indigo ring around the stop(s) selected in the form. */}
+        {selectedStops.map((stop) => (
+          <CircleMarker
+            key={`${stop.id}:selected`}
+            center={[stop.lat, stop.lon]}
+            radius={14}
+            interactive={false}
+            pathOptions={{ color: SELECTED, weight: 3, fillColor: SELECTED, fillOpacity: 0.15 }}
+          />
+        ))}
+      </Pane>
+
+      {/* White casing under every line: crisp edges on any background. It is
+          wider than the line, so it is also the easier click target. */}
       {segments.map((segment) => (
         <Polyline
           key={`${segment.key}:casing`}
@@ -92,8 +146,9 @@ export function NetworkMap({
             [segment.from.lat, segment.from.lon],
             [segment.to.lat, segment.to.lon],
           ]}
-          interactive={false}
+          eventHandlers={linkClick(segment.from.id, segment.to.id)}
           pathOptions={{
+            className: `link-hit link-${segment.from.id}-${segment.to.id}`,
             color: '#ffffff',
             weight: highlights.retimedLinks.has(linkKey(segment.from.id, segment.to.id)) ? 13 : 9,
             opacity: journey ? 0.3 : result ? 0.6 : 0.9,
@@ -114,7 +169,9 @@ export function NetworkMap({
               [segment.from.lat, segment.from.lon],
               [segment.to.lat, segment.to.lon],
             ]}
+            eventHandlers={linkClick(segment.from.id, segment.to.id)}
             pathOptions={{
+              className: `route-line route-${segment.routeId} link-${segment.from.id}-${segment.to.id}`,
               color: removed ? REMOVED : (route?.color ?? REMOVED),
               weight: retimed ? 9 : 5,
               // Fade routes once results are shown so stop impacts stand out.
@@ -129,6 +186,7 @@ export function NetworkMap({
               {segment.from.name} – {segment.to.name}: {segment.travelTimeMin} min
               {removed && <><br />Removed in this scenario</>}
               {retimed && <><br />Travel time changed in this scenario</>}
+              {clickHint}
             </Tooltip>
           </Polyline>
         )
@@ -149,8 +207,10 @@ export function NetworkMap({
             key={stop.id}
             center={[stop.lat, stop.lon]}
             radius={highlighted ? 9 : 6}
+            eventHandlers={{ click: () => mapSelect?.onStopClick(stop.id) }}
             // Normal stops: white with a dark ring. Highlighted: status colour, white ring.
             pathOptions={{
+              className: `stop-marker stop-${stop.id}`,
               color: highlighted ? '#ffffff' : INK,
               weight: highlighted ? 3 : 2.5,
               fillColor: style?.color ?? '#ffffff',
@@ -165,6 +225,7 @@ export function NetworkMap({
                   {style.icon} {result ? describeImpact(impact) : style.label}
                 </>
               )}
+              {clickHint}
             </Tooltip>
           </CircleMarker>
         )

@@ -1,7 +1,14 @@
-import { useMemo, useState, type FormEvent } from 'react'
-import { Plus, SlidersHorizontal } from 'lucide-react'
+import { useMemo, type FormEvent } from 'react'
+import { MousePointerClick, Plus, SlidersHorizontal } from 'lucide-react'
 
-import { currentTravelTime, neighbours, sortedStops } from '../lib/network'
+import {
+  buildChange,
+  withFrom,
+  withLink,
+  withType,
+  type ChangeDraft,
+} from '../lib/changeDraft'
+import { currentTravelTime, neighbours, sortedStops, stopLabel, stopsById } from '../lib/network'
 import type { Network } from '../types/network'
 import {
   MAX_CHANGES,
@@ -18,6 +25,9 @@ import { cx } from './ui/cx'
 
 interface ScenarioFormProps {
   network: Network
+  /** The change being built; owned by the parent so map clicks can edit it too. */
+  draft: ChangeDraft
+  onDraftChange: (draft: ChangeDraft) => void
   /** Current number of changes, to enforce the limit. */
   changeCount: number
   onAdd: (change: ScenarioChange) => void
@@ -31,86 +41,55 @@ const CHANGE_TYPES: SegmentOption<ChangeType>[] = [
 ]
 
 /** Builds one change at a time and hands it to the parent's list. */
-export function ScenarioForm({ network, changeCount, onAdd, disabled }: ScenarioFormProps) {
+export function ScenarioForm({
+  network,
+  draft,
+  onDraftChange,
+  changeCount,
+  onAdd,
+  disabled,
+}: ScenarioFormProps) {
   const stops = useMemo(() => sortedStops(network), [network])
-  const firstStopId = stops[0]?.id ?? ''
+  const stopNames = useMemo(() => stopsById(network), [network])
+  const toOptions = useMemo(() => neighbours(network, draft.fromId), [network, draft.fromId])
+  const currentTime = currentTravelTime(network, draft.fromId, draft.toId)
+  const update = (patch: Partial<ChangeDraft>) => onDraftChange({ ...draft, ...patch })
 
-  const [type, setType] = useState<ChangeType>('close_stop')
-  const [stopId, setStopId] = useState(firstStopId)
-  const [fromId, setFromId] = useState(firstStopId)
-  const [toId, setToId] = useState(() => neighbours(network, firstStopId)[0]?.id ?? '')
-  const [bothDirections, setBothDirections] = useState(true)
-  const [travelTime, setTravelTime] = useState(() =>
-    String(currentTravelTime(network, fromId, toId) ?? ''),
-  )
-
-  const toOptions = useMemo(() => neighbours(network, fromId), [network, fromId])
-  const currentTime = currentTravelTime(network, fromId, toId)
-
-  function selectLink(nextFrom: string, nextTo: string) {
-    setFromId(nextFrom)
-    setToId(nextTo)
-    setTravelTime(String(currentTravelTime(network, nextFrom, nextTo) ?? ''))
-  }
-
-  function handleFromChange(nextFrom: string) {
-    selectLink(nextFrom, neighbours(network, nextFrom)[0]?.id ?? '')
-  }
-
-  // Validate the draft change; returns the change or an error message.
-  function buildChange(): ScenarioChange | string {
-    if (changeCount >= MAX_CHANGES) return `A scenario can have at most ${MAX_CHANGES} changes.`
-    if (type === 'close_stop') {
-      if (!stopId) return 'Choose a stop.'
-      return { type, stop_id: stopId }
-    }
-    if (!fromId || !toId) return 'Choose both stops of the connection.'
-    if (type === 'remove_connection') {
-      return { type, from_stop_id: fromId, to_stop_id: toId, both_directions: bothDirections }
-    }
-    const minutes = Number(travelTime)
-    if (travelTime.trim() === '' || !Number.isFinite(minutes) || minutes <= 0) {
-      return 'Travel time must be a number greater than 0.'
-    }
-    if (minutes > MAX_TRAVEL_TIME_MIN) {
-      return `Travel time can be at most ${MAX_TRAVEL_TIME_MIN} minutes.`
-    }
-    return {
-      type,
-      from_stop_id: fromId,
-      to_stop_id: toId,
-      travel_time_min: minutes,
-      both_directions: bothDirections,
-    }
-  }
-
-  const draft = buildChange()
-  const draftError = typeof draft === 'string' ? draft : null
+  const change = buildChange(draft, changeCount)
+  const draftError = typeof change === 'string' ? change : null
 
   function handleAdd(event: FormEvent) {
     event.preventDefault()
-    if (typeof draft !== 'string') onAdd(draft)
+    if (typeof change !== 'string') onAdd(change)
   }
 
   return (
     <section className="space-y-3">
       <SectionTitle icon={SlidersHorizontal}>Build a change</SectionTitle>
+      <p className="flex items-center gap-1.5 text-[11px] text-ink-subtle" aria-live="polite">
+        <MousePointerClick size={13} className="shrink-0" aria-hidden />
+        {draft.type === 'close_stop'
+          ? 'Or click a stop on the map.'
+          : draft.awaitingTo
+            ? `Now click a stop next to ${stopLabel(stopNames, draft.fromId)} on the map.`
+            : 'Or click a line, or two neighbouring stops, on the map.'}
+      </p>
 
       <form onSubmit={handleAdd} className="space-y-3">
         <SegmentedControl
           label="Type of change"
           options={CHANGE_TYPES}
-          value={type}
-          onChange={setType}
+          value={draft.type}
+          onChange={(type) => onDraftChange(withType(draft, type))}
           disabled={disabled}
         />
 
-        {type === 'close_stop' ? (
+        {draft.type === 'close_stop' ? (
           <Field label="Stop">
             <select
               className={inputClass}
-              value={stopId}
-              onChange={(e) => setStopId(e.target.value)}
+              value={draft.stopId}
+              onChange={(e) => update({ stopId: e.target.value, awaitingTo: false })}
               disabled={disabled}
             >
               {stops.map((stop) => (
@@ -126,8 +105,8 @@ export function ScenarioForm({ network, changeCount, onAdd, disabled }: Scenario
               <Field label="From">
                 <select
                   className={inputClass}
-                  value={fromId}
-                  onChange={(e) => handleFromChange(e.target.value)}
+                  value={draft.fromId}
+                  onChange={(e) => onDraftChange(withFrom(network, draft, e.target.value))}
                   disabled={disabled}
                 >
                   {stops.map((stop) => (
@@ -140,8 +119,10 @@ export function ScenarioForm({ network, changeCount, onAdd, disabled }: Scenario
               <Field label="To">
                 <select
                   className={inputClass}
-                  value={toId}
-                  onChange={(e) => selectLink(fromId, e.target.value)}
+                  value={draft.toId}
+                  onChange={(e) =>
+                    onDraftChange(withLink(network, draft, draft.fromId, e.target.value))
+                  }
                   disabled={disabled}
                 >
                   {toOptions.map((stop) => (
@@ -153,7 +134,7 @@ export function ScenarioForm({ network, changeCount, onAdd, disabled }: Scenario
               </Field>
             </div>
 
-            {type === 'change_travel_time' && (
+            {draft.type === 'change_travel_time' && (
               <Field
                 label="New travel time (minutes)"
                 hint={
@@ -167,8 +148,8 @@ export function ScenarioForm({ network, changeCount, onAdd, disabled }: Scenario
                   min={0.1}
                   max={MAX_TRAVEL_TIME_MIN}
                   step={0.5}
-                  value={travelTime}
-                  onChange={(e) => setTravelTime(e.target.value)}
+                  value={draft.travelTime}
+                  onChange={(e) => update({ travelTime: e.target.value })}
                   disabled={disabled}
                 />
               </Field>
@@ -180,8 +161,8 @@ export function ScenarioForm({ network, changeCount, onAdd, disabled }: Scenario
                 type="checkbox"
                 role="switch"
                 className="peer sr-only"
-                checked={bothDirections}
-                onChange={(e) => setBothDirections(e.target.checked)}
+                checked={draft.bothDirections}
+                onChange={(e) => update({ bothDirections: e.target.checked })}
                 disabled={disabled}
               />
               <span

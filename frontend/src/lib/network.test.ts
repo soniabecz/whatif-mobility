@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import type { Connection, Network } from '../types/network'
+import { smallNetwork } from '../test/smallNetwork'
+import type { Network } from '../types/network'
 import type { ScenarioChange } from '../types/scenario'
 import {
   currentTravelTime,
@@ -14,41 +15,7 @@ import {
   stopsById,
 } from './network'
 
-// Small hand-made network (ids deliberately not in name order):
-//
-//   ALP --R1 3 min / R2 2 min-- BRK --R1 4-- CAS
-//                                |
-//                               R2 5
-//                                |
-//                               DUN
-//
-// ALP–BRK is served by two routes with different times.
-let nextId = 1
-function both(routeId: string, a: string, b: string, minutes: number): Connection[] {
-  return [
-    { id: nextId++, route_id: routeId, from_stop_id: a, to_stop_id: b, travel_time_min: minutes },
-    { id: nextId++, route_id: routeId, from_stop_id: b, to_stop_id: a, travel_time_min: minutes },
-  ]
-}
-
-const network: Network = {
-  stops: [
-    { id: 'BRK', name: 'Brook Street', lat: 0, lon: 1 },
-    { id: 'ALP', name: 'Alpine Road', lat: 0, lon: 0 },
-    { id: 'DUN', name: 'Dunes', lat: -1, lon: 1 },
-    { id: 'CAS', name: 'Castle', lat: 0, lon: 2 },
-  ],
-  routes: [
-    { id: 'R1', name: 'Red', color: '#ff0000' },
-    { id: 'R2', name: 'Blue', color: '#0000ff' },
-  ],
-  connections: [
-    ...both('R1', 'ALP', 'BRK', 3),
-    ...both('R1', 'BRK', 'CAS', 4),
-    ...both('R2', 'ALP', 'BRK', 2),
-    ...both('R2', 'BRK', 'DUN', 5),
-  ],
-}
+const network = smallNetwork
 
 const stops = stopsById(network)
 

@@ -134,6 +134,10 @@ Open http://localhost:5173. The header shows **● Live** and the bus
 network appears on the map. Build a scenario in the sidebar, click
 **Run simulation**, and the results appear below the form and on the map.
 
+Instead of the dropdowns you can click the map: a stop (to close it), a line
+(to select that link), or two neighbouring stops one after the other (From,
+then To). The current selection is ringed in indigo on the map.
+
 If the page says the network is empty, run `python -m app.seed` in `backend/`.
 
 Map tiles come from the public OpenStreetMap tile server, which is fine for
@@ -156,9 +160,10 @@ npm run build    # type-check with TypeScript and build for production
 
 ### End-to-end test
 
-`npm run test:e2e` opens the app in Chromium, closes a stop with the form, runs
-the simulation and checks that the results show exactly the numbers the
-backend computes. It uses the real backend and the seeded sample network
+`npm run test:e2e` opens the app in Chromium and runs two tests: close a stop
+with the form, run the simulation and check that the results show exactly the
+numbers the backend computes; and fill in the form by clicking stops and lines
+on the map. It uses the real backend and the seeded sample network
 (`python -m app.seed`); nothing is written to the database.
 
 Playwright starts the backend (from `backend/.venv`) and the Vite dev server

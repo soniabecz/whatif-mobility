@@ -6,9 +6,9 @@
 
 ## Current status
 
-- **Last completed:** Day 8 (generated API types, frontend tests, `./dev.sh`);
-  134 backend + 32 Vitest + 1 Playwright test
-- **Next up:** Day 9, part 1 (click a stop on the map to fill in the form)
+- **Last completed:** Day 9, part 1 (click the map to fill in the form);
+  134 backend + 51 Vitest + 2 Playwright tests
+- **Next up:** Day 9, part 2 (shareable link): explain the URL format and wait for approval
 - **Repository:** https://github.com/soniabecz/whatif-mobility (private, branch `main`)
 
 ## Timeline
@@ -28,7 +28,7 @@ so the project is usable even if a later day is cut short.
 | 6   | UI redesign               | ✅ Done |
 | 7   | Quality and explainability | ✅ Done |
 | 8   | Safety nets               | ✅ Done |
-| 9   | Quick product wins        | ⬜ Todo |
+| 9   | Quick product wins        | 🟡 In progress |
 | 10  | More realistic simulation | ⬜ Todo |
 | 11  | New scenario types        | ⬜ Todo |
 | 12  | AI features               | ⬜ Todo |
@@ -141,6 +141,9 @@ so the project is usable even if a later day is cut short.
 | ~~No frontend test runner~~ (superseded Day 8) | Vitest for pure `lib/` helpers, one Playwright end-to-end test |
 | Playwright e2e against the real backend + seeded data, not a mocked API | Only test that proves frontend and backend work together; simulations are read-only |
 | E2E checks UI numbers against `POST /api/simulations`, not hardcoded values | Survives model changes (Day 10) while still catching display bugs |
+| Form draft lifted to `App`; click rules as pure functions in `lib/changeDraft.ts` | Map and form edit one state; rules unit-tested without React |
+| Map selection in its own Leaflet pane (z-index 390, below lines) | Leaflet stacks shapes by insertion order; a later selection would cover the lines |
+| E2E clicks lines at their midpoint with the mouse | Vertical/horizontal SVG lines have a 0-px bounding box, which Playwright treats as invisible |
 | One-command start: plain `dev.sh` (bash 3.2 compatible), not Docker Compose | No new dependency; hot reload and the existing `.venv`/DB/`.env` keep working |
 | `dev.sh` never resets data: `app.seed --if-empty` | Running the app must not silently discard a database |
 | Vitest in `node` environment, tests next to the code (`*.test.ts`) | Helpers have no DOM; no jsdom dependency; `tsc -b` type-checks the tests |
@@ -373,8 +376,14 @@ and 14 are larger than one session and are marked as such.
 **Size:** ≈ 1 session (light).
 
 **1. Click a stop on the map to fill in the form** (S)
-- [ ] Clicking a stop sets the stop / from / to field; clicking a line selects the link
-- [ ] Browser check, commit
+- [x] Design approved: form state lifted to `App` as a pure draft (`lib/changeDraft.ts`);
+      line click on "Close stop" switches to "Remove link"
+- [x] Stop click: sets Stop, or From then To (next click on a neighbour); line click
+      selects the link and fills in its current time; ignored while running
+- [x] Selection ringed in indigo in its own Leaflet pane below the lines (a later-added
+      shape would otherwise cover them); hint text in the form; "Click to select" tooltips
+- [x] Tests: 19 Vitest (51 total), Playwright `e2e/map-select.spec.ts` (2 e2e total)
+- [x] Browser check by the user, commit
 
 **2. Shareable link** (S)
 - [ ] Encode the change list in the URL; opening the link restores it (validated)
@@ -523,3 +532,4 @@ All former "maybes" are now scheduled as Days 8–14. New ideas go here.
 | 2026-11-12 | 8   | Types generated from OpenAPI (openapi-typescript, isolated TS 5), CI drift check; 133 tests |
 | 2026-11-12 | 8   | Frontend tests: Vitest (32, lib helpers), Playwright e2e vs real backend; both in CI |
 | 2026-11-12 | 8   | `./dev.sh` one-command start, `app.seed --if-empty`; 134 tests; Day 8 done |
+| 2026-11-12 | 9   | Map clicks fill in the form (draft lifted to `App`, selection pane); 51 Vitest, 2 e2e; browser-checked |

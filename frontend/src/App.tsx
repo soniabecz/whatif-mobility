@@ -22,6 +22,13 @@ import { Button } from './components/ui/Button'
 import { Card } from './components/ui/Card'
 import { cx } from './components/ui/cx'
 import { DESKTOP_QUERY, useMediaQuery } from './hooks/useMediaQuery'
+import {
+  clickLink,
+  clickStop,
+  draftSelection,
+  initialDraft,
+  type ChangeDraft,
+} from './lib/changeDraft'
 import { stopsById } from './lib/network'
 import type { Network } from './types/network'
 import { MAX_CHANGES, type ScenarioChange } from './types/scenario'
@@ -49,6 +56,9 @@ function App() {
   const [networkState, setNetworkState] = useState<NetworkState>({ kind: 'loading' })
   const [reloadToken, setReloadToken] = useState(0)
   const [changes, setChanges] = useState<ScenarioChange[]>([])
+  // The change being built in the form; null until the user edits it
+  // (then the initial draft for the loaded network is used).
+  const [draft, setDraft] = useState<ChangeDraft | null>(null)
   const [simulation, setSimulation] = useState<SimulationState>({ kind: 'idle' })
   const [sheetOpen, setSheetOpen] = useState(true)
   const [resultsTab, setResultsTab] = useState<ResultsTab>('summary')
@@ -163,6 +173,16 @@ function App() {
     return <StatusScreen state={networkState} onRetry={retryNetwork} />
   }
   const { network } = networkState
+  const currentDraft = draft ?? initialDraft(network)
+  // Map clicks edit the form's draft; ignored while a simulation runs.
+  const mapSelect = running
+    ? null
+    : {
+        selection: draftSelection(currentDraft),
+        onStopClick: (stopId: string) => setDraft(clickStop(network, currentDraft, stopId)),
+        onLinkClick: (fromId: string, toId: string) =>
+          setDraft(clickLink(network, currentDraft, fromId, toId)),
+      }
 
   const resultsPanel = result && (
     <ResultsPanel
@@ -195,6 +215,8 @@ function App() {
       />
       <ScenarioForm
         network={network}
+        draft={currentDraft}
+        onDraftChange={setDraft}
         changeCount={changes.length}
         onAdd={(change) => handleChangesChange([...changes, change])}
         disabled={running}
@@ -220,6 +242,7 @@ function App() {
           fitPadding={isDesktop ? DESKTOP_FIT : MOBILE_FIT}
           journey={shownJourney}
           journeyPadding={isDesktop ? DESKTOP_JOURNEY_FIT : mobileJourneyFit}
+          mapSelect={mapSelect}
         />
       </div>
 
