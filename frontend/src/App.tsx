@@ -27,9 +27,10 @@ import {
   clickStop,
   draftSelection,
   initialDraft,
+  placeStop,
   type ChangeDraft,
 } from './lib/changeDraft'
-import { stopsById } from './lib/network'
+import { applyAddedStops, stopsById } from './lib/network'
 import { decodeChanges, readShareParam, sharePath } from './lib/shareLink'
 import type { Network } from './types/network'
 import { MAX_CHANGES, type ScenarioChange } from './types/scenario'
@@ -209,13 +210,28 @@ function App() {
   const { network } = networkState
   const currentDraft = draft ?? initialDraft(network)
   // Map clicks edit the form's draft; ignored while a simulation runs.
+  // The network including stops the scenario adds: the form, the list and
+  // the explorer can then refer to them (the map draws them separately).
+  const scenarioNetwork = applyAddedStops(network, changes)
+  const resultNetwork = result ? applyAddedStops(network, result.scenario.changes) : network
   const mapSelect = running
     ? null
     : {
         selection: draftSelection(currentDraft),
-        onStopClick: (stopId: string) => setDraft(clickStop(network, currentDraft, stopId)),
+        // Functional updates: one click on a line fires both the line's and the
+        // map's handler, and each must build on the other's result.
+        onStopClick: (stopId: string) =>
+          setDraft((prev) => clickStop(scenarioNetwork, prev ?? initialDraft(network), stopId)),
         onLinkClick: (fromId: string, toId: string, routeId: string) =>
-          setDraft(clickLink(network, currentDraft, fromId, toId, routeId)),
+          setDraft((prev) =>
+            clickLink(scenarioNetwork, prev ?? initialDraft(network), fromId, toId, routeId),
+          ),
+        // Only "Add stop" uses a click on the map itself (to place the stop).
+        onMapClick: (lat: number, lon: number) =>
+          setDraft((prev) => {
+            const current = prev ?? initialDraft(network)
+            return current.type === 'add_stop' ? placeStop(current, lat, lon) : current
+          }),
       }
 
   const resultsPanel = result && (
@@ -228,7 +244,7 @@ function App() {
       journeyExplorer={
         <JourneyExplorer
           key={journeySelection ? `${journeySelection.originId}-${journeySelection.destinationId}` : 'none'}
-          network={network}
+          network={resultNetwork}
           selection={journeySelection}
           state={journeyState}
           onSelect={selectJourney}
@@ -242,7 +258,7 @@ function App() {
     <>
       <AiScenarioInput onAddChanges={handleAddChanges} disabled={running} />
       <ChangeList
-        network={network}
+        network={scenarioNetwork}
         changes={changes}
         onChangesChange={handleChangesChange}
         notice={listNotice}
@@ -250,7 +266,7 @@ function App() {
         disabled={running}
       />
       <ScenarioForm
-        network={network}
+        network={scenarioNetwork}
         draft={currentDraft}
         onDraftChange={setDraft}
         changeCount={changes.length}

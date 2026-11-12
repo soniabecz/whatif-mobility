@@ -7,11 +7,13 @@ import {
   MAX_HEADWAY_MIN,
   MAX_TRAVEL_TIME_MIN,
   MIN_HEADWAY_MIN,
+  type AddStop,
   type ChangeType,
   type ScenarioChange,
 } from '../types/scenario'
 import {
   addedConnectionProblem,
+  addedStopProblem,
   currentTravelTime,
   linkKey,
   neighbours,
@@ -33,6 +35,11 @@ export interface ChangeDraft {
   /** Route and text of the headway input for "frequency". */
   routeId: string
   headway: string
+  /** "Add stop": where it goes, its name, and the time from the new stop on to To
+      (travelTime is the time From -> new stop). */
+  position: { lat: number; lon: number } | null
+  stopName: string
+  secondTime: string
 }
 
 function timeText(network: Network, fromId: string, toId: string): string {
@@ -57,6 +64,9 @@ export function initialDraft(network: Network): ChangeDraft {
     awaitingTo: false,
     routeId: route,
     headway: headwayText(network, route),
+    position: null,
+    stopName: '',
+    secondTime: '',
   }
 }
 
@@ -66,9 +76,44 @@ export function withRoute(network: Network, draft: ChangeDraft, routeId: string)
 }
 
 export function withType(draft: ChangeDraft, type: ChangeType): ChangeDraft {
-  // A new link has no current time: the user always enters it (never pre-filled).
-  const travelTime = type === 'add_connection' ? '' : draft.travelTime
-  return { ...draft, type, travelTime, awaitingTo: false }
+  // New links and stops have no current time: the user always enters it (never pre-filled).
+  const fresh = type === 'add_connection' || type === 'add_stop'
+  const travelTime = fresh ? '' : draft.travelTime
+  return { ...draft, type, travelTime, secondTime: fresh ? '' : draft.secondTime, awaitingTo: false }
+}
+
+/** Direct links of a route, once per street (in the direction first listed). */
+export function routeLinks(network: Network, routeId: string): { fromId: string; toId: string }[] {
+  const seen = new Set<string>()
+  const links: { fromId: string; toId: string }[] = []
+  for (const c of network.connections) {
+    const key = linkKey(c.from_stop_id, c.to_stop_id)
+    if (c.route_id !== routeId || seen.has(key)) continue
+    seen.add(key)
+    links.push({ fromId: c.from_stop_id, toId: c.to_stop_id })
+  }
+  return links
+}
+
+/** "Add stop": a route was chosen; the new stop goes on its first link until changed. */
+export function withStopRoute(network: Network, draft: ChangeDraft, routeId: string): ChangeDraft {
+  const first = routeLinks(network, routeId)[0]
+  return { ...draft, routeId, fromId: first?.fromId ?? '', toId: first?.toId ?? '' }
+}
+
+/** "Add stop": the map was clicked at an empty spot. */
+export function placeStop(draft: ChangeDraft, lat: number, lon: number): ChangeDraft {
+  // 6 decimals = about 0.1 m: plenty, and keeps shared links short.
+  const round = (value: number) => Math.round(value * 1e6) / 1e6
+  return { ...draft, position: { lat: round(lat), lon: round(lon) } }
+}
+
+/** First free id N1, N2, ... (the network passed includes stops added earlier). */
+export function nextStopId(network: Network): string {
+  const used = new Set(network.stops.map((stop) => stop.id))
+  let n = 1
+  while (used.has(`N${n}`)) n += 1
+  return `N${n}`
 }
 
 /** A link was chosen: fill in its current travel time. */
@@ -94,7 +139,8 @@ export function withFrom(network: Network, draft: ChangeDraft, fromId: string): 
  */
 export function clickStop(network: Network, draft: ChangeDraft, stopId: string): ChangeDraft {
   // A stop can belong to several routes: on "frequency" only lines select a route.
-  if (draft.type === 'change_frequency') return draft
+  // "Add stop" places a NEW stop, so an existing one is not a target.
+  if (draft.type === 'change_frequency' || draft.type === 'add_stop') return draft
   // "Add link": any two different stops (they are not linked yet), From then To.
   if (draft.type === 'add_connection') {
     if (draft.awaitingTo && stopId !== draft.fromId) return { ...draft, toId: stopId, awaitingTo: false }
@@ -120,6 +166,13 @@ export function clickLink(
   if (draft.type === 'change_frequency') return withRoute(network, draft, routeId)
   // "Add link": a line picks the route that gets the new link.
   if (draft.type === 'add_connection') return { ...draft, routeId, awaitingTo: false }
+  // "Add stop": a line picks the route and the link the new stop goes on.
+  if (draft.type === 'add_stop') {
+    const link = routeLinks(network, routeId).find(
+      (l) => linkKey(l.fromId, l.toId) === linkKey(fromId, toId),
+    )
+    return link ? { ...draft, routeId, fromId: link.fromId, toId: link.toId } : draft
+  }
   const type = draft.type === 'close_stop' ? 'remove_connection' : draft.type
   return withLink(network, { ...draft, type }, fromId, toId)
 }
@@ -133,16 +186,26 @@ export interface DraftSelection {
   routeId: string | null
   /** "Add link": the planned new link (not a street yet), drawn as a preview. */
   newLink: { fromId: string; toId: string } | null
+  /** "Add stop": where the new stop will be placed. */
+  newStop: { lat: number; lon: number } | null
 }
 
 export function draftSelection(draft: ChangeDraft): DraftSelection {
-  const none = { stopIds: [], link: null, routeId: null, newLink: null }
+  const none = { stopIds: [], link: null, routeId: null, newLink: null, newStop: null }
   if (draft.type === 'change_frequency') return { ...none, routeId: draft.routeId || null }
   if (draft.type === 'close_stop') return { ...none, stopIds: draft.stopId ? [draft.stopId] : [] }
   const stopIds = [draft.fromId, draft.toId].filter((id) => id !== '')
   const both = draft.fromId !== '' && draft.toId !== '' && draft.fromId !== draft.toId
   if (draft.type === 'add_connection') {
     return { ...none, stopIds, newLink: both ? { fromId: draft.fromId, toId: draft.toId } : null }
+  }
+  if (draft.type === 'add_stop') {
+    return {
+      ...none,
+      stopIds,
+      link: both ? linkKey(draft.fromId, draft.toId) : null,
+      newStop: draft.position,
+    }
   }
   return { ...none, stopIds, link: both ? linkKey(draft.fromId, draft.toId) : null }
 }
@@ -170,6 +233,29 @@ export function buildChange(
       return `A bus can run every ${MIN_HEADWAY_MIN} to ${MAX_HEADWAY_MIN} minutes.`
     }
     return { type: 'change_frequency', route_id: draft.routeId, headway_min: minutes }
+  }
+  if (draft.type === 'add_stop') {
+    if (!draft.position) return 'Click the map to place the new stop.'
+    if (!draft.stopName.trim()) return 'Give the new stop a name.'
+    if (!draft.routeId || !draft.fromId || !draft.toId) return 'Choose the route and the link.'
+    const first = travelMinutes(draft.travelTime)
+    if (typeof first === 'string') return first
+    const second = travelMinutes(draft.secondTime)
+    if (typeof second === 'string') return second
+    const change: AddStop = {
+      type: 'add_stop',
+      stop_id: nextStopId(network),
+      name: draft.stopName.trim(),
+      lat: draft.position.lat,
+      lon: draft.position.lon,
+      route_id: draft.routeId,
+      from_stop_id: draft.fromId,
+      to_stop_id: draft.toId,
+      time_from_min: first,
+      time_to_min: second,
+    }
+    const problem = addedStopProblem(network, change)
+    return problem ? `Not possible: ${problem}.` : change
   }
   if (draft.type === 'add_connection') {
     if (!draft.routeId) return 'Choose a route.'

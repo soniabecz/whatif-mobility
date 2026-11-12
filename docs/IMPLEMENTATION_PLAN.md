@@ -6,9 +6,15 @@
 
 ## Current status
 
-- **Last completed:** Day 11, part 2a (scenario type "add stop", backend + display);
-  240 backend + 97 Vitest + 10 Playwright tests
-- **Next up:** Day 11, part 2b: "Add stop" tab, placing by map click, marker, e2e
+- **Last completed:** Day 11, parts 1–2 ("add connection" and "add stop": backend, AI,
+  form, map); 240 backend + 103 Vitest + 11 Playwright tests, CI green
+- **Next up:** Day 11, part 3 (add a route): open questions listed under part 3;
+  explain the design and wait for approval
+- **How to start:** `./dev.sh` (app on http://localhost:5173); after pulling, it
+  rebuilds outdated database tables automatically
+- **Working pattern used so far:** each part = design proposal → approval → build
+  with tests and screenshots → user says "commit and push" → CI watched; model
+  changes get an equivalence check against the previous commit (git worktree)
 - **Repository:** https://github.com/soniabecz/whatif-mobility (private, branch `main`)
 
 ## Timeline
@@ -524,11 +530,28 @@ transfer penalty at 0) and checks equivalence before changing defaults.
 - [x] Existing scenarios unchanged: previous engine vs new, 4,338 results, 0 differences
 - [x] Frontend display support: text, icon, Details row, share code `stop:N1:…`; shared
       links may refer to an earlier new stop (`withAddedStop`); 19 backend (240), 5 Vitest (97)
-- [ ] Part 2b: "Add stop" tab (place by clicking the map), marker, explorer pickers, e2e
+- [x] Part 2b: "Add stop" tab (map click places it, a line click also picks route and
+      link; name with automatic id N1…; route + its links; both times with today's time
+      as a hint); preview marker; new stops drawn with a route-coloured ring and dashed
+      links; legend; the form, list and explorer use the network with added stops
+- [x] Fixed while testing: one click on a line fired two handlers that both started from
+      the same stale draft (the second overwrote the first): functional state updates;
+      switching to "Add stop" now snaps to a real link; >4 tabs shown in two rows
+- [x] Tests: 6 Vitest (103), Playwright `e2e/add-stop.spec.ts` (11 e2e)
+- [x] Commit (approved by the user; no separate browser check reported)
 
 **3. Add a route** (L)
-- [ ] Draw a sequence of stops with times; schema, engine, form/map editor,
-      AI prompt, tests, commit
+- [ ] Explain the design and get approval. Questions to settle first:
+      - format: new route id/name/colour, headway (1–120), ordered stops with a
+        time per stretch, loop or not, both directions (likely yes)
+      - may it use stops added earlier in the same scenario (likely yes, as with
+        `withAddedStop`), and must it touch the existing network (≥ 1 existing stop)?
+      - engine: reuse `add_ride` / `add_platform` for every stretch; validation
+        before any change (unknown/closed stops, repeated stop, id/name/colour taken)
+      - AI: allowed only if every stop exists and every time is given (never guessed)?
+      - UI: map editor (click stops in order, enter times), legend entry, colour
+        picker or fixed palette for new routes; share code
+- [ ] Split as before: 3a backend + AI + display support; 3b form/map editor, e2e
 
 **Fallback:** "add a route" (part 3) is the largest; parts 1–2 stand on their own.
 
@@ -633,3 +656,4 @@ All former "maybes" are now scheduled as Days 8–14. New ideas go here.
 | 2026-11-12 | 11  | Scenario type `add_connection` (backend, AI, share link); `newly_possible` fix; refactor 0 diffs; 221 backend, 87 Vitest |
 | 2026-11-12 | 11  | "Add link" tab, map preview and dashed added links; fixed Day 4 bug (Travel time input refused whole minutes); 92 Vitest, 10 e2e |
 | 2026-11-12 | 11  | Scenario type `add_stop` (insert into a route; new-stop journeys reported separately; 0 diffs); 240 backend, 97 Vitest |
+| 2026-11-12 | 11  | "Add stop" tab (place by map click), new-stop markers, explorer with new stops; fixed stale-draft click race; 103 Vitest, 11 e2e; parts 1–2 done |

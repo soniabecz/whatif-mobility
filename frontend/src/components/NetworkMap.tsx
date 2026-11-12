@@ -9,6 +9,7 @@ import {
   Tooltip,
   ZoomControl,
   useMap,
+  useMapEvents,
 } from 'react-leaflet'
 import { divIcon, type LatLngBoundsExpression, type LatLngTuple, type PointTuple } from 'leaflet'
 
@@ -41,6 +42,8 @@ export interface MapSelect {
   onStopClick: (stopId: string) => void
   /** A line is one route's segment, so the route is known too. */
   onLinkClick: (fromId: string, toId: string, routeId: string) => void
+  /** A click anywhere on the map ("Add stop" places the new stop there). */
+  onMapClick: (lat: number, lon: number) => void
 }
 
 export interface MapPadding {
@@ -71,7 +74,15 @@ export function NetworkMap({
     [network],
   )
   const highlights = useMemo(() => scenarioHighlights(changes), [changes])
-  const stopMap = useMemo(() => new Map(network.stops.map((s) => [s.id, s])), [network])
+  // Baseline stops plus stops the scenario adds (journeys may pass through them).
+  const addedStops = highlights.addedStops
+  const stopMap = useMemo(() => {
+    const map = new Map(network.stops.map((s) => [s.id, s]))
+    for (const added of addedStops) {
+      map.set(added.stop_id, { id: added.stop_id, name: added.name, lat: added.lat, lon: added.lon, activity: 1 })
+    }
+    return map
+  }, [network, addedStops])
   // Fade the network further while a journey is shown.
   const lineOpacity = journey ? 0.18 : result ? 0.5 : 0.95
   const impacts = useMemo(
@@ -80,7 +91,7 @@ export function NetworkMap({
   )
   // The form's selection is hidden while a journey is shown (it would compete with it).
   const selection = journey ? null : (mapSelect?.selection ?? null)
-  const selectedStops = network.stops.filter((stop) => selection?.stopIds.includes(stop.id))
+  const selectedStops = [...stopMap.values()].filter((stop) => selection?.stopIds.includes(stop.id))
   const clickHint = mapSelect && <><br /><em style={{ color: '#8b95a5' }}>Click to select</em></>
   // Handlers read the latest mapSelect; react-leaflet rebinds them when they change.
   const linkClick = (from: string, to: string, routeId: string) => ({
@@ -130,6 +141,16 @@ export function NetworkMap({
                 pathOptions={{ color: SELECTED, weight: 19, opacity: 0.6, lineCap: 'round' }}
               />
             ))}
+
+        {/* "Add stop": dashed indigo marker where the new stop will go. */}
+        {selection?.newStop && (
+          <CircleMarker
+            center={[selection.newStop.lat, selection.newStop.lon]}
+            radius={9}
+            interactive={false}
+            pathOptions={{ color: SELECTED, weight: 3, dashArray: '3 3', fillColor: '#ffffff', fillOpacity: 1 }}
+          />
+        )}
 
         {/* "Add link": dashed indigo preview of the link being planned. */}
         {selection?.newLink && (
@@ -285,6 +306,50 @@ export function NetworkMap({
         )
       })}
 
+      {/* Stops added by the scenario: their links dashed in the route colour (own pane,
+          below the stops), and a white marker with a thick route-coloured ring. */}
+      <Pane name="added-stop-links" style={{ zIndex: 396 }}>
+        {addedStops.flatMap((added) =>
+          [added.from_stop_id, added.to_stop_id].map((other) => (
+            <Polyline
+              key={`added-stop-${added.stop_id}-${other}`}
+              positions={positions(stopMap, [other, added.stop_id])}
+              interactive={false}
+              pathOptions={{
+                color: routes.get(added.route_id)?.color ?? REMOVED,
+                weight: 5,
+                opacity: journey ? 0.3 : 0.95,
+                dashArray: '10 8',
+              }}
+            />
+          )),
+        )}
+      </Pane>
+      {addedStops.map((added) => (
+        <CircleMarker
+          key={`added-stop-${added.stop_id}`}
+          center={[added.lat, added.lon]}
+          radius={7}
+          eventHandlers={{ click: () => mapSelect?.onStopClick(added.stop_id) }}
+          pathOptions={{
+            className: `stop-marker new-stop stop-${added.stop_id}`,
+            color: routes.get(added.route_id)?.color ?? INK,
+            weight: 4,
+            fillColor: '#ffffff',
+            fillOpacity: 1,
+          }}
+        >
+          <Tooltip direction="top" offset={[0, -8]}>
+            <strong>{added.name}</strong> <span style={{ color: '#8b95a5' }}>{added.stop_id}</span>
+            <br />
+            New stop on {routes.get(added.route_id)?.name ?? added.route_id} (this scenario)
+            {clickHint}
+          </Tooltip>
+        </CircleMarker>
+      ))}
+
+      {mapSelect && <MapClicks onClick={mapSelect.onMapClick} />}
+
       {journey && (
         <JourneyOverlay
           journey={journey}
@@ -419,4 +484,10 @@ function JourneyOverlay({
       )}
     </>
   )
+}
+
+/** Reports clicks on the map itself (also clicks that hit a line). */
+function MapClicks({ onClick }: { onClick: (lat: number, lon: number) => void }) {
+  useMapEvents({ click: (event) => onClick(event.latlng.lat, event.latlng.lng) })
+  return null
 }

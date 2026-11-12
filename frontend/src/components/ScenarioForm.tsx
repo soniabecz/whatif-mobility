@@ -1,11 +1,14 @@
 import { useMemo, type FormEvent } from 'react'
-import { MousePointerClick, Plus, SlidersHorizontal } from 'lucide-react'
+import { MapPin, MousePointerClick, Plus, SlidersHorizontal } from 'lucide-react'
 
 import {
   buildChange,
   withFrom,
+  nextStopId,
+  routeLinks,
   withLink,
   withRoute,
+  withStopRoute,
   withType,
   type ChangeDraft,
 } from '../lib/changeDraft'
@@ -50,6 +53,7 @@ const CHANGE_TYPES: SegmentOption<ChangeType>[] = [
   { value: 'change_travel_time', label: 'Travel time', icon: CHANGE_ICONS.change_travel_time },
   { value: 'change_frequency', label: 'Frequency', icon: CHANGE_ICONS.change_frequency },
   { value: 'add_connection', label: 'Add link', icon: CHANGE_ICONS.add_connection },
+  { value: 'add_stop', label: 'Add stop', icon: CHANGE_ICONS.add_stop },
 ]
 
 /** Builds one change at a time and hands it to the parent's list. */
@@ -70,6 +74,12 @@ export function ScenarioForm({
     [network],
   )
   const currentRoute = routes.find((route) => route.id === draft.routeId)
+  const links = useMemo(() => routeLinks(network, draft.routeId), [network, draft.routeId])
+  const routeTime =
+    network.connections.find(
+      (c) =>
+        c.route_id === draft.routeId && c.from_stop_id === draft.fromId && c.to_stop_id === draft.toId,
+    )?.travel_time_min ?? null
   const distanceKm =
     draft.type === 'add_connection' ? straightLineKm(network, draft.fromId, draft.toId) : null
   const update = (patch: Partial<ChangeDraft>) => onDraftChange({ ...draft, ...patch })
@@ -87,7 +97,11 @@ export function ScenarioForm({
       <SectionTitle icon={SlidersHorizontal}>Build a change</SectionTitle>
       <p className="flex items-center gap-1.5 text-[11px] text-ink-subtle" aria-live="polite">
         <MousePointerClick size={13} className="shrink-0" aria-hidden />
-        {draft.type === 'close_stop'
+        {draft.type === 'add_stop'
+          ? draft.position
+            ? 'Click the map again to move it, or a line to choose the route and link.'
+            : 'Click the map where the new stop should be.'
+          : draft.type === 'close_stop'
           ? 'Or click a stop on the map.'
           : draft.type === 'change_frequency'
             ? 'Or click a line of the route on the map.'
@@ -105,7 +119,11 @@ export function ScenarioForm({
           label="Type of change"
           options={CHANGE_TYPES}
           value={draft.type}
-          onChange={(type) => onDraftChange(withType(draft, type))}
+          onChange={(type) => {
+            const next = withType(draft, type)
+            // "Add stop" needs a real link of the route: start on its first one.
+            onDraftChange(type === 'add_stop' ? withStopRoute(network, next, next.routeId) : next)
+          }}
           disabled={disabled}
         />
 
@@ -158,6 +176,90 @@ export function ScenarioForm({
                 disabled={disabled}
               />
             </Field>
+          </>
+        ) : draft.type === 'add_stop' ? (
+          <>
+            <p className="flex items-center gap-2 rounded-xl bg-surface-muted px-3 py-2 text-xs text-ink-muted">
+              <MapPin size={14} className="shrink-0 text-accent" aria-hidden />
+              {draft.position
+                ? `Placed at ${draft.position.lat.toFixed(5)}, ${draft.position.lon.toFixed(5)}`
+                : 'Not placed yet: click the map.'}
+            </p>
+            <Field label="Name of the new stop" hint={`Id ${nextStopId(network)} (automatic)`}>
+              <input
+                className={inputClass}
+                maxLength={100}
+                placeholder="e.g. Old Market"
+                value={draft.stopName}
+                onChange={(e) => update({ stopName: e.target.value })}
+                disabled={disabled}
+              />
+            </Field>
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="Route">
+                <select
+                  className={inputClass}
+                  value={draft.routeId}
+                  onChange={(e) => onDraftChange(withStopRoute(network, draft, e.target.value))}
+                  disabled={disabled}
+                >
+                  {routes.map((route) => (
+                    <option key={route.id} value={route.id}>
+                      {route.id} {route.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Between">
+                <select
+                  className={inputClass}
+                  value={`${draft.fromId}|${draft.toId}`}
+                  onChange={(e) => {
+                    const [fromId, toId] = e.target.value.split('|')
+                    update({ fromId, toId })
+                  }}
+                  disabled={disabled}
+                >
+                  {links.map((link) => (
+                    <option key={`${link.fromId}|${link.toId}`} value={`${link.fromId}|${link.toId}`}>
+                      {stopLabel(stopNames, link.fromId)} – {stopLabel(stopNames, link.toId)}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Field label={`Minutes from ${stopLabel(stopNames, draft.fromId)}`}>
+                <input
+                  className={cx(inputClass, 'tabular-nums')}
+                  type="number"
+                  min={0.1}
+                  max={MAX_TRAVEL_TIME_MIN}
+                  step="any"
+                  value={draft.travelTime}
+                  onChange={(e) => update({ travelTime: e.target.value })}
+                  disabled={disabled}
+                />
+              </Field>
+              <Field label={`Minutes on to ${stopLabel(stopNames, draft.toId)}`}>
+                <input
+                  className={cx(inputClass, 'tabular-nums')}
+                  type="number"
+                  min={0.1}
+                  max={MAX_TRAVEL_TIME_MIN}
+                  step="any"
+                  value={draft.secondTime}
+                  onChange={(e) => update({ secondTime: e.target.value })}
+                  disabled={disabled}
+                />
+              </Field>
+            </div>
+            {routeTime !== null && (
+              <p className="text-[11px] text-ink-subtle">
+                {draft.routeId} takes {routeTime} min from {stopLabel(stopNames, draft.fromId)} to{' '}
+                {stopLabel(stopNames, draft.toId)} today.
+              </p>
+            )}
           </>
         ) : draft.type === 'add_connection' ? (
           <>

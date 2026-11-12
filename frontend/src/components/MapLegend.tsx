@@ -123,6 +123,10 @@ export function MapLegend({
                 <li className="flex items-center gap-2">
                   <span className="w-6 border-t-[3px] border-dashed border-orange-500" /> Added link (route colour)
                 </li>
+                <li className="flex items-center gap-2">
+                  <span className="ml-1.5 h-3.5 w-3.5 rounded-full border-4 border-orange-500 bg-white" />
+                  <span className="ml-1">New stop</span>
+                </li>
               </ul>
             </>
           )}

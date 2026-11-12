@@ -162,7 +162,9 @@ Instead of the dropdowns you can click the map: a stop (to close it), a line
 (to select that link, or on the **Frequency** and **Add link** tabs its route),
 or two stops one after the other (From, then To; on **Add link** any two
 stops, otherwise neighbours). The current selection
-is ringed in indigo on the map; changed frequencies appear in the legend.
+is ringed in indigo on the map; changed frequencies appear in the legend. On
+the **Add stop** tab, a click on the map places the new stop; a click on a
+line places it there and also chooses that route and link.
 
 **Sharing a scenario:** the address bar always holds a link to the current list
 of changes (**Copy link** next to *Clear* copies it). Opening the link restores
@@ -214,8 +216,9 @@ numbers the backend computes; fill in the form by clicking stops and lines on
 the map; open, update and copy shareable links (including an invalid one); and
 download the CSV export and compare every row with the backend; and make a
 route run more often with the Frequency tab; add a link with the Add link tab
-(and see the form refuse one the route cannot get); and add whole and decimal
-minutes on the Travel time tab. It uses the real backend and the seeded sample network
+(and see the form refuse one the route cannot get); add whole and decimal
+minutes on the Travel time tab; and place a new stop by clicking the map, run
+it and check the new-stop figures and an explorer journey from it. It uses the real backend and the seeded sample network
 (`python -m app.seed`); nothing is written to the database.
 
 Playwright starts the backend (from `backend/.venv`) and the Vite dev server

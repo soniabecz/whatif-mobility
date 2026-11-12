@@ -29,7 +29,10 @@ export function SegmentedControl<T extends string>({
       role="radiogroup"
       aria-label={label}
       className="grid gap-1 rounded-xl bg-surface-muted p-1"
-      style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
+      // More than four options: two rows of three, so labels stay on one line.
+      style={{
+        gridTemplateColumns: `repeat(${options.length > 4 ? 3 : options.length}, minmax(0, 1fr))`,
+      }}
     >
       {options.map(({ value: optionValue, label: optionLabel, icon: Icon }) => {
         const active = optionValue === value

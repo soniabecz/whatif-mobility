@@ -214,6 +214,11 @@ export function addedStopProblem(network: Network, change: AddStop): string | nu
   return null
 }
 
+/** The network with every stop the changes add (in order), for the UI. */
+export function applyAddedStops(network: Network, changes: ScenarioChange[]): Network {
+  return changes.reduce((current, change) => (change.type === 'add_stop' ? withAddedStop(current, change) : current), network)
+}
+
 /**
  * The network as it is after inserting a new stop (frontend view only, e.g. so
  * later changes may refer to it). The route's direct links between the two

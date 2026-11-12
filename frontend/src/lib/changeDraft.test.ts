@@ -8,8 +8,12 @@ import {
   draftSelection,
   initialDraft,
   withFrom,
+  nextStopId,
+  placeStop,
+  routeLinks,
   withLink,
   withRoute,
+  withStopRoute,
   withType,
   type ChangeDraft,
 } from './changeDraft'
@@ -30,6 +34,9 @@ describe('initialDraft', () => {
       awaitingTo: false,
       routeId: 'R1', // first route by id, with its current headway
       headway: '10',
+      position: null,
+      stopName: '',
+      secondTime: '',
     })
   })
 })
@@ -117,6 +124,7 @@ describe('draftSelection', () => {
       link: null,
       routeId: null,
       newLink: null,
+      newStop: null,
     })
   })
 
@@ -126,6 +134,7 @@ describe('draftSelection', () => {
       link: linkKey('BRK', 'DUN'),
       routeId: null,
       newLink: null,
+      newStop: null,
     })
   })
 })
@@ -150,7 +159,13 @@ describe('frequency', () => {
   })
 
   it('highlights the whole route', () => {
-    expect(draftSelection(freq)).toEqual({ stopIds: [], link: null, routeId: 'R1', newLink: null })
+    expect(draftSelection(freq)).toEqual({
+      stopIds: [],
+      link: null,
+      routeId: 'R1',
+      newLink: null,
+      newStop: null,
+    })
   })
 
   it('builds the change and checks the 1-120 min range', () => {
@@ -194,6 +209,7 @@ describe('add link', () => {
       link: null,
       routeId: null,
       newLink: { fromId: 'CAS', toId: 'DUN' },
+      newStop: null,
     })
   })
 
@@ -211,6 +227,68 @@ describe('add link', () => {
     expect(buildChange({ ...draft, fromId: 'ALP', toId: 'BRK', travelTime: '6' }, 0, network)).toBe(
       'Not possible: route R1 already runs from ALP to BRK.',
     )
+  })
+})
+
+describe('add stop', () => {
+  // smallNetwork: R1 runs ALP-BRK-CAS (3, 4 min), R2 runs ALP-BRK-DUN.
+  const add = withType(start, 'add_stop')
+
+  it("lists a route's links once per street", () => {
+    expect(routeLinks(network, 'R1')).toEqual([
+      { fromId: 'ALP', toId: 'BRK' },
+      { fromId: 'BRK', toId: 'CAS' },
+    ])
+  })
+
+  it('a map click places the stop (rounded), a line click picks route and link', () => {
+    let draft = placeStop(add, 0.12345678, 1.98765432)
+    expect(draft.position).toEqual({ lat: 0.123457, lon: 1.987654 })
+    draft = clickLink(network, draft, 'CAS', 'BRK', 'R1')
+    expect(draft).toMatchObject({ routeId: 'R1', fromId: 'BRK', toId: 'CAS' })
+    expect(clickStop(network, draft, 'ALP')).toBe(draft) // existing stops are not targets
+  })
+
+  it('choosing a route starts on its first link', () => {
+    expect(withStopRoute(network, add, 'R2')).toMatchObject({ fromId: 'ALP', toId: 'BRK' })
+  })
+
+  it('next free id', () => {
+    expect(nextStopId(network)).toBe('N1')
+    const withN1 = { ...network, stops: [...network.stops, { ...network.stops[0], id: 'N1' }] }
+    expect(nextStopId(withN1)).toBe('N2')
+  })
+
+  it('builds the change once placed, named and timed', () => {
+    let draft = withStopRoute(network, add, 'R1')
+    expect(buildChange(draft, 0, network)).toBe('Click the map to place the new stop.')
+    draft = placeStop(draft, 0, 0.5)
+    expect(buildChange(draft, 0, network)).toBe('Give the new stop a name.')
+    draft = { ...draft, stopName: ' Mid Point ', travelTime: '1.5' }
+    expect(buildChange(draft, 0, network)).toBe('Travel time must be a number greater than 0.')
+    expect(buildChange({ ...draft, secondTime: '2' }, 0, network)).toEqual({
+      type: 'add_stop',
+      stop_id: 'N1',
+      name: 'Mid Point',
+      lat: 0,
+      lon: 0.5,
+      route_id: 'R1',
+      from_stop_id: 'ALP',
+      to_stop_id: 'BRK',
+      time_from_min: 1.5,
+      time_to_min: 2,
+    })
+    expect(buildChange({ ...draft, secondTime: '2', stopName: 'Castle' }, 0, network)).toBe(
+      'Not possible: a stop called "Castle" already exists.',
+    )
+  })
+
+  it('previews the position and the link', () => {
+    const draft = placeStop(withStopRoute(network, add, 'R1'), 0, 0.5)
+    expect(draftSelection(draft)).toMatchObject({
+      link: linkKey('ALP', 'BRK'),
+      newStop: { lat: 0, lon: 0.5 },
+    })
   })
 })
 
