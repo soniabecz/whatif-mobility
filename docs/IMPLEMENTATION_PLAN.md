@@ -339,6 +339,7 @@ and 14 are larger than one session and are marked as such.
 - [x] CI job "API types up to date" (regenerate + `git diff --exit-code`);
       checked locally: deterministic, and a schema change makes it fail
 - [x] 2 tests for the export (133 total); README section; commit
+- [x] Pushed; first run on GitHub green (run 43248409499: all 3 jobs)
 
 **2. Frontend tests** (M)
 - [ ] Explain the setup and get approval (Vitest; Playwright for one smoke test)
