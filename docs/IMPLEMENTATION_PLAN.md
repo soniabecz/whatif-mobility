@@ -353,6 +353,7 @@ and 14 are larger than one session and are marked as such.
 - [x] KPI tiles are named groups (`role="group"`), used by the test, no visual change
 - [x] CI job "End-to-end (Playwright)": seed, Chromium, report uploaded on failure
 - [x] README: test commands, e2e section, header badge text fixed ("Live"); commit
+- [x] Pushed; CI green with Playwright starting both servers itself (run 43249884632: all 4 jobs)
 
 **3. One-command start** (S)
 - [ ] Decide: Docker Compose or a plain script
