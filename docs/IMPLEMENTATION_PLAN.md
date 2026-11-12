@@ -6,9 +6,8 @@
 
 ## Current status
 
-- **Last completed:** Day 8, part 1 (types generated from OpenAPI); 133 tests
-- **Next up:** Day 8, part 2 (frontend tests): explain the setup (Vitest,
-  Playwright) and wait for approval
+- **Last completed:** Day 8, part 2 (frontend tests); 133 backend + 32 Vitest + 1 Playwright test
+- **Next up:** Day 8, part 3 (one-command start): decide Docker Compose vs a plain script
 - **Repository:** https://github.com/soniabecz/whatif-mobility (private, branch `main`)
 
 ## Timeline
@@ -139,6 +138,8 @@ so the project is usable even if a later day is cut short.
 | Stop impact colours from the fixed status palette, always with icon + label | Colour is never the only signal (colour-blind safe) |
 | Chart: grouped horizontal bars, before/after time of the 10 biggest changes | Counts are already in tiles; palette validated (CVD/contrast) |
 | ~~No frontend test runner~~ (superseded Day 8) | Vitest for pure `lib/` helpers, one Playwright end-to-end test |
+| Playwright e2e against the real backend + seeded data, not a mocked API | Only test that proves frontend and backend work together; simulations are read-only |
+| E2E checks UI numbers against `POST /api/simulations`, not hardcoded values | Survives model changes (Day 10) while still catching display bugs |
 | Vitest in `node` environment, tests next to the code (`*.test.ts`) | Helpers have no DOM; no jsdom dependency; `tsc -b` type-checks the tests |
 
 ### Target backend structure
@@ -347,8 +348,11 @@ and 14 are larger than one session and are marked as such.
 - [x] Vitest 5.1 (`environment: node`, config in `vite.config.ts`): 32 tests for
       `lib/network.ts` and `lib/impact.ts`; a deliberately broken helper is caught;
       `npm test` in the CI frontend job; commit
-- [ ] One Playwright end-to-end test: load map, close a stop, run, see results
-- [ ] Add both to CI; commit
+- [x] One Playwright end-to-end test (`e2e/close-stop.spec.ts`): load map, close CEN,
+      run, compare the KPI tiles with the backend's own answer; a wrong number is caught
+- [x] KPI tiles are named groups (`role="group"`), used by the test, no visual change
+- [x] CI job "End-to-end (Playwright)": seed, Chromium, report uploaded on failure
+- [x] README: test commands, e2e section, header badge text fixed ("Live"); commit
 
 **3. One-command start** (S)
 - [ ] Decide: Docker Compose or a plain script
@@ -509,3 +513,4 @@ All former "maybes" are now scheduled as Days 8–14. New ideas go here.
 | 2026-11-11 | 7   | CI (green on GitHub); journey explorer API + UI, 118 tests; browser-checked |
 | 2026-11-11 | 7   | Transfer penalty: route-aware graph, 5 min/change; penalty-0 equivalence (0 diffs); 131 tests; browser-checked |
 | 2026-11-12 | 8   | Types generated from OpenAPI (openapi-typescript, isolated TS 5), CI drift check; 133 tests |
+| 2026-11-12 | 8   | Frontend tests: Vitest (32, lib helpers), Playwright e2e vs real backend; both in CI |

@@ -71,7 +71,8 @@ interface KpiProps {
 
 function Kpi({ icon: Icon, color, label, value, hint }: KpiProps) {
   return (
-    <div className="rounded-xl border border-line bg-white px-3 py-2.5">
+    // Named group: screen readers (and the e2e test) read "Slower: 12" as one unit.
+    <div role="group" aria-label={label} className="rounded-xl border border-line bg-white px-3 py-2.5">
       <p className="flex items-center gap-1.5 text-[11px] font-semibold text-ink-muted">
         <Icon size={13} style={{ color }} aria-hidden />
         {label}

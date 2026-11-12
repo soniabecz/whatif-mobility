@@ -111,7 +111,7 @@ cd frontend
 npm run dev
 ```
 
-Open http://localhost:5173. The header shows **● Connected** and the bus
+Open http://localhost:5173. The header shows **● Live** and the bus
 network appears on the map. Build a scenario in the sidebar, click
 **Run simulation**, and the results appear below the form and on the map.
 
@@ -131,15 +131,31 @@ pytest -v
 cd frontend
 npm run lint     # static code checks (oxlint)
 npm test         # unit tests for the pure helpers in src/lib (Vitest)
+npm run test:e2e # end-to-end test in a real browser (Playwright, see below)
 npm run build    # type-check with TypeScript and build for production
+```
+
+### End-to-end test
+
+`npm run test:e2e` opens the app in Chromium, closes a stop with the form, runs
+the simulation and checks that the results show exactly the numbers the
+backend computes. It uses the real backend and the seeded sample network
+(`python -m app.seed`); nothing is written to the database.
+
+Playwright starts the backend (from `backend/.venv`) and the Vite dev server
+itself, or reuses them if they are already running. Download the browser once:
+
+```bash
+cd frontend
+npx playwright install chromium
 ```
 
 ## Continuous integration
 
 Every push to `main` and every pull request runs
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) on GitHub Actions:
-backend `pytest`; frontend `npm ci`, lint, unit tests, type check and build; and a check
-that the generated API types are up to date. No secrets are needed: the tests
+backend `pytest`; frontend `npm ci`, lint, unit tests, type check and build; a check
+that the generated API types are up to date; and the end-to-end test. No secrets are needed: the tests
 use a fake AI model and an in-memory database.
 
 ## API types
