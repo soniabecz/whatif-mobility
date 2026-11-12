@@ -6,15 +6,14 @@
 
 ## Current status
 
-- **Last completed:** Day 10, part 2 (demand weighting, invented stop activity);
-  187 backend + 83 Vitest + 6 Playwright tests
-- **Next up:** Day 10, part 3 (walking to a nearby stop): decide walking speed and
-  maximum distance, explain the model and wait for approval
+- **Last completed:** Day 10 (waiting from headways, change frequency, demand
+  weighting, walking to/from closed stops); 203 backend + 83 Vitest + 7 Playwright tests
+- **Next up:** Day 11, part 1 (add a connection): explain the design and wait for approval
 - **Repository:** https://github.com/soniabecz/whatif-mobility (private, branch `main`)
 
 ## Timeline
 
-Total: **9 working days done** (MVP in Days 1–5, Days 6–9 added afterwards);
+Total: **10 working days done** (MVP in Days 1–5, Days 6–10 added afterwards);
 Days 8–14 hold all later extensions (≈ 9–10 sessions; Days 10, 11 and 14 run long). A "day" is one
 working session. Every day must end with something working and committed,
 so the project is usable even if a later day is cut short.
@@ -30,7 +29,7 @@ so the project is usable even if a later day is cut short.
 | 7   | Quality and explainability | ✅ Done |
 | 8   | Safety nets               | ✅ Done |
 | 9   | Quick product wins        | ✅ Done |
-| 10  | More realistic simulation | 🟡 In progress |
+| 10  | More realistic simulation | ✅ Done |
 | 11  | New scenario types        | ⬜ Todo |
 | 12  | AI features               | ⬜ Todo |
 | 13  | Saving and comparing      | ⬜ Todo |
@@ -148,6 +147,9 @@ so the project is usable even if a later day is cut short.
 | Transfer penalty default 5 → 2 min once waiting is modelled | 5 min stood in for waiting; keeping it would count waiting twice |
 | No migrations: outdated tables are dropped and re-seeded | The database only holds generated sample data (until Day 13) |
 | One route per boarding, even where routes share a street | Simple and deterministic; combined frequency documented as a limitation |
+| Walking only to/from closed stops, computed on top of the graph (not walk edges) | Graph and penalty rule untouched; walk-only paths would break "path − one penalty" |
+| Walking distance = straight line × 1.3, 5 km/h, max 1,000 m (settings) | Invented but common planning values; reaches grid neighbours, not diagonals |
+| Journeys to/from closed stops compared when walking is on | They are real trips that get slower, not trips that vanish |
 | Demand = invented stop activity 1–3, journey weight = origin × destination | Simple gravity model without distance (times change with the scenario); clearly labelled |
 | Weighted figures only as shares (%) and averages, next to the unweighted counts | Absolute passenger numbers from invented demand would be fake metrics |
 | Frequency change = new headway (absolute), never "+N buses" | One unambiguous number; the AI converts relative requests, as for travel times |
@@ -463,10 +465,18 @@ transfer penalty at 0) and checks equivalence before changing defaults.
 - [x] Commit (approved by the user; no separate browser check reported)
 
 **3. Walking to a nearby stop** (M)
-- [ ] Decide walking speed and maximum distance; get approval
-- [ ] Walking edges between nearby stops (distance from coordinates); used
-      only where it helps (e.g. when a stop is closed)
-- [ ] Equivalence check with walking off, tests, explorer shows walking legs, commit
+- [x] Decided: scope A (only journeys to/from a CLOSED stop walk; no walk edges in the
+      graph); 5 km/h, straight line × 1.3, max 1,000 m; such journeys are compared
+      (slower/impossible) instead of excluded; `WALKING_ENABLED` on by default
+- [x] `services/walking.py`: distances, nearby open stops, `best_walk_option` (shared by
+      simulation and explorer, deterministic tie-break); summary `walked_to_or_from_closed_stop`
+- [x] Equivalence: walking off vs the previous engine (worktree), 3 model settings ×
+      6 scenarios: 4,338 results, **0 differences**; walking on: 549 differ, none in the
+      scenario without a closed stop
+- [x] Explorer: `walk_start`/`walk_end`, `walk_min`; UI walking rows and breakdown, dashed
+      walking line on the map, legend entry, Details row
+- [x] Tests: 16 backend (203), Playwright `e2e/walking.spec.ts` (7 e2e)
+- [x] Commit (approved by the user; no separate browser check reported)
 
 **Fallback:** parts 2 and 3 are independent of each other; either can move to a later day.
 
@@ -558,7 +568,7 @@ All former "maybes" are now scheduled as Days 8–14. New ideas go here.
 - [x] **Day 5:** AI provider and API key: Groq, `openai/gpt-oss-120b`
 - [ ] **Days 8–14:** decisions asked when each part starts: type generator
       (Day 8.1 ✅ openapi-typescript), Docker vs script (8.3 ✅ script), bus frequencies (10.1 ✅), demand model
-      (10.2 ✅ activity 1–3), walking speed/distance (10.3), hosting target (14.1), GTFS city
+      (10.2 ✅ activity 1–3), walking speed/distance (10.3 ✅ 5 km/h, ×1.3, 1 km), hosting target (14.1), GTFS city
       and licence (14.2)
 - [x] **Day 7:** transfer penalty value: 5 min per change of bus, counted in journey
       times and shown separately; backend setting `TRANSFER_PENALTY_MIN` (default 5)
@@ -585,3 +595,4 @@ All former "maybes" are now scheduled as Days 8–14. New ideas go here.
 | 2026-11-12 | 10  | Scenario type `change_frequency` (engine, validation, AI prompt, share link); 168 backend, 76 Vitest |
 | 2026-11-12 | 10  | "Frequency" form tab, route halo, legend headways; 82 Vitest, 6 e2e; Day 10 part 1 done |
 | 2026-11-12 | 10  | Demand weighting (invented activity 1–3, shares only; equal levels = unweighted); 187 backend, 83 Vitest |
+| 2026-11-12 | 10  | Walking to/from closed stops (5 km/h, ×1.3, ≤1 km); walking-off equivalence 0 diffs (4,338); 203 backend, 7 e2e; Day 10 done |

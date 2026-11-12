@@ -15,6 +15,9 @@ headway at every boarding, plus a fixed penalty per change of bus.
 
 Closing a stop: nobody can board, alight or change bus there, but buses still
 drive through it (its platforms and ride edges stay in the route graph).
+Journeys to or from a closed stop are excluded from the figures, unless a
+``WalkingModel`` is given: then passengers walk to a nearby open stop (see
+walking.py) and those journeys are compared like any other.
 """
 
 from collections.abc import Sequence
@@ -44,6 +47,7 @@ from app.services.route_graph import (
     set_headway,
     travel_times_from,
 )
+from app.services.walking import WalkingModel, best_walk_option
 
 # Two travel times closer than this are equal (guards against float noise).
 _EPSILON = 1e-9
@@ -125,11 +129,13 @@ def simulate(
     scenario: Scenario,
     transfer_penalty_min: float = 0.0,
     include_waiting: bool = False,
+    walking: WalkingModel | None = None,
 ) -> SimulationResult:
     """Apply the scenario to a copy of the baseline and compare journeys.
 
     ``transfer_penalty_min``: minutes added per change of bus (0 = free).
     ``include_waiting``: wait half the headway at every boarding.
+    ``walking``: walk to/from closed stops (None = such journeys are excluded).
     """
     before_graph = build_route_graph(baseline, transfer_penalty_min, include_waiting)
     after_graph, closed = apply_scenario(
@@ -141,7 +147,7 @@ def simulate(
     after = {s: travel_times_from(after_graph, s) for s in stop_ids if s not in closed}
 
     changed: list[JourneyChange] = []
-    unchanged = closed_count = 0
+    unchanged = closed_count = walked_count = 0
     sum_before = sum_after = 0.0
     comparable = 0
     # Demand weights: invented activity level of origin x destination.
@@ -158,13 +164,20 @@ def simulate(
             if origin == destination:
                 continue
             weight = float(activity[origin] * activity[destination])
-            if origin in closed or destination in closed:
-                closed_count += 1
-                add_weight("closed", weight)
-                continue
-
             time_before = before[origin].get(destination)
-            time_after = after[origin].get(destination)
+            if origin in closed or destination in closed:
+                if walking is None:
+                    closed_count += 1
+                    add_weight("closed", weight)
+                    continue
+                walked_count += 1
+                option = best_walk_option(
+                    baseline, walking, origin, destination, closed,
+                    lambda a, b: after[a].get(b),
+                )
+                time_after = option.total_min if option else None
+            else:
+                time_after = after[origin].get(destination)
             if time_before is None:
                 # Impossible already in the baseline; changes only remove or
                 # re-time links, so it cannot become possible. Not a change.
@@ -198,6 +211,7 @@ def simulate(
         faster=sum(j.status == "faster" for j in changed),
         impossible=sum(j.status == "impossible" for j in changed),
         to_or_from_closed_stop=closed_count,
+        walked_to_or_from_closed_stop=walked_count,
         average_time_before_min=_round(sum_before / comparable) if comparable else None,
         average_time_after_min=_round(sum_after / comparable) if comparable else None,
         total_time_change_min=_round(sum_after - sum_before),

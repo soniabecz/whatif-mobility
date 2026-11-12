@@ -23,7 +23,13 @@ def run_simulation(
     """Simulate the scenario. Nothing is stored; the baseline is unchanged."""
     baseline = network_service.build_graph_from_db(db)
     try:
-        return simulation_service.simulate(baseline, scenario, settings.transfer_penalty_min, settings.include_waiting)
+        return simulation_service.simulate(
+            baseline,
+            scenario,
+            settings.transfer_penalty_min,
+            settings.include_waiting,
+            settings.walking,
+        )
     except simulation_service.ScenarioError as error:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)

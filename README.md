@@ -244,6 +244,9 @@ Configuration is read from environment variables. Real values go in local
 | `AI_TIMEOUT_SECONDS`| `backend/.env`        | `30`                    | How long to wait for the AI |
 | `TRANSFER_PENALTY_MIN` | `backend/.env`     | `2`                     | Minutes added per change of bus, on top of waiting (0–60) |
 | `INCLUDE_WAITING`   | `backend/.env`        | `true`                  | Wait half the route's headway at every boarding |
+| `WALKING_ENABLED`   | `backend/.env`        | `true`                  | Walk to/from a closed stop via a nearby open stop |
+| `WALK_SPEED_KMH`    | `backend/.env`        | `5`                     | Walking speed (1–10) |
+| `MAX_WALK_M`        | `backend/.env`        | `1000`                  | Longest walk in metres (100–3000) |
 
 Restart the backend after changing `backend/.env`.
 
@@ -276,7 +279,14 @@ passenger numbers, because the demand is not real data. With equal levels the
 weighted figures equal the unweighted ones (tested).
 
 A closed stop is driven through by buses, but nobody can board, alight or
-change bus there.
+change bus there. **Walking:** passengers whose journey starts or ends at a
+closed stop walk to a nearby open stop and take the bus from there, or walk
+the whole way if the other stop is close enough. Walking distance = straight
+line × 1.3, at 5 km/h, at most 1,000 m (all invented assumptions; neighbouring
+stops are about 840–870 m apart on foot, the airport has no stop within reach).
+Such journeys are then compared like any other (slower or impossible); with
+`WALKING_ENABLED=false` they are excluded, as before Day 10 part 3 (checked over
+4,338 results, 0 differences). Journeys between open stops never walk.
 
 After pulling a change that adds database columns, `./dev.sh` (or
 `python -m app.seed`) rebuilds the tables automatically; the database only

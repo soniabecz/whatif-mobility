@@ -9,6 +9,7 @@ from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.database import BACKEND_DIR
+from app.services.walking import WalkingModel
 
 
 class Settings(BaseSettings):
@@ -32,6 +33,18 @@ class Settings(BaseSettings):
     # (they arrive at random). False: no waiting; with a 5-min penalty this
     # reproduces the results from before Day 10 exactly.
     include_waiting: bool = True
+
+    # Journeys to or from a CLOSED stop: walk to a nearby open stop instead of
+    # being excluded. Distance = straight line x 1.3. Invented assumptions.
+    walking_enabled: bool = True
+    walk_speed_kmh: float = Field(default=5.0, ge=1, le=10)
+    max_walk_m: float = Field(default=1000.0, ge=100, le=3000)
+
+    @property
+    def walking(self) -> WalkingModel | None:
+        if not self.walking_enabled:
+            return None
+        return WalkingModel(speed_kmh=self.walk_speed_kmh, max_walk_m=self.max_walk_m)
 
     @property
     def ai_enabled(self) -> bool:

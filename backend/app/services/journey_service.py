@@ -14,10 +14,12 @@ from app.schemas.journey import (
     JourneyLeg,
     JourneyPlan,
     JourneyRequest,
+    WalkLeg,
 )
 from app.schemas.scenario import Scenario
-from app.services.route_graph import build_route_graph, fastest_path
+from app.services.route_graph import build_route_graph, fastest_path, travel_times_from
 from app.services.simulation_service import apply_scenario
+from app.services.walking import Walk, WalkingModel, best_walk_option
 
 # Same tolerance as the simulation: guards against float noise.
 _EPSILON = 1e-9
@@ -32,8 +34,12 @@ def compare_journey(
     request: JourneyRequest,
     transfer_penalty_min: float = 0.0,
     include_waiting: bool = False,
+    walking: WalkingModel | None = None,
 ) -> JourneyComparison:
     """Fastest journey before and after the request's changes.
+
+    With ``walking``, a journey to or from a closed stop walks to a nearby
+    open stop (exactly as the simulation does) instead of being impossible.
 
     Raises JourneyError for unknown stops and ScenarioError for invalid changes.
     """
@@ -54,7 +60,14 @@ def compare_journey(
 
     after: tuple[JourneyPlan, float] | None = None
     reason: str | None = None
-    if origin in closed:
+    if (origin in closed or destination in closed) and walking is not None:
+        after = _walk_plan(baseline, after_graph, walking, origin, destination, closed)
+        if after is None:
+            reason = (
+                f"The {'origin' if origin in closed else 'destination'} stop is closed and no "
+                f"open stop is within {walking.max_walk_m:g} m walking, or none of them is connected."
+            )
+    elif origin in closed:
         reason = "The origin stop is closed in this scenario."
     elif destination in closed:
         reason = "The destination stop is closed in this scenario."
@@ -141,11 +154,70 @@ def _plan(
         travel_time_min=_round(path.travel_time_min),
         in_vehicle_min=_round(in_vehicle),
         wait_min=_round(wait),
+        walk_min=0.0,
+        walk_start=None,
+        walk_end=None,
         transfers=len(legs) - 1,
         transfer_penalty_min=penalty,
         legs=legs,
     )
     return plan, path.travel_time_min
+
+
+def _walk_plan(
+    baseline: nx.DiGraph,
+    after_graph: nx.DiGraph,
+    walking: WalkingModel,
+    origin: str,
+    destination: str,
+    closed: set[str],
+) -> tuple[JourneyPlan, float] | None:
+    """Walk + bus (+ walk) plan for a journey touching a closed stop, or None.
+
+    Uses the same option and the same bus times as the simulation.
+    """
+    times: dict[str, dict[str, float]] = {}
+
+    def bus_time(a: str, b: str) -> float | None:
+        if a not in times:
+            times[a] = travel_times_from(after_graph, a)
+        return times[a].get(b)
+
+    option = best_walk_option(baseline, walking, origin, destination, closed, bus_time)
+    if option is None:
+        return None
+
+    if option.bus_from is None or option.bus_to is None:  # walking the whole way
+        bus = JourneyPlan(
+            travel_time_min=0.0, in_vehicle_min=0.0, wait_min=0.0, walk_min=0.0,
+            walk_start=None, walk_end=None, transfers=0,
+            transfer_penalty_min=after_graph.graph["transfer_penalty_min"], legs=[],
+        )
+    else:
+        planned = _plan(after_graph, option.bus_from, option.bus_to, closed)
+        if planned is None:  # pragma: no cover - bus_time found a path
+            return None
+        bus = planned[0]
+
+    walks = [w for w in (option.walk_start, option.walk_end) if w is not None]
+    plan = bus.model_copy(update={
+        "travel_time_min": _round(option.total_min),
+        "walk_min": _round(sum(w.minutes for w in walks)),
+        "walk_start": _walk_leg(option.walk_start),
+        "walk_end": _walk_leg(option.walk_end),
+    })
+    return plan, option.total_min
+
+
+def _walk_leg(walk: Walk | None) -> WalkLeg | None:
+    if walk is None:
+        return None
+    return WalkLeg(
+        from_stop_id=walk.from_stop_id,
+        to_stop_id=walk.to_stop_id,
+        distance_m=round(walk.distance_m, -1),  # to 10 m: it is an estimate
+        minutes=_round(walk.minutes),
+    )
 
 
 def _round(value: float) -> float:

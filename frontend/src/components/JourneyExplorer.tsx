@@ -4,6 +4,7 @@ import {
   ArrowRight,
   CircleSlash,
   Clock,
+  Footprints,
   Loader2,
   Repeat,
   TriangleAlert,
@@ -12,7 +13,12 @@ import {
 
 import { IMPACT_STYLES, describeTimeModel, formatChange, formatMinutes } from '../lib/impact'
 import { sortedStops, stopLabel, stopsById } from '../lib/network'
-import type { JourneyComparison, JourneyComparisonStatus, JourneyPlan } from '../types/journey'
+import type {
+  JourneyComparison,
+  JourneyComparisonStatus,
+  JourneyPlan,
+  WalkLeg,
+} from '../types/journey'
 import type { Network, Route } from '../types/network'
 import { IMPACT_ICONS } from './impactIcons'
 import { Button } from './ui/Button'
@@ -221,11 +227,13 @@ function Timeline({
         <span className="font-normal tabular-nums">{formatMinutes(plan.travel_time_min)}</span>
       </h3>
       <p className="text-[11px] text-ink-subtle tabular-nums">
+        {plan.walk_min > 0 && `${plan.walk_min.toFixed(1)} min walking + `}
         {plan.in_vehicle_min.toFixed(1)} min on the bus
         {plan.wait_min > 0 && ` + ${plan.wait_min.toFixed(1)} min waiting`}
         {plan.transfers > 0 &&
           ` + ${plan.transfers} ${plan.transfers === 1 ? 'change' : 'changes'} × ${plan.transfer_penalty_min} min`}
       </p>
+      {plan.walk_start && <WalkRow walk={plan.walk_start} name={name} />}
       <ol className="mt-2">
         {plan.legs.map((leg, index) => {
           const route = routes.get(leg.route_id)
@@ -291,6 +299,20 @@ function Timeline({
           )
         })}
       </ol>
+      {plan.walk_end && <WalkRow walk={plan.walk_end} name={name} />}
     </section>
+  )
+}
+
+/** Walking to or from a closed stop (distance is an estimate: straight line x 1.3). */
+function WalkRow({ walk, name }: { walk: WalkLeg; name: (id: string) => string }) {
+  return (
+    <p className="mt-2 flex items-center gap-2 rounded-lg bg-surface-muted px-2 py-1.5 text-[11px] text-ink-muted">
+      <Footprints size={13} className="shrink-0" aria-hidden />
+      <span>
+        Walk about {Math.round(walk.distance_m)} m from {name(walk.from_stop_id)} to{' '}
+        {name(walk.to_stop_id)} · {walk.minutes.toFixed(1)} min
+      </span>
+    </p>
   )
 }

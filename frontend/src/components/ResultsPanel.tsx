@@ -211,9 +211,15 @@ export function ResultsPanel({
         <div className="space-y-5 pt-1">
           <dl className="divide-y divide-line rounded-xl border border-line bg-white px-3 text-sm">
             <DetailRow label="Unchanged">{summary.unchanged}</DetailRow>
-            <DetailRow label="To/from closed stops (not counted)">
-              {summary.to_or_from_closed_stop}
-            </DetailRow>
+            {summary.walked_to_or_from_closed_stop > 0 ? (
+              <DetailRow label="To/from closed stops, by walking to a nearby stop">
+                {summary.walked_to_or_from_closed_stop}
+              </DetailRow>
+            ) : (
+              <DetailRow label="To/from closed stops (not counted)">
+                {summary.to_or_from_closed_stop}
+              </DetailRow>
+            )}
             <DetailRow label="Total change, all possible journeys">
               {formatChange(summary.total_time_change_min)}
             </DetailRow>

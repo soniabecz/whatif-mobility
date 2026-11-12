@@ -693,6 +693,30 @@
             "type": "number",
             "title": "Wait Min"
           },
+          "walk_min": {
+            "type": "number",
+            "title": "Walk Min"
+          },
+          "walk_start": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WalkLeg"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "walk_end": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WalkLeg"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "transfers": {
             "type": "integer",
             "title": "Transfers"
@@ -714,6 +738,9 @@
           "travel_time_min",
           "in_vehicle_min",
           "wait_min",
+          "walk_min",
+          "walk_start",
+          "walk_end",
           "transfers",
           "transfer_penalty_min",
           "legs"
@@ -977,6 +1004,10 @@
             "type": "integer",
             "title": "To Or From Closed Stop"
           },
+          "walked_to_or_from_closed_stop": {
+            "type": "integer",
+            "title": "Walked To Or From Closed Stop"
+          },
           "average_time_before_min": {
             "anyOf": [
               {
@@ -1033,6 +1064,7 @@
           "faster",
           "impossible",
           "to_or_from_closed_stop",
+          "walked_to_or_from_closed_stop",
           "average_time_before_min",
           "average_time_after_min",
           "total_time_change_min",
@@ -1156,6 +1188,35 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "WalkLeg": {
+        "properties": {
+          "from_stop_id": {
+            "type": "string",
+            "title": "From Stop Id"
+          },
+          "to_stop_id": {
+            "type": "string",
+            "title": "To Stop Id"
+          },
+          "distance_m": {
+            "type": "number",
+            "title": "Distance M"
+          },
+          "minutes": {
+            "type": "number",
+            "title": "Minutes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "from_stop_id",
+          "to_stop_id",
+          "distance_m",
+          "minutes"
+        ],
+        "title": "WalkLeg",
+        "description": "Walking to or from a closed stop (straight line x detour factor)."
       }
     }
   }

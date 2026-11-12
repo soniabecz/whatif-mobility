@@ -57,6 +57,7 @@ def client(db: Session, session_factory: sessionmaker[Session]) -> Iterator[Test
         groq_api_key=None,
         transfer_penalty_min=0.0,
         include_waiting=False,
+        walking_enabled=False,
     )
     try:
         yield TestClient(app)

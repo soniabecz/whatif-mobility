@@ -318,6 +318,10 @@ export interface components {
             in_vehicle_min: number;
             /** Wait Min */
             wait_min: number;
+            /** Walk Min */
+            walk_min: number;
+            walk_start: components["schemas"]["WalkLeg"] | null;
+            walk_end: components["schemas"]["WalkLeg"] | null;
             /** Transfers */
             transfers: number;
             /** Transfer Penalty Min */
@@ -410,6 +414,8 @@ export interface components {
             impossible: number;
             /** To Or From Closed Stop */
             to_or_from_closed_stop: number;
+            /** Walked To Or From Closed Stop */
+            walked_to_or_from_closed_stop: number;
             /** Average Time Before Min */
             average_time_before_min: number | null;
             /** Average Time After Min */
@@ -464,6 +470,20 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /**
+         * WalkLeg
+         * @description Walking to or from a closed stop (straight line x detour factor).
+         */
+        WalkLeg: {
+            /** From Stop Id */
+            from_stop_id: string;
+            /** To Stop Id */
+            to_stop_id: string;
+            /** Distance M */
+            distance_m: number;
+            /** Minutes */
+            minutes: number;
         };
     };
     responses: never;

@@ -41,6 +41,9 @@ class SimulationSummary(BaseModel):
     faster: int
     impossible: int
     to_or_from_closed_stop: int  # excluded from all other figures
+    # Journeys to/from a closed stop compared WITH walking (included in the
+    # figures above); 0 when walking is off.
+    walked_to_or_from_closed_stop: int
     # Averages and total over journeys possible both before and after.
     average_time_before_min: float | None
     average_time_after_min: float | None

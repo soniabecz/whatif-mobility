@@ -15,7 +15,7 @@ import { divIcon, type LatLngBoundsExpression, type LatLngTuple, type PointTuple
 import type { DraftSelection } from '../lib/changeDraft'
 import { ACTIVITY_LABELS, IMPACT_STYLES, describeImpact, impactLevel } from '../lib/impact'
 import { linkKey, routeSegments, scenarioHighlights } from '../lib/network'
-import type { JourneyComparison, JourneyLeg } from '../types/journey'
+import type { JourneyComparison, JourneyLeg, WalkLeg } from '../types/journey'
 import type { Network, Route, Stop } from '../types/network'
 import type { ScenarioChange } from '../types/scenario'
 import type { SimulationResult, StopImpact } from '../types/simulation'
@@ -291,15 +291,22 @@ function JourneyOverlay({
 }) {
   const map = useMap()
   const beforePath = positions(stops, pathOf(journey.before?.legs))
+  const walks = [journey.after?.walk_start, journey.after?.walk_end].filter(
+    (walk): walk is WalkLeg => walk != null,
+  )
   const origin = stops.get(journey.origin_id)
   const destination = stops.get(journey.destination_id)
 
   // Zoom smoothly to the journey when it (or the free map area) changes.
   // The parent passes a stable padding object, so this does not run on every render.
   useEffect(() => {
+    const walked = [journey.after?.walk_start, journey.after?.walk_end].flatMap((walk) =>
+      walk ? [walk.from_stop_id, walk.to_stop_id] : [],
+    )
     const points = positions(stops, [
       ...pathOf(journey.before?.legs),
       ...pathOf(journey.after?.legs),
+      ...walked,
     ])
     if (points.length > 0) {
       map.flyToBounds(points, {
@@ -320,6 +327,18 @@ function JourneyOverlay({
           pathOptions={{ color: BEFORE_COLOR, weight: 4, dashArray: '1 9', lineCap: 'round' }}
         />
       )}
+      {/* Walking to/from a closed stop: a dashed dark line (straight, like the estimate). */}
+      {walks.map((walk) => (
+        <Polyline
+          key={`walk-${walk.from_stop_id}-${walk.to_stop_id}`}
+          positions={positions(stops, [walk.from_stop_id, walk.to_stop_id])}
+          pathOptions={{ color: INK, weight: 4, dashArray: '8 7', lineCap: 'butt' }}
+        >
+          <Tooltip sticky>
+            Walk about {Math.round(walk.distance_m)} m · {walk.minutes.toFixed(1)} min
+          </Tooltip>
+        </Polyline>
+      ))}
       {journey.after?.legs.map((leg, index) => (
         <Polyline
           key={`casing-${index}`}

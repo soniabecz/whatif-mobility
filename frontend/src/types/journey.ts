@@ -10,6 +10,9 @@ export type JourneyRequest = Schemas['JourneyRequest']
 /** A stretch on one route without changing bus. */
 export type JourneyLeg = Schemas['JourneyLeg']
 
+/** Walking to or from a closed stop (distance estimated: straight line × 1.3). */
+export type WalkLeg = Schemas['WalkLeg']
+
 /** travel_time_min = in_vehicle_min + transfers * transfer_penalty_min */
 export type JourneyPlan = Schemas['JourneyPlan']
 
