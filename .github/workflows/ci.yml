@@ -42,7 +42,7 @@ jobs:
         run: pytest -v
 
   frontend:
-    name: Frontend (lint, type check, build)
+    name: Frontend (lint, unit tests, type check, build)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
@@ -62,6 +62,9 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      - name: Unit tests (Vitest)
+        run: npm test
 
       - name: Type check and build
         run: npm run build

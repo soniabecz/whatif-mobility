@@ -130,6 +130,7 @@ pytest -v
 # Frontend
 cd frontend
 npm run lint     # static code checks (oxlint)
+npm test         # unit tests for the pure helpers in src/lib (Vitest)
 npm run build    # type-check with TypeScript and build for production
 ```
 
@@ -137,7 +138,7 @@ npm run build    # type-check with TypeScript and build for production
 
 Every push to `main` and every pull request runs
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) on GitHub Actions:
-backend `pytest`; frontend `npm ci`, lint, type check and build; and a check
+backend `pytest`; frontend `npm ci`, lint, unit tests, type check and build; and a check
 that the generated API types are up to date. No secrets are needed: the tests
 use a fake AI model and an in-memory database.
 

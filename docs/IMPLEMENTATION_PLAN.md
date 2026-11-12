@@ -138,7 +138,8 @@ so the project is usable even if a later day is cut short.
 | Stops drawn as `CircleMarker`, not `Marker` | Avoids Leaflet's broken default icon under Vite; easy to colour |
 | Stop impact colours from the fixed status palette, always with icon + label | Colour is never the only signal (colour-blind safe) |
 | Chart: grouped horizontal bars, before/after time of the 10 biggest changes | Counts are already in tiles; palette validated (CVD/contrast) |
-| No frontend test runner; logic kept in pure `lib/` functions | Not in the tech stack; all metrics are tested in the backend |
+| ~~No frontend test runner~~ (superseded Day 8) | Vitest for pure `lib/` helpers, one Playwright end-to-end test |
+| Vitest in `node` environment, tests next to the code (`*.test.ts`) | Helpers have no DOM; no jsdom dependency; `tsc -b` type-checks the tests |
 
 ### Target backend structure
 
@@ -342,8 +343,10 @@ and 14 are larger than one session and are marked as such.
 - [x] Pushed; first run on GitHub green (run 43248409499: all 3 jobs)
 
 **2. Frontend tests** (M)
-- [ ] Explain the setup and get approval (Vitest; Playwright for one smoke test)
-- [ ] Vitest for `lib/network.ts` and `lib/impact.ts`
+- [x] Explain the setup and get approval (Vitest; Playwright for one smoke test)
+- [x] Vitest 5.1 (`environment: node`, config in `vite.config.ts`): 32 tests for
+      `lib/network.ts` and `lib/impact.ts`; a deliberately broken helper is caught;
+      `npm test` in the CI frontend job; commit
 - [ ] One Playwright end-to-end test: load map, close a stop, run, see results
 - [ ] Add both to CI; commit
 
