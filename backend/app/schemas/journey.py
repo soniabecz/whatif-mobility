@@ -29,13 +29,16 @@ class JourneyLeg(BaseModel):
     route_id: str
     # Every stop the bus passes, in order, including closed stops it drives through.
     stop_ids: list[str]
-    travel_time_min: float
+    travel_time_min: float  # time on the bus
+    wait_min: float  # expected wait before boarding (0 when waiting is not modelled)
     passes_closed_stop_ids: list[str]
 
 
 class JourneyPlan(BaseModel):
-    travel_time_min: float  # = in_vehicle_min + transfers * transfer_penalty_min
+    # = in_vehicle_min + wait_min + transfers * transfer_penalty_min
+    travel_time_min: float
     in_vehicle_min: float
+    wait_min: float  # waiting at every boarding (0 when waiting is not modelled)
     transfers: int  # changes of bus (legs - 1)
     transfer_penalty_min: float
     legs: list[JourneyLeg]

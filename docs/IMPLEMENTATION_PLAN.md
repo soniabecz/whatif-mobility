@@ -6,11 +6,9 @@
 
 ## Current status
 
-- **Last completed:** Day 9 (map clicks, shareable link, CSV export);
-  134 backend + 73 Vitest + 5 Playwright tests
-- **Next up:** Day 10, part 1 (waiting time from route frequencies): decide the
-  invented frequencies and their relation to the transfer penalty, explain the
-  model and wait for approval
+- **Last completed:** Day 10, part 1a (waiting time from headways; equivalence
+  0 diffs); 152 backend + 74 Vitest + 5 Playwright tests
+- **Next up:** Day 10, part 1b: scenario type "change frequency" (backend, AI prompt)
 - **Repository:** https://github.com/soniabecz/whatif-mobility (private, branch `main`)
 
 ## Timeline
@@ -31,7 +29,7 @@ so the project is usable even if a later day is cut short.
 | 7   | Quality and explainability | ✅ Done |
 | 8   | Safety nets               | ✅ Done |
 | 9   | Quick product wins        | ✅ Done |
-| 10  | More realistic simulation | ⬜ Todo |
+| 10  | More realistic simulation | 🟡 In progress |
 | 11  | New scenario types        | ⬜ Todo |
 | 12  | AI features               | ⬜ Todo |
 | 13  | Saving and comparing      | ⬜ Todo |
@@ -83,7 +81,7 @@ so the project is usable even if a later day is cut short.
 | Stop and route ids are short readable codes (`CEN`, `R1`) | Scenarios, tests and AI output can name stops directly |
 | Connections are directed, one row per route per direction | Matches the directed-graph rule; one-way changes are possible |
 | `nx.DiGraph`; parallel connections from several routes merge into one edge (weight = fastest, `routes` = all) | "Remove/change connection A→B" has one clear meaning |
-| No transfer penalty in the MVP; a journey = fastest path | Keeps the graph simple; can be added later |
+| ~~No transfer penalty in the MVP; a journey = fastest path~~ | Superseded Day 7 (penalty) and Day 10 (waiting) |
 | Graph/journey functions take plain data, not a DB session | Testable without a DB; reusable by the simulation |
 | SQLite file `backend/whatif.db` (git-ignored), rebuilt by `python -m app.seed` | Reproducible data; nothing generated is committed |
 | Tables created on app startup; data only via the seed script | Fresh checkout gives empty lists, not a 500 error |
@@ -144,6 +142,11 @@ so the project is usable even if a later day is cut short.
 | Playwright e2e against the real backend + seeded data, not a mocked API | Only test that proves frontend and backend work together; simulations are read-only |
 | E2E checks UI numbers against `POST /api/simulations`, not hardcoded values | Survives model changes (Day 10) while still catching display bugs |
 | CSV: commas and `.` decimals, UTF-8 BOM, values exactly as computed | Standard for tools; BOM keeps accents in Excel; no numbers made in the browser |
+| Waiting = half the headway at every boarding; board edge = penalty + wait | Random arrivals; first boarding too, so frequency changes matter for direct journeys |
+| Headways invented (10/10/15/20 min) and labelled as such | No timetable data; must not look like real data |
+| Transfer penalty default 5 → 2 min once waiting is modelled | 5 min stood in for waiting; keeping it would count waiting twice |
+| No migrations: outdated tables are dropped and re-seeded | The database only holds generated sample data (until Day 13) |
+| One route per boarding, even where routes share a street | Simple and deterministic; combined frequency documented as a limitation |
 | Shared link: readable `?s=` text, not base64 JSON; `:oneway` instead of `>` | Visible and hand-editable; browsers percent-encode `>` in URLs |
 | Shared links are all or nothing, never auto-run | No silently incomplete scenarios; same "review, then run" step as the AI |
 | Address bar synced on every list edit via `replaceState` | Always shareable, survives reload, no back-button spam |
@@ -417,12 +420,21 @@ Each part keeps the earlier behaviour reproducible with a setting (like the
 transfer penalty at 0) and checks equivalence before changing defaults.
 
 **1. Waiting time from route frequencies** (L)
-- [ ] Decide invented frequencies per route (clearly labelled) and how they
-      relate to the transfer penalty (wait = half the interval?)
-- [ ] Explain the model and get approval
-- [ ] Frequencies in the data model and seed; waiting added at each boarding
-- [ ] New scenario type "change frequency" (schema, engine, form, AI prompt)
-- [ ] Equivalence check, tests, UI breakdown, commit
+- [x] Decided: invented headways R1 10, R2 10, R3 15, R4 20 min; wait = half the
+      headway at EVERY boarding; penalty default 5 → 2 min (inconvenience only);
+      waiting on by default (`INCLUDE_WAITING`)
+- [x] Model approved: board edge = penalty + wait; journey = path − one penalty
+- [x] `routes.headway_min` (model, seed, API); outdated tables rebuilt by `app.seed`
+      (also `--if-empty`); startup logs an error for an outdated database
+- [x] Equivalence: waiting off vs the pre-Day-10 engine (git worktree), penalties 0
+      and 5, 7 scenarios: 3,374 results (14 simulations, 3,360 explorer journeys),
+      **0 differences**; with waiting on all 3,374 differ (the check can fail)
+- [x] Explorer: `wait_min` per plan and per leg; UI shows "Wait about 5.0 min for R1
+      (a bus every 10 min)"; results note describes the model; legend shows headways
+- [x] Tests: 17 new backend (152 total), agreement test also runs with waiting; 1 Vitest
+- [x] Part 1a commit (approved by the user; no separate browser check reported)
+- [ ] Part 1b: new scenario type "change frequency" (schema, engine, AI prompt, tests)
+- [ ] Part 1c: frontend for it (form tab, share link `freq:R1:5`, e2e), commit
 
 **2. Passenger demand weighting** (M)
 - [ ] Decide the demand model (e.g. invented stop weights, labelled as an
@@ -526,7 +538,7 @@ All former "maybes" are now scheduled as Days 8–14. New ideas go here.
 
 - [x] **Day 5:** AI provider and API key: Groq, `openai/gpt-oss-120b`
 - [ ] **Days 8–14:** decisions asked when each part starts: type generator
-      (Day 8.1 ✅ openapi-typescript), Docker vs script (8.3 ✅ script) (8.3), bus frequencies (10.1), demand model
+      (Day 8.1 ✅ openapi-typescript), Docker vs script (8.3 ✅ script), bus frequencies (10.1 ✅), demand model
       (10.2), walking speed/distance (10.3), hosting target (14.1), GTFS city
       and licence (14.2)
 - [x] **Day 7:** transfer penalty value: 5 min per change of bus, counted in journey
@@ -550,3 +562,4 @@ All former "maybes" are now scheduled as Days 8–14. New ideas go here.
 | 2026-11-12 | 9   | Map clicks fill in the form (draft lifted to `App`, selection pane); 51 Vitest, 2 e2e; browser-checked |
 | 2026-11-12 | 9   | Shareable link (`?s=`, readable, all-or-nothing, synced URL, Copy link); 65 Vitest, 4 e2e; browser-checked |
 | 2026-11-12 | 9   | CSV export of changed journeys (backend values, table order); 73 Vitest, 5 e2e; Day 9 done |
+| 2026-11-12 | 10  | Waiting = half the headway at every boarding, penalty 5 → 2; waiting-off equivalence 0 diffs (3,374 results); 152 tests |

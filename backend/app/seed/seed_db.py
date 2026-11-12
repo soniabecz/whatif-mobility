@@ -1,10 +1,30 @@
 """Load the sample network into the database."""
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, inspect, select
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
+
+from app.database import Base
 
 from app.models import Connection, Route, Stop
 from app.seed.sample_network import ROUTES, STOPS, route_segments, stop_coordinates
+
+
+def schema_is_current(engine: Engine) -> bool:
+    """False when an existing table's columns differ from the models.
+
+    There are no migrations: the database holds only generated sample data,
+    so an outdated database is simply rebuilt (see app/seed/__main__.py).
+    Missing tables are fine; ``create_all`` adds them.
+    """
+    inspector = inspect(engine)
+    for table in Base.metadata.sorted_tables:
+        if not inspector.has_table(table.name):
+            continue
+        existing = {column["name"] for column in inspector.get_columns(table.name)}
+        if existing != {column.name for column in table.columns}:
+            return False
+    return True
 
 
 def network_is_empty(db: Session) -> bool:
@@ -26,7 +46,7 @@ def seed_database(db: Session) -> None:
             lat, lon = stop_coordinates(s)
             db.add(Stop(id=s.id, name=s.name, lat=lat, lon=lon))
         for r in ROUTES:
-            db.add(Route(id=r.id, name=r.name, color=r.color))
+            db.add(Route(id=r.id, name=r.name, color=r.color, headway_min=r.headway_min))
         db.flush()  # stops and routes must exist before connections (FKs)
 
         for r in ROUTES:

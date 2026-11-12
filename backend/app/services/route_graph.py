@@ -5,13 +5,20 @@ Nodes
   (stop id, route id) (tuple)    a "platform": being on that route at that stop
 
 Edges (attribute ``kind``)
-  board   stop -> platform        weight = transfer penalty
+  board   stop -> platform        weight = transfer penalty + wait for route R
   alight  platform -> stop        weight = 0
   ride    (u, R) -> (v, R)        weight = route R's own travel time u -> v
 
+Waiting (``include_waiting``): passengers arrive at random, so they wait on
+average half of route R's headway at EVERY boarding, the first included.
+Board edges keep ``wait_min`` and ``penalty_min`` separately for the
+journey explorer's breakdown.
+
 Journey time = shortest path stop -> stop MINUS one penalty (the first
-boarding is free), so every change of bus adds exactly one penalty.
-With a penalty of 0 the times equal those of the stop-level graph.
+boarding has no transfer penalty), so
+    time = in-vehicle + waiting at every boarding + penalty x changes of bus.
+Without waiting and with a penalty of 0 the times equal those of the
+stop-level graph; without waiting they equal the engine before Day 10.
 
 Closing a stop removes only the stop node (and its board/alight edges):
 the ride edges through its platforms remain, so buses drive through it,
@@ -33,16 +40,24 @@ class RoutePath:
     travel_time_min: float
 
 
-def build_route_graph(network: nx.DiGraph, transfer_penalty_min: float) -> nx.DiGraph:
+def build_route_graph(
+    network: nx.DiGraph, transfer_penalty_min: float, include_waiting: bool = False
+) -> nx.DiGraph:
     """Build the route-aware graph from the stop-level network graph.
 
-    Uses each route's own time from the network edges' ``route_times``.
+    Uses each route's own time from the network edges' ``route_times`` and,
+    with ``include_waiting``, its headway from the graph's ``headways``.
     The network graph is only read, never modified.
     """
     if transfer_penalty_min < 0:
         raise ValueError("transfer penalty must not be negative")
+    headways: dict[str, float] = dict(network.graph.get("headways", {}))
 
-    graph = nx.DiGraph(transfer_penalty_min=transfer_penalty_min)
+    graph = nx.DiGraph(
+        transfer_penalty_min=transfer_penalty_min,
+        include_waiting=include_waiting,
+        headways=headways,
+    )
     for stop_id, data in network.nodes(data=True):
         graph.add_node(stop_id, kind="stop", **data)
 
@@ -52,12 +67,24 @@ def build_route_graph(network: nx.DiGraph, transfer_penalty_min: float) -> nx.Di
                 platform = (stop_id, route_id)
                 if platform not in graph:
                     graph.add_node(platform, kind="platform", stop_id=stop_id, route_id=route_id)
-                    graph.add_edge(stop_id, platform, kind="board", weight=transfer_penalty_min)
+                    wait = _wait_min(headways, route_id) if include_waiting else 0.0
+                    graph.add_edge(
+                        stop_id, platform, kind="board", route_id=route_id,
+                        wait_min=wait, penalty_min=transfer_penalty_min,
+                        weight=transfer_penalty_min + wait,
+                    )
                     graph.add_edge(platform, stop_id, kind="alight", weight=0.0)
             graph.add_edge(
                 (u, route_id), (v, route_id), kind="ride", route_id=route_id, weight=minutes
             )
     return graph
+
+
+def _wait_min(headways: dict[str, float], route_id: str) -> float:
+    """Expected wait for a passenger arriving at random: half the headway."""
+    if route_id not in headways:
+        raise ValueError(f"no headway for route '{route_id}': cannot include waiting")
+    return headways[route_id] / 2
 
 
 def is_open_stop(graph: nx.DiGraph, node: object) -> bool:

@@ -125,16 +125,21 @@ def test_penalty_raises_baseline_times(sample: nx.DiGraph) -> None:
 
 # --- Configuration and API -------------------------------------------------------------
 
-def test_setting_defaults_to_5_and_is_bounded() -> None:
-    assert Settings(_env_file=None).transfer_penalty_min == 5  # type: ignore[call-arg]
+def test_setting_defaults_to_2_and_is_bounded() -> None:
+    # 5 until Day 10; now waiting is modelled separately (test_waiting.py).
+    assert Settings(_env_file=None).transfer_penalty_min == 2  # type: ignore[call-arg]
     for invalid in (-1, 61):
         with pytest.raises(ValidationError):
             Settings(_env_file=None, transfer_penalty_min=invalid)  # type: ignore[call-arg]
 
 
 def _use_penalty(minutes: float) -> None:
+    # Waiting off, so only the penalty is tested here.
     app.dependency_overrides[get_settings] = lambda: Settings(
-        _env_file=None, groq_api_key=None, transfer_penalty_min=minutes  # type: ignore[call-arg]
+        _env_file=None,  # type: ignore[call-arg]
+        groq_api_key=None,
+        transfer_penalty_min=minutes,
+        include_waiting=False,
     )
 
 

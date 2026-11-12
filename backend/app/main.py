@@ -4,6 +4,7 @@ Run locally (from the backend/ folder):
     uvicorn app.main:app --reload
 """
 
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -17,6 +18,9 @@ from app.api.journeys import router as journeys_router
 from app.api.network import router as network_router
 from app.api.simulations import router as simulations_router
 from app.database import Base, engine
+from app.seed.seed_db import schema_is_current
+
+logger = logging.getLogger("uvicorn.error")
 
 # The Vite dev server runs on port 5173. Browsers block requests from one
 # origin (localhost:5173) to another (localhost:8000) unless the backend
@@ -37,6 +41,9 @@ class HealthResponse(BaseModel):
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     # Create missing tables so a fresh checkout doesn't fail with
     # "no such table". Data itself is loaded with `python -m app.seed`.
+    if not schema_is_current(engine):
+        # Outdated columns would make every request fail with a 500.
+        logger.error("Database tables are outdated: run `python -m app.seed` in backend/.")
     Base.metadata.create_all(engine)
     yield
 

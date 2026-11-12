@@ -23,9 +23,15 @@ class Settings(BaseSettings):
     ai_model: str = "openai/gpt-oss-120b"
     ai_timeout_seconds: float = 30.0
 
-    # Minutes added to a journey for every change of bus (stands in for the
-    # waiting time, which is not modelled). 0 = changing bus is free.
-    transfer_penalty_min: float = Field(default=5.0, ge=0, le=60)
+    # Minutes added to a journey for every change of bus, on top of waiting:
+    # the inconvenience of changing (walking to the other stop, risk of
+    # missing the bus). 0 = changing bus costs only the wait.
+    transfer_penalty_min: float = Field(default=2.0, ge=0, le=60)
+
+    # True: at every boarding passengers wait half the route's headway
+    # (they arrive at random). False: no waiting; with a 5-min penalty this
+    # reproduces the results from before Day 10 exactly.
+    include_waiting: bool = True
 
     @property
     def ai_enabled(self) -> bool:

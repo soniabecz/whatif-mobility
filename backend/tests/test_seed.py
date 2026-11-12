@@ -27,7 +27,7 @@ def test_routes_only_use_known_stops() -> None:
 
 
 def test_route_segments_are_two_way_and_loops_close() -> None:
-    loop = SampleRoute("L", "Loop", "#000000", ["A", "B", "C"], [1, 2, 3], is_loop=True)
+    loop = SampleRoute("L", "Loop", "#000000", ["A", "B", "C"], [1, 2, 3], headway_min=10, is_loop=True)
 
     assert route_segments(loop) == [
         ("A", "B", 1.0), ("B", "A", 1.0),
@@ -37,7 +37,7 @@ def test_route_segments_are_two_way_and_loops_close() -> None:
 
 
 def test_route_with_wrong_number_of_times_is_rejected() -> None:
-    bad = SampleRoute("B", "Bad", "#000000", ["A", "B", "C"], [1])
+    bad = SampleRoute("B", "Bad", "#000000", ["A", "B", "C"], [1], headway_min=10)
     with pytest.raises(ValueError, match="expected 2 travel times"):
         route_segments(bad)
 
@@ -78,3 +78,21 @@ def test_network_is_empty_before_and_not_after_seeding(
         assert network_is_empty(fresh)
         seed_database(fresh)
         assert not network_is_empty(fresh)
+
+
+def test_schema_check_detects_outdated_tables() -> None:
+    # A routes table from before headways existed.
+    from sqlalchemy import create_engine, text
+
+    from app.database import Base
+    from app.seed.seed_db import schema_is_current
+
+    old = create_engine("sqlite://")
+    with old.begin() as connection:
+        connection.execute(text("CREATE TABLE routes (id TEXT PRIMARY KEY, name TEXT, color TEXT)"))
+    assert not schema_is_current(old)
+
+    fresh = create_engine("sqlite://")
+    assert schema_is_current(fresh)  # no tables yet: create_all will add them
+    Base.metadata.create_all(fresh)
+    assert schema_is_current(fresh)

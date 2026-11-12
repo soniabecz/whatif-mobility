@@ -13,6 +13,7 @@ import {
   IMPACT_STYLES,
   compareJourneys,
   describeImpact,
+  describeTimeModel,
   formatChange,
   formatMinutes,
   impactLevel,
@@ -163,7 +164,7 @@ export function ResultsPanel({
       {tab === 'summary' && (
       <>
       <p className="text-[11px] text-ink-subtle">
-        Journey times include {summary.transfer_penalty_min} min per change of bus.
+        {describeTimeModel(summary.include_waiting, summary.transfer_penalty_min)}
       </p>
       <div className="grid grid-cols-2 gap-2">
         <Kpi

@@ -31,7 +31,7 @@ export function MapLegend({
   const levels: ImpactLevel[] = showImpact ? IMPACT_ORDER : showScenario ? ['closed'] : []
 
   return (
-    <Card className={cx('w-56 text-xs', className)}>
+    <Card className={cx('w-64 text-xs', className)}>
       <button
         type="button"
         onClick={() => setOpen(!open)}
@@ -49,12 +49,15 @@ export function MapLegend({
         <div className="space-y-3 border-t border-line px-3 pt-2.5 pb-3 text-ink-muted">
           <ul className="space-y-1.5">
             {routes.map((route) => (
-              <li key={route.id} className="flex items-center gap-2">
+              <li key={route.id} className="flex items-center gap-2 whitespace-nowrap">
                 <span
-                  className="h-1.5 w-6 rounded-full ring-2 ring-white"
+                  className="h-1.5 w-6 shrink-0 rounded-full ring-2 ring-white"
                   style={{ backgroundColor: route.color }}
                 />
                 <span className="font-semibold text-ink">{route.id}</span> {route.name}
+                <span className="ml-auto pl-3 text-[11px] text-ink-subtle tabular-nums">
+                  every {route.headway_min} min
+                </span>
               </li>
             ))}
           </ul>

@@ -23,10 +23,14 @@ class Route(Base):
     """A bus line. Groups the connections it serves."""
 
     __tablename__ = "routes"
+    __table_args__ = (CheckConstraint("headway_min > 0", name="positive_headway"),)
 
     id: Mapped[str] = mapped_column(String(10), primary_key=True)
     name: Mapped[str] = mapped_column(String(100), unique=True)
     color: Mapped[str] = mapped_column(String(7))  # hex colour for the map
+    # Minutes between two buses (invented for the sample network). Passengers
+    # arriving at random wait half of it on average.
+    headway_min: Mapped[float] = mapped_column(Float)
 
 
 class Connection(Base):

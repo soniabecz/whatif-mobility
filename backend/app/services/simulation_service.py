@@ -7,7 +7,8 @@ Rules (CLAUDE.md, docs/IMPLEMENTATION_PLAN.md):
 Passenger journeys = every ordered pair of distinct stops, weighted equally
 (there is no demand data, and inventing passenger numbers would be fake data).
 A journey's time is the fastest path in the route-aware graph
-(see route_graph.py): time on the bus plus a fixed penalty per change of bus.
+(see route_graph.py): time on the bus, plus (optionally) waiting half the
+headway at every boarding, plus a fixed penalty per change of bus.
 
 Closing a stop: nobody can board, alight or change bus there, but buses still
 drive through it (its platforms and ride edges stay in the route graph).
@@ -44,13 +45,16 @@ class ScenarioError(ValueError):
 # --- Applying changes -------------------------------------------------------
 
 def apply_scenario(
-    baseline: nx.DiGraph, scenario: Scenario, transfer_penalty_min: float = 0.0
+    baseline: nx.DiGraph,
+    scenario: Scenario,
+    transfer_penalty_min: float = 0.0,
+    include_waiting: bool = False,
 ) -> tuple[nx.DiGraph, set[str]]:
     """Return (modified route graph built from the baseline, ids of closed stops).
 
     ``baseline`` is the stop-level network graph; it is only read.
     """
-    graph = build_route_graph(baseline, transfer_penalty_min)
+    graph = build_route_graph(baseline, transfer_penalty_min, include_waiting)
     closed: set[str] = set()
 
     for number, change in enumerate(scenario.changes, start=1):
@@ -101,14 +105,20 @@ def _target_rides(
 # --- Metrics ----------------------------------------------------------------
 
 def simulate(
-    baseline: nx.DiGraph, scenario: Scenario, transfer_penalty_min: float = 0.0
+    baseline: nx.DiGraph,
+    scenario: Scenario,
+    transfer_penalty_min: float = 0.0,
+    include_waiting: bool = False,
 ) -> SimulationResult:
     """Apply the scenario to a copy of the baseline and compare journeys.
 
     ``transfer_penalty_min``: minutes added per change of bus (0 = free).
+    ``include_waiting``: wait half the headway at every boarding.
     """
-    before_graph = build_route_graph(baseline, transfer_penalty_min)
-    after_graph, closed = apply_scenario(baseline, scenario, transfer_penalty_min)
+    before_graph = build_route_graph(baseline, transfer_penalty_min, include_waiting)
+    after_graph, closed = apply_scenario(
+        baseline, scenario, transfer_penalty_min, include_waiting
+    )
     stop_ids = sorted(baseline.nodes)
 
     before = {s: travel_times_from(before_graph, s) for s in stop_ids}
@@ -162,6 +172,7 @@ def simulate(
         total_time_change_min=_round(sum_after - sum_before),
         largest_increase=_largest_increase(changed),
         transfer_penalty_min=transfer_penalty_min,
+        include_waiting=include_waiting,
     )
     return SimulationResult(
         scenario=scenario,

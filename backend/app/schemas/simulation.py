@@ -33,6 +33,7 @@ class SimulationSummary(BaseModel):
     total_time_change_min: float
     largest_increase: JourneyChange | None
     transfer_penalty_min: float  # minutes counted per change of bus
+    include_waiting: bool  # True: half the headway is waited at every boarding
 
 
 class StopImpact(BaseModel):

@@ -3,13 +3,14 @@ import {
   ArrowLeftRight,
   ArrowRight,
   CircleSlash,
+  Clock,
   Loader2,
   Repeat,
   TriangleAlert,
   X,
 } from 'lucide-react'
 
-import { IMPACT_STYLES, formatChange, formatMinutes } from '../lib/impact'
+import { IMPACT_STYLES, describeTimeModel, formatChange, formatMinutes } from '../lib/impact'
 import { sortedStops, stopLabel, stopsById } from '../lib/network'
 import type { JourneyComparison, JourneyComparisonStatus, JourneyPlan } from '../types/journey'
 import type { Network, Route } from '../types/network'
@@ -185,8 +186,11 @@ function ComparisonView({
       )}
 
       <p className="text-[11px] leading-relaxed text-ink-subtle">
-        Journey times include {(after ?? before)?.transfer_penalty_min ?? 0} min per change
-        of bus. It stands in for waiting, which is not modelled.
+        {/* Every journey boards at least once, so waiting shows up in wait_min. */}
+        {describeTimeModel(
+          ((after ?? before)?.wait_min ?? 0) > 0,
+          (after ?? before)?.transfer_penalty_min ?? 0,
+        )}
       </p>
 
       <Button variant="ghost" size="sm" icon={X} onClick={onClear}>
@@ -218,6 +222,7 @@ function Timeline({
       </h3>
       <p className="text-[11px] text-ink-subtle tabular-nums">
         {plan.in_vehicle_min.toFixed(1)} min on the bus
+        {plan.wait_min > 0 && ` + ${plan.wait_min.toFixed(1)} min waiting`}
         {plan.transfers > 0 &&
           ` + ${plan.transfers} ${plan.transfers === 1 ? 'change' : 'changes'} × ${plan.transfer_penalty_min} min`}
       </p>
@@ -236,6 +241,13 @@ function Timeline({
                 <p className="flex items-center gap-2 py-1 pl-0.5 text-[11px] text-ink-subtle">
                   <Repeat size={12} aria-hidden />
                   Change bus at {name(first)} (+{plan.transfer_penalty_min} min)
+                </p>
+              )}
+              {leg.wait_min > 0 && (
+                <p className="flex items-center gap-2 py-1 pl-0.5 text-[11px] text-ink-subtle">
+                  <Clock size={12} aria-hidden />
+                  Wait about {leg.wait_min.toFixed(1)} min for {route?.id ?? leg.route_id}
+                  {route?.headway_min !== undefined && ` (a bus every ${route.headway_min} min)`}
                 </p>
               )}
               <div className="flex gap-3">

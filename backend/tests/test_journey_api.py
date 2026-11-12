@@ -19,6 +19,7 @@ def test_journey_before_and_after(client: TestClient) -> None:
         "route_id": "R4",
         "stop_ids": ["STD", "CEN", "MKT"],
         "travel_time_min": 6.0,
+        "wait_min": 0.0,  # waiting is off in the API test settings
         "passes_closed_stop_ids": ["CEN"],
     }
 

@@ -27,8 +27,8 @@ export const smallNetwork: Network = {
     { id: 'CAS', name: 'Castle', lat: 0, lon: 2 },
   ],
   routes: [
-    { id: 'R1', name: 'Red', color: '#ff0000' },
-    { id: 'R2', name: 'Blue', color: '#0000ff' },
+    { id: 'R1', name: 'Red', color: '#ff0000', headway_min: 10 },
+    { id: 'R2', name: 'Blue', color: '#0000ff', headway_min: 20 },
   ],
   connections: [
     ...both('R1', 'ALP', 'BRK', 3),

@@ -5,6 +5,7 @@ import {
   IMPACT_ORDER,
   IMPACT_STYLES,
   describeImpact,
+  describeTimeModel,
   formatChange,
   formatMinutes,
   impactLevel,
@@ -102,6 +103,16 @@ describe('describeImpact', () => {
     )
     expect(describeImpact(impact({ affected_journeys: 3, impossible_journeys: 3 }))).toBe(
       '3 journeys affected, 3 impossible',
+    )
+  })
+})
+
+describe('describeTimeModel', () => {
+  it('mentions waiting only when it is modelled', () => {
+    expect(describeTimeModel(true, 2)).toContain('waiting (half the time between buses')
+    expect(describeTimeModel(true, 2)).toContain('2 min per change of bus')
+    expect(describeTimeModel(false, 5)).toBe(
+      'Journey times include 5 min per change of bus; waiting is not modelled.',
     )
   })
 })

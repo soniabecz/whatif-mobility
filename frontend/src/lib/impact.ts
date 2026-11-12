@@ -42,6 +42,14 @@ export function formatMinutes(value: number): string {
   return `${value.toFixed(1)} min`
 }
 
+/** One sentence on what journey times include (the model the backend used). */
+export function describeTimeModel(includeWaiting: boolean, transferPenaltyMin: number): string {
+  const penalty = `${transferPenaltyMin} min per change of bus`
+  return includeWaiting
+    ? `Journey times include waiting (half the time between buses, an invented timetable) at every boarding and ${penalty}.`
+    : `Journey times include ${penalty}; waiting is not modelled.`
+}
+
 export function formatChange(value: number): string {
   const sign = value > 0 ? '+' : value < 0 ? '−' : '±'
   return `${sign}${Math.abs(value).toFixed(1)} min`

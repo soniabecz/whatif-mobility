@@ -48,6 +48,9 @@ class SampleRoute:
     # travel_times_min[i] is the time between stop_ids[i] and stop_ids[i+1];
     # for a loop, the last entry is the time back to the first stop.
     travel_times_min: list[float]
+    # Minutes between two buses. INVENTED, like the whole network: chosen so
+    # the main lines run more often than the ring and the airport express.
+    headway_min: float
     is_loop: bool = False
 
 
@@ -75,16 +78,19 @@ ROUTES: list[SampleRoute] = [
         "R1", "North–South", "#dc2626",
         ["NTH", "UNI", "MKT", "CEN", "HOS", "STH"],
         [4, 3, 3, 4, 5],
+        headway_min=10,
     ),
     SampleRoute(
         "R2", "East–West", "#2563eb",
         ["WST", "LIB", "CEN", "RIV", "EST"],
         [5, 4, 4, 5],
+        headway_min=10,
     ),
     SampleRoute(
         "R3", "Ring", "#16a34a",
         ["UNI", "MUS", "RIV", "STD", "HOS", "SCH", "LIB", "OLD"],
         [3, 4, 3, 3, 4, 3, 3, 3],
+        headway_min=15,
         is_loop=True,
     ),
     # Shares MKT–CEN with R1 but is faster (fewer stops on the street),
@@ -93,6 +99,7 @@ ROUTES: list[SampleRoute] = [
         "R4", "Airport Express", "#ea580c",
         ["MKT", "CEN", "STD", "TEC", "AIR"],
         [2, 4, 4, 6],
+        headway_min=20,
     ),
 ]
 

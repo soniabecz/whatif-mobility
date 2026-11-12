@@ -162,7 +162,7 @@ def test_never_connected_stops_are_unreachable() -> None:
 
 # --- Agreement with the simulation ---------------------------------------------------------
 
-@pytest.mark.parametrize("penalty", [0.0, 5.0])
+@pytest.mark.parametrize(("penalty", "waiting"), [(0.0, False), (5.0, False), (2.0, True)])
 @pytest.mark.parametrize(
     "changes",
     [
@@ -173,16 +173,18 @@ def test_never_connected_stops_are_unreachable() -> None:
     ],
 )
 def test_explorer_agrees_with_simulation_for_every_journey(
-    sample: nx.DiGraph, changes: list[dict[str, Any]], penalty: float
+    sample: nx.DiGraph, changes: list[dict[str, Any]], penalty: float, waiting: bool
 ) -> None:
-    simulation = simulate(sample, Scenario.model_validate({"changes": changes}), penalty)
+    simulation = simulate(sample, Scenario.model_validate({"changes": changes}), penalty, waiting)
     changed = {(j.origin_id, j.destination_id): j for j in simulation.changed_journeys}
     _, closed = apply_scenario(sample, Scenario.model_validate({"changes": changes}))
 
     for origin, destination in permutations(sorted(sample.nodes), 2):
         if origin in closed or destination in closed:
             continue
-        result = compare_journey(sample, _request(origin, destination, *changes), penalty)
+        result = compare_journey(
+            sample, _request(origin, destination, *changes), penalty, waiting
+        )
         expected = changed.get((origin, destination))
         if expected is None:
             assert result.status == "unchanged", (origin, destination)

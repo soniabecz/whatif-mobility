@@ -49,10 +49,14 @@ def client(db: Session, session_factory: sessionmaker[Session]) -> Iterator[Test
             yield session
 
     app.dependency_overrides[get_db] = override_get_db
-    # Isolated settings (no .env): penalty 0 keeps the hand-calculated API
-    # expectations of Days 3-7 valid; tests needing 5 min override this.
+    # Isolated settings (no .env): penalty 0 and no waiting keep the
+    # hand-calculated API expectations of Days 3-7 valid; tests needing
+    # other values override this.
     app.dependency_overrides[get_settings] = lambda: Settings(
-        _env_file=None, groq_api_key=None, transfer_penalty_min=0.0  # type: ignore[call-arg]
+        _env_file=None,  # type: ignore[call-arg]
+        groq_api_key=None,
+        transfer_penalty_min=0.0,
+        include_waiting=False,
     )
     try:
         yield TestClient(app)

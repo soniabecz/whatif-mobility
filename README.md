@@ -235,18 +235,37 @@ Configuration is read from environment variables. Real values go in local
 | `GROQ_API_KEY`      | `backend/.env`        | *(none)*                | Enables the AI input; without it the form still works |
 | `AI_MODEL`          | `backend/.env`        | `openai/gpt-oss-120b`   | Groq model used by the AI input |
 | `AI_TIMEOUT_SECONDS`| `backend/.env`        | `30`                    | How long to wait for the AI |
-| `TRANSFER_PENALTY_MIN` | `backend/.env`     | `5`                     | Minutes added per change of bus (0–60) |
+| `TRANSFER_PENALTY_MIN` | `backend/.env`     | `2`                     | Minutes added per change of bus, on top of waiting (0–60) |
+| `INCLUDE_WAITING`   | `backend/.env`        | `true`                  | Wait half the route's headway at every boarding |
 
 Restart the backend after changing `backend/.env`.
 
 ## How journeys are calculated
 
 The simulation uses a route-aware graph: for every stop it knows which bus you
-are on. A journey's time is the time on the bus plus **5 minutes per change of
-bus** (`TRANSFER_PENALTY_MIN`), which stands in for waiting time; timetables
-are not modelled. Journeys are all ordered pairs of stops, weighted equally.
-A closed stop is driven through by buses, but nobody can board, alight or
-change bus there.
+are on. A journey's time is
+
+```
+time on the bus + waiting at every boarding + 2 min per change of bus
+```
+
+- **Waiting:** every route has a headway (a bus every N minutes:
+  R1 and R2 every 10, R3 every 15, R4 every 20). These are **invented**, like
+  the whole sample network. Passengers arrive at random, so they wait half
+  the headway on average, at the first boarding too (`INCLUDE_WAITING`).
+- **Changing bus** adds `TRANSFER_PENALTY_MIN` (2 min) for the inconvenience
+  of changing, on top of the wait for the next bus.
+- `INCLUDE_WAITING=false` with `TRANSFER_PENALTY_MIN=5` reproduces the model
+  used before waiting was added (checked over 3,374 results, 0 differences).
+- Known simplification: where two routes share a street, a real passenger
+  takes whichever bus comes first; the model waits for one specific route.
+
+Journeys are all ordered pairs of stops, weighted equally. A closed stop is
+driven through by buses, but nobody can board, alight or change bus there.
+
+After pulling a change that adds database columns, `./dev.sh` (or
+`python -m app.seed`) rebuilds the tables automatically; the database only
+holds generated sample data.
 
 ## How the AI is used
 

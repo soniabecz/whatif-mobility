@@ -268,6 +268,8 @@ export interface components {
             stop_ids: string[];
             /** Travel Time Min */
             travel_time_min: number;
+            /** Wait Min */
+            wait_min: number;
             /** Passes Closed Stop Ids */
             passes_closed_stop_ids: string[];
         };
@@ -277,6 +279,8 @@ export interface components {
             travel_time_min: number;
             /** In Vehicle Min */
             in_vehicle_min: number;
+            /** Wait Min */
+            wait_min: number;
             /** Transfers */
             transfers: number;
             /** Transfer Penalty Min */
@@ -333,6 +337,8 @@ export interface components {
             name: string;
             /** Color */
             color: string;
+            /** Headway Min */
+            headway_min: number;
         };
         /**
          * Scenario
@@ -376,6 +382,8 @@ export interface components {
             largest_increase: components["schemas"]["JourneyChange"] | null;
             /** Transfer Penalty Min */
             transfer_penalty_min: number;
+            /** Include Waiting */
+            include_waiting: boolean;
         };
         /**
          * StopImpact

@@ -18,6 +18,7 @@ class RouteOut(BaseModel):
     id: str
     name: str
     color: str
+    headway_min: float  # a bus every N minutes (invented for the sample network)
 
 
 class ConnectionOut(BaseModel):

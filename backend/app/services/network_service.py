@@ -7,6 +7,8 @@ Graph rules (see docs/IMPLEMENTATION_PLAN.md):
   edge: weight = the fastest travel time, ``routes`` = all serving route ids,
   ``route_times`` = each route's own time (used by the route graph).
 - No transfer penalty: a journey is simply the fastest path.
+- Graph attribute ``headways`` = {route id: minutes between buses}; used by
+  the route graph for waiting times (stop-level paths ignore it).
 
 The graph-building and journey functions take plain data, not a database
 session, so they can be tested (and reused by the simulation) without a DB.
@@ -55,10 +57,16 @@ def list_connections(db: Session) -> list[Connection]:
 # --- Graph ------------------------------------------------------------------
 
 def build_graph(
-    stops: Iterable[Stop], connections: Iterable[Connection]
+    stops: Iterable[Stop],
+    connections: Iterable[Connection],
+    routes: Iterable[Route] = (),
 ) -> nx.DiGraph:
-    """Build the directed network graph from stops and connections."""
-    graph = nx.DiGraph()
+    """Build the directed network graph from stops, connections and routes.
+
+    ``routes`` only supply the headways; tests that do not model waiting
+    may leave them out.
+    """
+    graph = nx.DiGraph(headways={route.id: route.headway_min for route in routes})
     for stop in stops:
         graph.add_node(stop.id, name=stop.name, lat=stop.lat, lon=stop.lon)
 
@@ -104,7 +112,7 @@ def add_route_edge(
 
 def build_graph_from_db(db: Session) -> nx.DiGraph:
     """Build the baseline graph from the database."""
-    return build_graph(list_stops(db), list_connections(db))
+    return build_graph(list_stops(db), list_connections(db), list_routes(db))
 
 
 def shortest_journey(

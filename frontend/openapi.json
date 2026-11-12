@@ -564,6 +564,10 @@
             "type": "number",
             "title": "Travel Time Min"
           },
+          "wait_min": {
+            "type": "number",
+            "title": "Wait Min"
+          },
           "passes_closed_stop_ids": {
             "items": {
               "type": "string"
@@ -577,6 +581,7 @@
           "route_id",
           "stop_ids",
           "travel_time_min",
+          "wait_min",
           "passes_closed_stop_ids"
         ],
         "title": "JourneyLeg",
@@ -591,6 +596,10 @@
           "in_vehicle_min": {
             "type": "number",
             "title": "In Vehicle Min"
+          },
+          "wait_min": {
+            "type": "number",
+            "title": "Wait Min"
           },
           "transfers": {
             "type": "integer",
@@ -612,6 +621,7 @@
         "required": [
           "travel_time_min",
           "in_vehicle_min",
+          "wait_min",
           "transfers",
           "transfer_penalty_min",
           "legs"
@@ -748,13 +758,18 @@
           "color": {
             "type": "string",
             "title": "Color"
+          },
+          "headway_min": {
+            "type": "number",
+            "title": "Headway Min"
           }
         },
         "type": "object",
         "required": [
           "id",
           "name",
-          "color"
+          "color",
+          "headway_min"
         ],
         "title": "RouteOut"
       },
@@ -901,6 +916,10 @@
           "transfer_penalty_min": {
             "type": "number",
             "title": "Transfer Penalty Min"
+          },
+          "include_waiting": {
+            "type": "boolean",
+            "title": "Include Waiting"
           }
         },
         "type": "object",
@@ -915,7 +934,8 @@
           "average_time_after_min",
           "total_time_change_min",
           "largest_increase",
-          "transfer_penalty_min"
+          "transfer_penalty_min",
+          "include_waiting"
         ],
         "title": "SimulationSummary"
       },

@@ -28,7 +28,10 @@ class JourneyError(ValueError):
 
 
 def compare_journey(
-    baseline: nx.DiGraph, request: JourneyRequest, transfer_penalty_min: float = 0.0
+    baseline: nx.DiGraph,
+    request: JourneyRequest,
+    transfer_penalty_min: float = 0.0,
+    include_waiting: bool = False,
 ) -> JourneyComparison:
     """Fastest journey before and after the request's changes.
 
@@ -38,10 +41,10 @@ def compare_journey(
         if stop_id not in baseline:
             raise JourneyError(f"Unknown stop '{stop_id}'")
 
-    before_graph = build_route_graph(baseline, transfer_penalty_min)
+    before_graph = build_route_graph(baseline, transfer_penalty_min, include_waiting)
     if request.changes:
         after_graph, closed = apply_scenario(
-            baseline, Scenario(changes=request.changes), transfer_penalty_min
+            baseline, Scenario(changes=request.changes), transfer_penalty_min, include_waiting
         )
     else:
         after_graph, closed = before_graph, set()
@@ -86,10 +89,15 @@ def compare_journey(
 
 
 def plan_journey(
-    network: nx.DiGraph, origin: str, destination: str, transfer_penalty_min: float = 0.0
+    network: nx.DiGraph,
+    origin: str,
+    destination: str,
+    transfer_penalty_min: float = 0.0,
+    include_waiting: bool = False,
 ) -> JourneyPlan | None:
     """Fastest journey in the (unchanged) network split into legs, or None."""
-    planned = _plan(build_route_graph(network, transfer_penalty_min), origin, destination, set())
+    graph = build_route_graph(network, transfer_penalty_min, include_waiting)
+    planned = _plan(graph, origin, destination, set())
     return planned[0] if planned else None
 
 
@@ -102,17 +110,19 @@ def _plan(
         return None
 
     legs: list[JourneyLeg] = []
-    in_vehicle = 0.0
+    in_vehicle = wait = 0.0
     previous = None
-    for node in path.nodes:
+    for index, node in enumerate(path.nodes):
         if not isinstance(node, tuple):  # a stop node: boarding or alighting
             previous = None
             continue
         stop_id, route_id = node
         if previous is None:  # boarded: a new leg starts here
+            leg_wait: float = graph.edges[path.nodes[index - 1], node]["wait_min"]
+            wait += leg_wait
             legs.append(JourneyLeg(
                 route_id=route_id, stop_ids=[stop_id], travel_time_min=0.0,
-                passes_closed_stop_ids=[],
+                wait_min=leg_wait, passes_closed_stop_ids=[],
             ))
         else:
             minutes: float = graph.edges[previous, node]["weight"]
@@ -130,6 +140,7 @@ def _plan(
     plan = JourneyPlan(
         travel_time_min=_round(path.travel_time_min),
         in_vehicle_min=_round(in_vehicle),
+        wait_min=_round(wait),
         transfers=len(legs) - 1,
         transfer_penalty_min=penalty,
         legs=legs,
