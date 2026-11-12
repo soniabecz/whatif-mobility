@@ -26,6 +26,7 @@ import networkx as nx
 
 from app.schemas.scenario import (
     AddConnection,
+    AddStop,
     ChangeFrequency,
     ChangeTravelTime,
     CloseStop,
@@ -34,6 +35,7 @@ from app.schemas.scenario import (
 )
 from app.schemas.simulation import (
     DemandWeighted,
+    NewStops,
     JourneyChange,
     SimulationResult,
     SimulationSummary,
@@ -42,6 +44,7 @@ from app.schemas.simulation import (
 from app.services.route_graph import (
     Platform,
     add_ride,
+    added_stop_ids,
     build_route_graph,
     is_open_stop,
     ride_edges,
@@ -93,6 +96,8 @@ def apply_scenario(
             elif isinstance(change, AddConnection):
                 for u, v in _new_rides(graph, change, closed):
                     add_ride(graph, u, v, change.route_id, change.travel_time_min)
+            elif isinstance(change, AddStop):
+                _insert_stop(graph, change, closed)
             else:  # pragma: no cover - guarded by the Pydantic discriminator
                 raise ScenarioError(f"Unsupported change type: {change!r}")
         except ScenarioError as error:
@@ -125,6 +130,37 @@ def _target_rides(
             raise ScenarioError(f"no connection from '{u}' to '{v}'")
         rides.extend(found)
     return rides
+
+
+def _insert_stop(graph: nx.DiGraph, change: AddStop, closed: set[str]) -> None:
+    """Insert a new stop into a route between two consecutive stops (validated first)."""
+    new, a, b, route = change.stop_id, change.from_stop_id, change.to_stop_id, change.route_id
+    if new in graph or new in closed:
+        raise ScenarioError(f"stop id '{new}' is already used")
+    name = change.name.strip()
+    if any(isinstance(n, str) and d.get("name") == name for n, d in graph.nodes(data=True)):
+        raise ScenarioError(f"a stop called '{name}' already exists")
+    _require_open_stop(graph, a, closed)
+    _require_open_stop(graph, b, closed)
+    if route not in route_ids(graph):
+        raise ScenarioError(f"unknown route '{route}'")
+    # (u, v, minutes u -> new, minutes new -> v) for each direction the route runs.
+    legs = [
+        (u, v, t_u, t_v)
+        for u, v, t_u, t_v in ((a, b, change.time_from_min, change.time_to_min),
+                               (b, a, change.time_to_min, change.time_from_min))
+        if graph.has_edge((u, route), (v, route))
+    ]
+    if not legs or legs[0][0] != a:
+        raise ScenarioError(f"route '{route}' does not run directly from '{a}' to '{b}'")
+
+    graph.add_node(
+        new, kind="stop", name=name, lat=change.lat, lon=change.lon, activity=1, added=True
+    )
+    for u, v, t_u, t_v in legs:
+        graph.remove_edge((u, route), (v, route))  # buses now stop at the new stop
+        add_ride(graph, u, new, route, t_u)
+        add_ride(graph, new, v, route, t_v)
 
 
 def _new_rides(
@@ -171,9 +207,14 @@ def simulate(
         baseline, scenario, transfer_penalty_min, include_waiting
     )
     stop_ids = sorted(baseline.nodes)
+    new_stop_ids = added_stop_ids(after_graph)
+    places = stop_places(baseline, after_graph)
 
     before = {s: travel_times_from(before_graph, s) for s in stop_ids}
-    after = {s: travel_times_from(after_graph, s) for s in stop_ids if s not in closed}
+    after = {
+        s: travel_times_from(after_graph, s)
+        for s in [*stop_ids, *new_stop_ids] if s not in closed
+    }
 
     changed: list[JourneyChange] = []
     unchanged = closed_count = walked_count = newly_possible = 0
@@ -201,7 +242,7 @@ def simulate(
                     continue
                 walked_count += 1
                 option = best_walk_option(
-                    baseline, walking, origin, destination, closed,
+                    places, walking, origin, destination, closed,
                     lambda a, b: after[a].get(b),
                 )
                 time_after = option.total_min if option else None
@@ -255,6 +296,7 @@ def simulate(
         demand_weighted=_demand_weighted(
             weight_of, weighted_comparable, weighted_before, weighted_after
         ),
+        new_stops=_new_stops(new_stop_ids, stop_ids, closed, after),
     )
     return SimulationResult(
         scenario=scenario,
@@ -267,6 +309,41 @@ def simulate(
 
 def _round(value: float) -> float:
     return round(value, 1) + 0.0  # "+ 0.0" turns -0.0 into 0.0
+
+
+def stop_places(baseline: nx.DiGraph, after_graph: nx.DiGraph) -> nx.DiGraph:
+    """Every stop with its coordinates: the baseline's (closed ones included)
+    plus stops added by the scenario. Used for walking distances."""
+    places = nx.DiGraph()
+    places.add_nodes_from(baseline.nodes(data=True))
+    for stop_id in added_stop_ids(after_graph):
+        places.add_node(stop_id, **after_graph.nodes[stop_id])
+    return places
+
+
+def _new_stops(
+    new_stop_ids: list[str],
+    stop_ids: list[str],
+    closed: set[str],
+    after: dict[str, dict[str, float]],
+) -> NewStops | None:
+    """Journeys between open stops that involve at least one added stop."""
+    if not new_stop_ids:
+        return None
+    open_stops = [s for s in [*stop_ids, *new_stop_ids] if s not in closed]
+    new = set(new_stop_ids)
+    times = [
+        after[o].get(d)
+        for o in open_stops for d in open_stops
+        if o != d and (o in new or d in new)
+    ]
+    possible = [t for t in times if t is not None]
+    return NewStops(
+        stop_ids=new_stop_ids,
+        journeys=len(times),
+        possible=len(possible),
+        average_time_min=_round(sum(possible) / len(possible)) if possible else None,
+    )
 
 
 def _demand_weighted(

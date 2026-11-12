@@ -122,6 +122,14 @@ def _wait_min(headways: dict[str, float], route_id: str) -> float:
     return headways[route_id] / 2
 
 
+def added_stop_ids(graph: nx.DiGraph) -> list[str]:
+    """Stops added by the scenario (and still open), sorted."""
+    return sorted(
+        node for node, data in graph.nodes(data=True)
+        if isinstance(node, str) and data.get("added", False)
+    )
+
+
 def is_open_stop(graph: nx.DiGraph, node: object) -> bool:
     """True for a stop node that still exists (closed stops are removed)."""
     return isinstance(node, str) and node in graph and graph.nodes[node]["kind"] == "stop"

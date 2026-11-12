@@ -6,9 +6,9 @@
 
 ## Current status
 
-- **Last completed:** Day 11, part 1 ("add connection": backend, AI, form, map; Travel
-  time input bug fixed); 221 backend + 92 Vitest + 10 Playwright tests
-- **Next up:** Day 11, part 2 (add a stop): explain the design and wait for approval
+- **Last completed:** Day 11, part 2a (scenario type "add stop", backend + display);
+  240 backend + 97 Vitest + 10 Playwright tests
+- **Next up:** Day 11, part 2b: "Add stop" tab, placing by map click, marker, e2e
 - **Repository:** https://github.com/soniabecz/whatif-mobility (private, branch `main`)
 
 ## Timeline
@@ -149,6 +149,9 @@ so the project is usable even if a later day is cut short.
 | One route per boarding, even where routes share a street | Simple and deterministic; combined frequency documented as a limitation |
 | Added connections belong to an existing route that already serves one of the stops | Extensions and shortcuts only; new lines come with "add a route" (Day 11.3) |
 | Travel time of an added link always entered by the user (form and AI) | A suggested time would be an invented number |
+| New stop = inserted into one route between consecutive stops; user gives both times | Expresses "the line stops here now"; nothing guessed |
+| Journeys to/from new stops reported separately (`new_stops`), not compared | They have no "before"; keeps the 240-journey comparison clean |
+| The AI does not add stops | It would have to invent coordinates |
 | Journeys impossible in the baseline but possible after: `newly_possible`, not "changed" | No "before" time to compare; kept out of averages, counted and weighted separately |
 | Walking only to/from closed stops, computed on top of the graph (not walk edges) | Graph and penalty rule untouched; walk-only paths would break "path − one penalty" |
 | Walking distance = straight line × 1.3, 5 km/h, max 1,000 m (settings) | Invented but common planning values; reaches grid neighbours, not diagonals |
@@ -511,8 +514,17 @@ transfer penalty at 0) and checks equivalence before changing defaults.
 - [x] Commit (approved by the user; no separate browser check reported)
 
 **2. Add a stop** (M)
-- [ ] Position on the map (click), connect to a route; schema, engine, form,
-      AI prompt, tests, commit
+- [x] Design approved: insert into ONE route between two consecutive stops; user gives
+      both times; AI does not add stops (points to the form); new-stop journeys reported
+      separately; no demand level for new stops
+- [x] Part 2a: `add_stop` schema + engine (direct links replaced via the new stop, both
+      directions where the route runs them; validated first: id/name unused, direct link,
+      route); `summary.new_stops`; explorer accepts new stops (status "new"); walking from
+      closed stops may use new stops (`stop_places`); AI prompt rule
+- [x] Existing scenarios unchanged: previous engine vs new, 4,338 results, 0 differences
+- [x] Frontend display support: text, icon, Details row, share code `stop:N1:…`; shared
+      links may refer to an earlier new stop (`withAddedStop`); 19 backend (240), 5 Vitest (97)
+- [ ] Part 2b: "Add stop" tab (place by clicking the map), marker, explorer pickers, e2e
 
 **3. Add a route** (L)
 - [ ] Draw a sequence of stops with times; schema, engine, form/map editor,
@@ -620,3 +632,4 @@ All former "maybes" are now scheduled as Days 8–14. New ideas go here.
 | 2026-11-12 | 10  | Walking to/from closed stops (5 km/h, ×1.3, ≤1 km); walking-off equivalence 0 diffs (4,338); 203 backend, 7 e2e; Day 10 done |
 | 2026-11-12 | 11  | Scenario type `add_connection` (backend, AI, share link); `newly_possible` fix; refactor 0 diffs; 221 backend, 87 Vitest |
 | 2026-11-12 | 11  | "Add link" tab, map preview and dashed added links; fixed Day 4 bug (Travel time input refused whole minutes); 92 Vitest, 10 e2e |
+| 2026-11-12 | 11  | Scenario type `add_stop` (insert into a route; new-stop journeys reported separately; 0 diffs); 240 backend, 97 Vitest |

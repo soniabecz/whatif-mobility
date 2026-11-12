@@ -10,6 +10,7 @@ export type RemoveConnection = Schemas['RemoveConnection']
 export type ChangeTravelTime = Schemas['ChangeTravelTime']
 export type ChangeFrequency = Schemas['ChangeFrequency']
 export type AddConnection = Schemas['AddConnection']
+export type AddStop = Schemas['AddStop']
 
 /** Derived from the generated Scenario, so a new backend change type appears here automatically. */
 export type ScenarioChange = Schemas['Scenario']['changes'][number]

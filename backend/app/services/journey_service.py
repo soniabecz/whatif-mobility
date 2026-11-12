@@ -17,8 +17,13 @@ from app.schemas.journey import (
     WalkLeg,
 )
 from app.schemas.scenario import Scenario
-from app.services.route_graph import build_route_graph, fastest_path, travel_times_from
-from app.services.simulation_service import apply_scenario
+from app.services.route_graph import (
+    added_stop_ids,
+    build_route_graph,
+    fastest_path,
+    travel_times_from,
+)
+from app.services.simulation_service import apply_scenario, stop_places
 from app.services.walking import Walk, WalkingModel, best_walk_option
 
 # Same tolerance as the simulation: guards against float noise.
@@ -41,12 +46,11 @@ def compare_journey(
     With ``walking``, a journey to or from a closed stop walks to a nearby
     open stop (exactly as the simulation does) instead of being impossible.
 
+    A stop ADDED by the changes may be the origin or destination: such a
+    journey has no "before" (status "new" when it is possible after).
+
     Raises JourneyError for unknown stops and ScenarioError for invalid changes.
     """
-    for stop_id in (request.origin_id, request.destination_id):
-        if stop_id not in baseline:
-            raise JourneyError(f"Unknown stop '{stop_id}'")
-
     before_graph = build_route_graph(baseline, transfer_penalty_min, include_waiting)
     if request.changes:
         after_graph, closed = apply_scenario(
@@ -55,13 +59,20 @@ def compare_journey(
     else:
         after_graph, closed = before_graph, set()
 
+    known = set(baseline.nodes) | set(added_stop_ids(after_graph))
+    for stop_id in (request.origin_id, request.destination_id):
+        if stop_id not in known:
+            raise JourneyError(f"Unknown stop '{stop_id}'")
+
     origin, destination = request.origin_id, request.destination_id
-    before = _plan(before_graph, origin, destination, set())
+    in_baseline = origin in baseline and destination in baseline
+    before = _plan(before_graph, origin, destination, set()) if in_baseline else None
 
     after: tuple[JourneyPlan, float] | None = None
     reason: str | None = None
     if (origin in closed or destination in closed) and walking is not None:
-        after = _walk_plan(baseline, after_graph, walking, origin, destination, closed)
+        places = stop_places(baseline, after_graph)
+        after = _walk_plan(places, after_graph, walking, origin, destination, closed)
         if after is None:
             reason = (
                 f"The {'origin' if origin in closed else 'destination'} stop is closed and no "
@@ -89,6 +100,10 @@ def compare_journey(
             reason=why,
         )
 
+    if not in_baseline:
+        if after is None:
+            return comparison("impossible", None, reason or "The new stop is not connected to this stop.")
+        return comparison("new", None, "A journey to or from a new stop: there is no \"before\".")
     if before is None and after is not None:
         return comparison("new", None, "Not possible in the current network; the changes connect these stops.")
     if before is None:

@@ -272,6 +272,85 @@
         "title": "AddConnection",
         "description": "An existing route also runs directly between two stops (an extension or\na shortcut). At least one of the stops must already be on the route."
       },
+      "AddStop": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "add_stop",
+            "title": "Type"
+          },
+          "stop_id": {
+            "type": "string",
+            "maxLength": 10,
+            "minLength": 1,
+            "title": "Stop Id"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "lat": {
+            "type": "number",
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "title": "Lat"
+          },
+          "lon": {
+            "type": "number",
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "Lon"
+          },
+          "route_id": {
+            "type": "string",
+            "maxLength": 10,
+            "minLength": 1,
+            "title": "Route Id"
+          },
+          "from_stop_id": {
+            "type": "string",
+            "maxLength": 10,
+            "minLength": 1,
+            "title": "From Stop Id"
+          },
+          "to_stop_id": {
+            "type": "string",
+            "maxLength": 10,
+            "minLength": 1,
+            "title": "To Stop Id"
+          },
+          "time_from_min": {
+            "type": "number",
+            "maximum": 600.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Time From Min"
+          },
+          "time_to_min": {
+            "type": "number",
+            "maximum": 600.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Time To Min"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "stop_id",
+          "name",
+          "lat",
+          "lon",
+          "route_id",
+          "from_stop_id",
+          "to_stop_id",
+          "time_from_min",
+          "time_to_min"
+        ],
+        "title": "AddStop",
+        "description": "A new stop inserted into a route between two consecutive stops: the\nroute's buses now run from -> new stop -> to (and back, if the route runs\nboth ways). The user gives both travel times."
+      },
       "ChangeFrequency": {
         "properties": {
           "type": {
@@ -533,12 +612,16 @@
                 },
                 {
                   "$ref": "#/components/schemas/AddConnection"
+                },
+                {
+                  "$ref": "#/components/schemas/AddStop"
                 }
               ],
               "discriminator": {
                 "propertyName": "type",
                 "mapping": {
                   "add_connection": "#/components/schemas/AddConnection",
+                  "add_stop": "#/components/schemas/AddStop",
                   "change_frequency": "#/components/schemas/ChangeFrequency",
                   "change_travel_time": "#/components/schemas/ChangeTravelTime",
                   "close_stop": "#/components/schemas/CloseStop",
@@ -837,12 +920,16 @@
                 },
                 {
                   "$ref": "#/components/schemas/AddConnection"
+                },
+                {
+                  "$ref": "#/components/schemas/AddStop"
                 }
               ],
               "discriminator": {
                 "propertyName": "type",
                 "mapping": {
                   "add_connection": "#/components/schemas/AddConnection",
+                  "add_stop": "#/components/schemas/AddStop",
                   "change_frequency": "#/components/schemas/ChangeFrequency",
                   "change_travel_time": "#/components/schemas/ChangeTravelTime",
                   "close_stop": "#/components/schemas/CloseStop",
@@ -895,6 +982,45 @@
         ],
         "title": "NetworkOut",
         "description": "The whole baseline network in one response (used by the map)."
+      },
+      "NewStops": {
+        "properties": {
+          "stop_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Stop Ids"
+          },
+          "journeys": {
+            "type": "integer",
+            "title": "Journeys"
+          },
+          "possible": {
+            "type": "integer",
+            "title": "Possible"
+          },
+          "average_time_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Time Min"
+          }
+        },
+        "type": "object",
+        "required": [
+          "stop_ids",
+          "journeys",
+          "possible",
+          "average_time_min"
+        ],
+        "title": "NewStops",
+        "description": "Journeys to or from stops ADDED by the scenario. They have no \"before\",\nso they are reported here and kept out of every other figure."
       },
       "RemoveConnection": {
         "properties": {
@@ -978,12 +1104,16 @@
                 },
                 {
                   "$ref": "#/components/schemas/AddConnection"
+                },
+                {
+                  "$ref": "#/components/schemas/AddStop"
                 }
               ],
               "discriminator": {
                 "propertyName": "type",
                 "mapping": {
                   "add_connection": "#/components/schemas/AddConnection",
+                  "add_stop": "#/components/schemas/AddStop",
                   "change_frequency": "#/components/schemas/ChangeFrequency",
                   "change_travel_time": "#/components/schemas/ChangeTravelTime",
                   "close_stop": "#/components/schemas/CloseStop",
@@ -1125,6 +1255,16 @@
           },
           "demand_weighted": {
             "$ref": "#/components/schemas/DemandWeighted"
+          },
+          "new_stops": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NewStops"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -1143,7 +1283,8 @@
           "largest_increase",
           "transfer_penalty_min",
           "include_waiting",
-          "demand_weighted"
+          "demand_weighted",
+          "new_stops"
         ],
         "title": "SimulationSummary"
       },

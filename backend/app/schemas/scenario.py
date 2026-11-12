@@ -73,8 +73,33 @@ class AddConnection(_Change):
         return self
 
 
+class AddStop(_Change):
+    """A new stop inserted into a route between two consecutive stops: the
+    route's buses now run from -> new stop -> to (and back, if the route runs
+    both ways). The user gives both travel times."""
+
+    type: Literal["add_stop"]
+    stop_id: StopId
+    name: str = Field(min_length=1, max_length=100)
+    lat: float = Field(ge=-90, le=90, allow_inf_nan=False)
+    lon: float = Field(ge=-180, le=180, allow_inf_nan=False)
+    route_id: RouteId
+    from_stop_id: StopId
+    to_stop_id: StopId
+    time_from_min: float = Field(gt=0, le=600, allow_inf_nan=False)  # from_stop -> new stop
+    time_to_min: float = Field(gt=0, le=600, allow_inf_nan=False)  # new stop -> to_stop
+
+    @model_validator(mode="after")
+    def _distinct_stops(self) -> "AddStop":
+        if len({self.stop_id, self.from_stop_id, self.to_stop_id}) < 3:
+            raise ValueError("the new stop and the two stops it goes between must all differ")
+        if not self.name.strip():
+            raise ValueError("the new stop needs a name")
+        return self
+
+
 ScenarioChange = Annotated[
-    CloseStop | RemoveConnection | ChangeTravelTime | ChangeFrequency | AddConnection,
+    CloseStop | RemoveConnection | ChangeTravelTime | ChangeFrequency | AddConnection | AddStop,
     Field(discriminator="type"),
 ]
 

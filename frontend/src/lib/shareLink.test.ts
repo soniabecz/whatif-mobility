@@ -146,6 +146,39 @@ describe('decodeChanges rejects', () => {
     rejects('add:R1:CAS', 'not a valid added connection')
   })
 
+  it('new stops: round trip, and later changes may use them', () => {
+    const changes: ScenarioChange[] = [
+      {
+        type: 'add_stop',
+        stop_id: 'N1',
+        name: 'Old Market, East',
+        lat: 0.0045,
+        lon: -0.5,
+        route_id: 'R1',
+        from_stop_id: 'BRK',
+        to_stop_id: 'CAS',
+        time_from_min: 1.5,
+        time_to_min: 2,
+      },
+      { type: 'close_stop', stop_id: 'N1' },
+    ]
+    const encoded = encodeChanges(changes)
+    expect(encoded).toBe('stop:N1:Old%20Market%2C%20East:0.0045:-0.5:R1:BRK-CAS:1.5:2~close:N1')
+    expect(decodeChanges(encoded, network)).toEqual({ ok: true, changes })
+  })
+
+  it('new stops the backend would refuse', () => {
+    const stop = (fields: string) => `stop:${fields}`
+    rejects(stop('N1:New:0:0:R1:ALP-CAS:1:2'), 'does not run directly from ALP to CAS')
+    rejects(stop('BRK:New:0:0:R1:ALP-BRK:1:2'), 'stop id "BRK" is already used')
+    rejects(stop('N1:Castle:0:0:R1:ALP-BRK:1:2'), 'a stop called "Castle" already exists')
+    rejects(stop('N1:New:95:0:R1:ALP-BRK:1:2'), 'coordinates out of range')
+    rejects(stop('N1:New:0:0:R1:ALP-BRK:0:2'), 'more than 0')
+    rejects(stop('N1:New:0:0:R1:ALP-BRK:1'), 'not a valid new stop')
+    rejects(stop('N1:New:0:0:R1:ALP-BRK:1:2') + '~' + stop('N1:Other:0:0:R1:ALP-N1:1:2'),
+      'stop id "N1" is already used')
+  })
+
   it('more than 20 changes', () => {
     rejects(Array(21).fill('close:CAS').join('~'), '21 changes')
     expect(decodeChanges(Array(20).fill('close:CAS').join('~'), network).ok).toBe(true)

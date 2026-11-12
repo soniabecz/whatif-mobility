@@ -20,6 +20,16 @@ class JourneyChange(BaseModel):
     status: JourneyStatus
 
 
+class NewStops(BaseModel):
+    """Journeys to or from stops ADDED by the scenario. They have no "before",
+    so they are reported here and kept out of every other figure."""
+
+    stop_ids: list[str]
+    journeys: int  # ordered pairs between open stops that involve a new stop
+    possible: int
+    average_time_min: float | None  # over the possible ones
+
+
 class DemandWeighted(BaseModel):
     """The same figures weighted by INVENTED demand: a journey weighs
     origin activity x destination activity (stop levels 1-3). Only shares
@@ -56,6 +66,7 @@ class SimulationSummary(BaseModel):
     transfer_penalty_min: float  # minutes counted per change of bus
     include_waiting: bool  # True: half the headway is waited at every boarding
     demand_weighted: DemandWeighted
+    new_stops: NewStops | None  # None when the scenario adds no stop
 
 
 class StopImpact(BaseModel):

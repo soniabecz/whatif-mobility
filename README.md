@@ -9,8 +9,8 @@ passenger journeys.
 
 > **Status:** MVP complete. The backend serves an invented sample bus network
 > and simulates scenarios (close a stop, remove a connection, change a travel
-> time, change how often a route runs, add a link to a route) with deterministic
-> before/after metrics. The web UI shows the network
+> time, change how often a route runs, add a link or a stop to a route) with
+> deterministic before/after metrics. The web UI shows the network
 > on a map, builds scenarios with a form or from plain language (AI via Groq),
 > and displays the results.
 
@@ -122,7 +122,10 @@ Example scenario (changes are applied in order; `both_directions` defaults to `t
       "travel_time_min": 9, "both_directions": false },
     { "type": "change_frequency", "route_id": "R3", "headway_min": 7.5 },
     { "type": "add_connection", "route_id": "R2", "from_stop_id": "EST",
-      "to_stop_id": "TEC", "travel_time_min": 5 }
+      "to_stop_id": "TEC", "travel_time_min": 5 },
+    { "type": "add_stop", "stop_id": "N1", "name": "Old Market", "lat": 50.0644,
+      "lon": 19.9366, "route_id": "R1", "from_stop_id": "MKT", "to_stop_id": "UNI",
+      "time_from_min": 1.5, "time_to_min": 2 }
   ]
 }
 ```
@@ -132,6 +135,14 @@ Example scenario (changes are applied in order; `both_directions` defaults to `t
 route, and the route must not already run between them; the travel time is
 always given by the user. A stop that no route reached before can become
 reachable; such journeys are counted as `newly_possible`.
+
+`add_stop` inserts a new stop into one route between two consecutive stops:
+the route's buses then run from → new stop → to (and back, if the route runs
+both ways); other routes on that street are unchanged. The user gives both
+travel times. Journeys to or from new stops have no "before", so they are
+reported separately (`summary.new_stops`: how many, how many possible, average
+time) and kept out of every other figure. The AI does not add stops (it would
+have to invent coordinates); it points to the form instead.
 
 `change_frequency` sets a route's headway (a bus every 1–120 minutes). It only
 changes waiting times, so it has no effect when `INCLUDE_WAITING=false`.

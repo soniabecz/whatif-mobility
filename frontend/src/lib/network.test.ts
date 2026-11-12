@@ -5,6 +5,8 @@ import type { Network } from '../types/network'
 import type { ScenarioChange } from '../types/scenario'
 import {
   addedConnectionProblem,
+  addedStopProblem,
+  withAddedStop,
   currentTravelTime,
   describeChange,
   linkKey,
@@ -218,6 +220,45 @@ describe('addedConnectionProblem', () => {
     )
     expect(addedConnectionProblem(network, 'R1', 'BRK', 'ALP', false)).toBe(
       'route R1 already runs from BRK to ALP',
+    )
+  })
+})
+
+describe('new stops', () => {
+  const change = {
+    type: 'add_stop' as const,
+    stop_id: 'N1',
+    name: 'New Square',
+    lat: 0,
+    lon: 1.5,
+    route_id: 'R1',
+    from_stop_id: 'BRK',
+    to_stop_id: 'CAS',
+    time_from_min: 1.5,
+    time_to_min: 3,
+  }
+
+  it('describes a new stop', () => {
+    expect(describeChange(change, stops)).toBe(
+      'New stop New Square on R1: Brook Street 1.5 min → 3 min Castle',
+    )
+  })
+
+  it('inserts the stop into the route in both directions', () => {
+    const after = withAddedStop(network, change)
+    expect(after.stops.map((s) => s.id)).toContain('N1')
+    const r1 = after.connections
+      .filter((c) => c.route_id === 'R1')
+      .map((c) => `${c.from_stop_id}>${c.to_stop_id}:${c.travel_time_min}`)
+    expect(r1).not.toContain('BRK>CAS:4')
+    expect(r1).toEqual(expect.arrayContaining(['BRK>N1:1.5', 'N1>CAS:3', 'CAS>N1:3', 'N1>BRK:1.5']))
+    expect(network.stops).toHaveLength(4) // the original is untouched
+  })
+
+  it('checks the backend rules', () => {
+    expect(addedStopProblem(network, change)).toBeNull()
+    expect(addedStopProblem(network, { ...change, to_stop_id: 'DUN' })).toBe(
+      'route R1 does not run directly from BRK to DUN',
     )
   })
 })

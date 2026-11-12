@@ -162,6 +162,37 @@ export interface components {
             both_directions: boolean;
         };
         /**
+         * AddStop
+         * @description A new stop inserted into a route between two consecutive stops: the
+         *     route's buses now run from -> new stop -> to (and back, if the route runs
+         *     both ways). The user gives both travel times.
+         */
+        AddStop: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "add_stop";
+            /** Stop Id */
+            stop_id: string;
+            /** Name */
+            name: string;
+            /** Lat */
+            lat: number;
+            /** Lon */
+            lon: number;
+            /** Route Id */
+            route_id: string;
+            /** From Stop Id */
+            from_stop_id: string;
+            /** To Stop Id */
+            to_stop_id: string;
+            /** Time From Min */
+            time_from_min: number;
+            /** Time To Min */
+            time_to_min: number;
+        };
+        /**
          * ChangeFrequency
          * @description The route runs every ``headway_min`` minutes (affects waiting time only).
          */
@@ -278,7 +309,7 @@ export interface components {
              */
             status: "ok" | "unclear";
             /** Changes */
-            changes: (components["schemas"]["CloseStop"] | components["schemas"]["RemoveConnection"] | components["schemas"]["ChangeTravelTime"] | components["schemas"]["ChangeFrequency"] | components["schemas"]["AddConnection"])[];
+            changes: (components["schemas"]["CloseStop"] | components["schemas"]["RemoveConnection"] | components["schemas"]["ChangeTravelTime"] | components["schemas"]["ChangeFrequency"] | components["schemas"]["AddConnection"] | components["schemas"]["AddStop"])[];
             /** Message */
             message: string;
         };
@@ -363,7 +394,7 @@ export interface components {
             /** Destination Id */
             destination_id: string;
             /** Changes */
-            changes?: (components["schemas"]["CloseStop"] | components["schemas"]["RemoveConnection"] | components["schemas"]["ChangeTravelTime"] | components["schemas"]["ChangeFrequency"] | components["schemas"]["AddConnection"])[];
+            changes?: (components["schemas"]["CloseStop"] | components["schemas"]["RemoveConnection"] | components["schemas"]["ChangeTravelTime"] | components["schemas"]["ChangeFrequency"] | components["schemas"]["AddConnection"] | components["schemas"]["AddStop"])[];
         };
         /**
          * NetworkOut
@@ -376,6 +407,21 @@ export interface components {
             routes: components["schemas"]["RouteOut"][];
             /** Connections */
             connections: components["schemas"]["ConnectionOut"][];
+        };
+        /**
+         * NewStops
+         * @description Journeys to or from stops ADDED by the scenario. They have no "before",
+         *     so they are reported here and kept out of every other figure.
+         */
+        NewStops: {
+            /** Stop Ids */
+            stop_ids: string[];
+            /** Journeys */
+            journeys: number;
+            /** Possible */
+            possible: number;
+            /** Average Time Min */
+            average_time_min: number | null;
         };
         /**
          * RemoveConnection
@@ -414,7 +460,7 @@ export interface components {
          */
         Scenario: {
             /** Changes */
-            changes: (components["schemas"]["CloseStop"] | components["schemas"]["RemoveConnection"] | components["schemas"]["ChangeTravelTime"] | components["schemas"]["ChangeFrequency"] | components["schemas"]["AddConnection"])[];
+            changes: (components["schemas"]["CloseStop"] | components["schemas"]["RemoveConnection"] | components["schemas"]["ChangeTravelTime"] | components["schemas"]["ChangeFrequency"] | components["schemas"]["AddConnection"] | components["schemas"]["AddStop"])[];
         };
         /** SimulationResult */
         SimulationResult: {
@@ -457,6 +503,7 @@ export interface components {
             /** Include Waiting */
             include_waiting: boolean;
             demand_weighted: components["schemas"]["DemandWeighted"];
+            new_stops: components["schemas"]["NewStops"] | null;
         };
         /**
          * StopImpact

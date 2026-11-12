@@ -7,6 +7,7 @@ import {
   CircleDot,
   CircleSlash,
   Link,
+  MapPinPlus,
   Timer,
   TrendingDown,
   TrendingUp,
@@ -32,4 +33,5 @@ export const CHANGE_ICONS: Record<ChangeType, LucideIcon> = {
   change_travel_time: Timer,
   change_frequency: BusFront,
   add_connection: Link,
+  add_stop: MapPinPlus,
 }

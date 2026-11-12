@@ -1,6 +1,7 @@
 // Shareable links: the change list encoded in the URL's `s` query parameter.
 //
 //   ?s=close:CEN~remove:MKT-UNI~time:RIV-EST:9~remove:LIB-SCH:oneway~freq:R3:7.5~add:R2:EST-TEC:5
+//      ~stop:N1:Old%20Market:50.0644:19.9366:R1:MKT-UNI:1.5:2
 //
 // Changes are separated by "~", fields by ":", the two stops of a link by "-".
 // Every character used is one that browsers never percent-encode, so the link
@@ -10,7 +11,7 @@
 // simulation recomputes them deterministically.
 
 import type { Network } from '../types/network'
-import { addedConnectionProblem } from './network'
+import { addedConnectionProblem, addedStopProblem, withAddedStop } from './network'
 import {
   MAX_CHANGES,
   MAX_HEADWAY_MIN,
@@ -63,6 +64,18 @@ function encodeChange(change: ScenarioChange): string {
       const oneWay = change.both_directions ? '' : `${FIELD_SEP}${ONE_WAY}`
       return `add${FIELD_SEP}${encodeId(change.route_id)}${FIELD_SEP}${link}${FIELD_SEP}${change.travel_time_min}${oneWay}`
     }
+    case 'add_stop':
+      return [
+        'stop',
+        encodeId(change.stop_id),
+        encodeId(change.name),
+        change.lat,
+        change.lon,
+        encodeId(change.route_id),
+        `${encodeId(change.from_stop_id)}${LINK_SEP}${encodeId(change.to_stop_id)}`,
+        change.time_from_min,
+        change.time_to_min,
+      ].join(FIELD_SEP)
   }
 }
 
@@ -128,6 +141,34 @@ function parseChange(text: string): Parsed {
     if (!/^\d+(\.\d+)?$/.test(fields[1])) return `"${fields[1]}" is not a number of minutes`
     return { type: 'change_frequency', route_id: routeId, headway_min: Number(fields[1]) }
   }
+  if (kind === 'stop') {
+    const invalid = `"${text}" is not a valid new stop`
+    if (fields.length !== 8 || oneWay) return invalid
+    const [id, name, lat, lon, route, link, timeFrom, timeTo] = fields
+    const stopId = decodeId(id)
+    const stopName = decodeId(name)
+    const routeId = decodeId(route)
+    const between = parseLink(link)
+    if (!stopId || !stopName || !routeId || typeof between === 'string') return invalid
+    for (const coordinate of [lat, lon]) {
+      if (!/^-?\d+(\.\d+)?$/.test(coordinate)) return `"${coordinate}" is not a coordinate`
+    }
+    for (const minutes of [timeFrom, timeTo]) {
+      if (!/^\d+(\.\d+)?$/.test(minutes)) return `"${minutes}" is not a number of minutes`
+    }
+    return {
+      type: 'add_stop',
+      stop_id: stopId,
+      name: stopName,
+      lat: Number(lat),
+      lon: Number(lon),
+      route_id: routeId,
+      from_stop_id: between.from,
+      to_stop_id: between.to,
+      time_from_min: Number(timeFrom),
+      time_to_min: Number(timeTo),
+    }
+  }
   if (kind === 'add') {
     if (fields.length !== 3) return `"${text}" is not a valid added connection`
     const routeId = decodeId(fields[0])
@@ -176,6 +217,19 @@ function checkAgainstNetwork(change: ScenarioChange, network: Network): string |
   const unknown = (id: string) => (stopIds.has(id) ? null : `unknown stop "${id}"`)
   if (change.type === 'close_stop') return unknown(change.stop_id)
   if (change.type === 'add_connection') return checkAddedConnection(change, network, unknown)
+  if (change.type === 'add_stop') {
+    if (Math.abs(change.lat) > 90 || Math.abs(change.lon) > 180) return 'coordinates out of range'
+    const times = [change.time_from_min, change.time_to_min]
+    if (times.some((t) => t <= 0 || t > MAX_TRAVEL_TIME_MIN)) {
+      return `travel time must be more than 0 and at most ${MAX_TRAVEL_TIME_MIN} minutes`
+    }
+    return (
+      unknown(change.from_stop_id) ??
+      unknown(change.to_stop_id) ??
+      (network.routes.some((r) => r.id === change.route_id) ? null : `unknown route "${change.route_id}"`) ??
+      addedStopProblem(network, change)
+    )
+  }
 
   const missing = unknown(change.from_stop_id) ?? unknown(change.to_stop_id)
   if (missing) return missing
@@ -226,13 +280,16 @@ export function decodeChanges(raw: string, network: Network): DecodeResult {
     return { ok: false, error: `it has ${parts.length} changes (at most ${MAX_CHANGES})` }
   }
   const changes: ScenarioChange[] = []
+  // Later changes may refer to a stop added by an earlier one, as in the backend.
+  let current = network
   for (const [index, part] of parts.entries()) {
     const parsed = parseChange(part)
-    const problem = typeof parsed === 'string' ? parsed : checkAgainstNetwork(parsed, network)
+    const problem = typeof parsed === 'string' ? parsed : checkAgainstNetwork(parsed, current)
     if (problem !== null || typeof parsed === 'string') {
       return { ok: false, error: `change ${index + 1}: ${problem ?? parsed}` }
     }
     changes.push(parsed)
+    if (parsed.type === 'add_stop') current = withAddedStop(current, parsed)
   }
   return { ok: true, changes }
 }

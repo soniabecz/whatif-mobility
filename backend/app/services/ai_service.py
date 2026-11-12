@@ -186,6 +186,9 @@ one decimal.
 = 60 / 12 = 5; "twice as often" = half the current headway listed below; \
 "half as often" = double it. Round to one decimal. Routes are named by id \
 ("R3"), name ("the ring") or line number ("line 3").
+- New stops cannot be added here (that needs a position on the map): answer \
+"unclear" and tell the user to place the stop on the map with the "Add stop" tab \
+of the form.
 - At most {MAX_CHANGES} changes.
 - If the request is ambiguous, refers to something not in the network, asks \
 for something other than these five change types (for example new routes or \

@@ -223,6 +223,16 @@ export function ResultsPanel({
             <DetailRow label="Total change, all possible journeys">
               {formatChange(summary.total_time_change_min)}
             </DetailRow>
+            {summary.new_stops && (
+              <DetailRow label="Journeys to/from new stops (not compared)">
+                {summary.new_stops.possible} of {summary.new_stops.journeys} possible
+                {summary.new_stops.average_time_min !== null &&
+                  `, avg ${formatMinutes(summary.new_stops.average_time_min)}`}
+              </DetailRow>
+            )}
+            {summary.newly_possible > 0 && (
+              <DetailRow label="Newly possible journeys">{summary.newly_possible}</DetailRow>
+            )}
             <DetailRow label="Avg time, demand-weighted">
               {weighted.average_time_before_min === null || weighted.average_time_after_min === null
                 ? '–'
