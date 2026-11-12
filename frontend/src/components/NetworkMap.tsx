@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { Fragment, useEffect, useMemo } from 'react'
 import {
   CircleMarker,
   MapContainer,
@@ -131,6 +131,15 @@ export function NetworkMap({
               />
             ))}
 
+        {/* "Add link": dashed indigo preview of the link being planned. */}
+        {selection?.newLink && (
+          <Polyline
+            positions={positions(stopMap, [selection.newLink.fromId, selection.newLink.toId])}
+            interactive={false}
+            pathOptions={{ color: SELECTED, weight: 5, opacity: 0.8, dashArray: '6 8', lineCap: 'round' }}
+          />
+        )}
+
         {/* Indigo ring around the stop(s) selected in the form. */}
         {selectedStops.map((stop) => (
           <CircleMarker
@@ -141,6 +150,41 @@ export function NetworkMap({
             pathOptions={{ color: SELECTED, weight: 3, fillColor: SELECTED, fillOpacity: 0.15 }}
           />
         ))}
+      </Pane>
+
+      {/* Links added by the scenario: dashed, in the route's colour, on a white casing.
+          Own pane below lines and stops: added later, they would otherwise cover the stops. */}
+      <Pane name="added-links" style={{ zIndex: 395 }}>
+        {highlights.addedLinks.map((added, index) => {
+          const route = routes.get(added.routeId)
+          const line = positions(stopMap, [added.fromId, added.toId])
+          return (
+            <Fragment key={`added-${index}`}>
+              <Polyline
+                positions={line}
+                interactive={false}
+                pathOptions={{ color: '#ffffff', weight: 9, opacity: journey ? 0.3 : 0.9, lineCap: 'round' }}
+              />
+              <Polyline
+                positions={line}
+                pathOptions={{
+                  className: `added-link added-${added.fromId}-${added.toId}`,
+                  color: route?.color ?? REMOVED,
+                  weight: 5,
+                  opacity: journey ? 0.3 : 0.95,
+                  dashArray: '10 8',
+                }}
+              >
+                <Tooltip sticky>
+                  <strong>{route?.name ?? added.routeId}</strong> (added in this scenario)
+                  <br />
+                  {stopMap.get(added.fromId)?.name} {added.bothDirections ? '–' : '→'}{' '}
+                  {stopMap.get(added.toId)?.name}: {added.travelTimeMin} min
+                </Tooltip>
+              </Polyline>
+            </Fragment>
+          )
+        })}
       </Pane>
 
       {/* White casing under every line: crisp edges on any background. It is

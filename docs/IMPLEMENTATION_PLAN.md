@@ -6,9 +6,9 @@
 
 ## Current status
 
-- **Last completed:** Day 11, part 1a (scenario type "add connection", backend + AI);
-  221 backend + 87 Vitest + 7 Playwright tests
-- **Next up:** Day 11, part 1b: "Add link" form tab, map preview, e2e
+- **Last completed:** Day 11, part 1 ("add connection": backend, AI, form, map; Travel
+  time input bug fixed); 221 backend + 92 Vitest + 10 Playwright tests
+- **Next up:** Day 11, part 2 (add a stop): explain the design and wait for approval
 - **Repository:** https://github.com/soniabecz/whatif-mobility (private, branch `main`)
 
 ## Timeline
@@ -500,7 +500,15 @@ transfer penalty at 0) and checks equivalence before changing defaults.
 - [x] Refactor check: previous engine vs new, full model, 4,338 results, 0 differences
 - [x] Frontend display support (icon, text, share code `add:R2:EST-TEC:5`, shared rule
       `addedConnectionProblem`); 18 backend tests (221), 4 Vitest (87)
-- [ ] Part 1b: "Add link" form tab, map clicks and dashed preview, legend, e2e; commit
+- [x] Part 1b: "Add link" tab (route, any two stops, required time with straight-line
+      distance hint, both directions; reasons from the shared rule); clicks: two stops,
+      a line picks the route; dashed indigo preview; added links dashed in the route
+      colour (own pane below stops); legend entry; 5 Vitest (92), 3 Playwright (10 e2e)
+- [x] Bug found by the new e2e test (present since Day 4): number inputs with
+      `min 0.1, step 0.5` made the browser silently refuse whole minutes on the
+      Travel time tab (3, 5, 7.5 were not added). Fixed with `step="any"` (also the
+      headway input); regression test `e2e/travel-time.spec.ts`
+- [x] Commit (approved by the user; no separate browser check reported)
 
 **2. Add a stop** (M)
 - [ ] Position on the map (click), connect to a route; schema, engine, form,
@@ -611,3 +619,4 @@ All former "maybes" are now scheduled as Days 8–14. New ideas go here.
 | 2026-11-12 | 10  | Demand weighting (invented activity 1–3, shares only; equal levels = unweighted); 187 backend, 83 Vitest |
 | 2026-11-12 | 10  | Walking to/from closed stops (5 km/h, ×1.3, ≤1 km); walking-off equivalence 0 diffs (4,338); 203 backend, 7 e2e; Day 10 done |
 | 2026-11-12 | 11  | Scenario type `add_connection` (backend, AI, share link); `newly_possible` fix; refactor 0 diffs; 221 backend, 87 Vitest |
+| 2026-11-12 | 11  | "Add link" tab, map preview and dashed added links; fixed Day 4 bug (Travel time input refused whole minutes); 92 Vitest, 10 e2e |

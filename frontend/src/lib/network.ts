@@ -82,6 +82,8 @@ export interface AddedLink {
   routeId: string
   fromId: string
   toId: string
+  travelTimeMin: number
+  bothDirections: boolean
 }
 
 export function scenarioHighlights(changes: ScenarioChange[]): ScenarioHighlights {
@@ -111,6 +113,8 @@ export function scenarioHighlights(changes: ScenarioChange[]): ScenarioHighlight
           routeId: change.route_id,
           fromId: change.from_stop_id,
           toId: change.to_stop_id,
+          travelTimeMin: change.travel_time_min,
+          bothDirections: change.both_directions,
         })
         break
     }
@@ -163,4 +167,18 @@ export function addedConnectionProblem(
     }
   }
   return null
+}
+
+/** Straight-line distance between two stops in km (null if either is unknown or the same). */
+export function straightLineKm(network: Network, a: string, b: string): number | null {
+  const stops = stopsById(network)
+  const from = stops.get(a)
+  const to = stops.get(b)
+  if (!from || !to || a === b) return null
+  const rad = (deg: number) => (deg * Math.PI) / 180
+  const dLat = rad(to.lat - from.lat)
+  const dLon = rad(to.lon - from.lon)
+  const h =
+    Math.sin(dLat / 2) ** 2 + Math.cos(rad(from.lat)) * Math.cos(rad(to.lat)) * Math.sin(dLon / 2) ** 2
+  return 2 * 6371 * Math.asin(Math.sqrt(h))
 }

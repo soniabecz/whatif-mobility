@@ -120,6 +120,9 @@ export function MapLegend({
                 <li className="flex items-center gap-2">
                   <span className="h-2 w-6 rounded-full bg-zinc-500" /> Travel time changed
                 </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-6 border-t-[3px] border-dashed border-orange-500" /> Added link (route colour)
+                </li>
               </ul>
             </>
           )}

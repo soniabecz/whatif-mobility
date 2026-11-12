@@ -9,7 +9,14 @@ import {
   withType,
   type ChangeDraft,
 } from '../lib/changeDraft'
-import { currentTravelTime, neighbours, sortedStops, stopLabel, stopsById } from '../lib/network'
+import {
+  currentTravelTime,
+  neighbours,
+  sortedStops,
+  stopLabel,
+  stopsById,
+  straightLineKm,
+} from '../lib/network'
 import type { Network } from '../types/network'
 import {
   MAX_CHANGES,
@@ -42,6 +49,7 @@ const CHANGE_TYPES: SegmentOption<ChangeType>[] = [
   { value: 'remove_connection', label: 'Remove link', icon: CHANGE_ICONS.remove_connection },
   { value: 'change_travel_time', label: 'Travel time', icon: CHANGE_ICONS.change_travel_time },
   { value: 'change_frequency', label: 'Frequency', icon: CHANGE_ICONS.change_frequency },
+  { value: 'add_connection', label: 'Add link', icon: CHANGE_ICONS.add_connection },
 ]
 
 /** Builds one change at a time and hands it to the parent's list. */
@@ -62,9 +70,11 @@ export function ScenarioForm({
     [network],
   )
   const currentRoute = routes.find((route) => route.id === draft.routeId)
+  const distanceKm =
+    draft.type === 'add_connection' ? straightLineKm(network, draft.fromId, draft.toId) : null
   const update = (patch: Partial<ChangeDraft>) => onDraftChange({ ...draft, ...patch })
 
-  const change = buildChange(draft, changeCount)
+  const change = buildChange(draft, changeCount, network)
   const draftError = typeof change === 'string' ? change : null
 
   function handleAdd(event: FormEvent) {
@@ -81,9 +91,13 @@ export function ScenarioForm({
           ? 'Or click a stop on the map.'
           : draft.type === 'change_frequency'
             ? 'Or click a line of the route on the map.'
-            : draft.awaitingTo
-            ? `Now click a stop next to ${stopLabel(stopNames, draft.fromId)} on the map.`
-              : 'Or click a line, or two neighbouring stops, on the map.'}
+            : draft.type === 'add_connection' && !draft.awaitingTo
+              ? 'Or click two stops (and a line for the route) on the map.'
+              : draft.awaitingTo
+            ? draft.type === 'add_connection'
+              ? `Now click the other stop of the new link from ${stopLabel(stopNames, draft.fromId)}.`
+              : `Now click a stop next to ${stopLabel(stopNames, draft.fromId)} on the map.`
+                : 'Or click a line, or two neighbouring stops, on the map.'}
       </p>
 
       <form onSubmit={handleAdd} className="space-y-3">
@@ -138,12 +152,71 @@ export function ScenarioForm({
                 type="number"
                 min={MIN_HEADWAY_MIN}
                 max={MAX_HEADWAY_MIN}
-                step={0.5}
+                step="any"
                 value={draft.headway}
                 onChange={(e) => update({ headway: e.target.value })}
                 disabled={disabled}
               />
             </Field>
+          </>
+        ) : draft.type === 'add_connection' ? (
+          <>
+            <Field label="Route that gets the new link">
+              <select
+                className={inputClass}
+                value={draft.routeId}
+                onChange={(e) => update({ routeId: e.target.value, awaitingTo: false })}
+                disabled={disabled}
+              >
+                {routes.map((route) => (
+                  <option key={route.id} value={route.id}>
+                    {route.id} {route.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <div className="grid grid-cols-2 gap-2">
+              {(['fromId', 'toId'] as const).map((key) => (
+                <Field key={key} label={key === 'fromId' ? 'From' : 'To'}>
+                  <select
+                    className={inputClass}
+                    value={draft[key]}
+                    onChange={(e) => update({ [key]: e.target.value, awaitingTo: false })}
+                    disabled={disabled}
+                  >
+                    {stops.map((stop) => (
+                      <option key={stop.id} value={stop.id}>
+                        {stop.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              ))}
+            </div>
+            <Field
+              label="Travel time (minutes)"
+              hint={
+                distanceKm !== null &&
+                `The stops are ${distanceKm.toFixed(1)} km apart in a straight line.`
+              }
+            >
+              <input
+                className={cx(inputClass, 'tabular-nums')}
+                type="number"
+                min={0.1}
+                max={MAX_TRAVEL_TIME_MIN}
+                step="any"
+                placeholder="e.g. 5"
+                value={draft.travelTime}
+                onChange={(e) => update({ travelTime: e.target.value })}
+                disabled={disabled}
+              />
+            </Field>
+            <BothDirections
+              checked={draft.bothDirections}
+              onChange={(bothDirections) => update({ bothDirections })}
+              disabled={disabled}
+            />
           </>
         ) : (
           <>
@@ -193,7 +266,7 @@ export function ScenarioForm({
                   type="number"
                   min={0.1}
                   max={MAX_TRAVEL_TIME_MIN}
-                  step={0.5}
+                  step="any"
                   value={draft.travelTime}
                   onChange={(e) => update({ travelTime: e.target.value })}
                   disabled={disabled}
@@ -201,26 +274,11 @@ export function ScenarioForm({
               </Field>
             )}
 
-            <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl bg-surface-muted px-3 py-2 text-sm text-ink">
-              Both directions
-              <input
-                type="checkbox"
-                role="switch"
-                className="peer sr-only"
-                checked={draft.bothDirections}
-                onChange={(e) => update({ bothDirections: e.target.checked })}
-                disabled={disabled}
-              />
-              <span
-                aria-hidden
-                className={cx(
-                  'relative h-5 w-9 shrink-0 rounded-full bg-ink-subtle/40 transition-colors',
-                  'peer-checked:bg-accent peer-focus-visible:ring-2 peer-focus-visible:ring-accent-ring',
-                  'after:absolute after:top-0.5 after:left-0.5 after:h-4 after:w-4 after:rounded-full',
-                  'after:bg-white after:shadow after:transition-transform peer-checked:after:translate-x-4',
-                )}
-              />
-            </label>
+            <BothDirections
+              checked={draft.bothDirections}
+              onChange={(bothDirections) => update({ bothDirections })}
+              disabled={disabled}
+            />
           </>
         )}
 
@@ -237,5 +295,38 @@ export function ScenarioForm({
         </Button>
       </form>
     </section>
+  )
+}
+
+function BothDirections({
+  checked,
+  onChange,
+  disabled,
+}: {
+  checked: boolean
+  onChange: (checked: boolean) => void
+  disabled: boolean
+}) {
+  return (
+    <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl bg-surface-muted px-3 py-2 text-sm text-ink">
+      Both directions
+      <input
+        type="checkbox"
+        role="switch"
+        className="peer sr-only"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        disabled={disabled}
+      />
+      <span
+        aria-hidden
+        className={cx(
+          'relative h-5 w-9 shrink-0 rounded-full bg-ink-subtle/40 transition-colors',
+          'peer-checked:bg-accent peer-focus-visible:ring-2 peer-focus-visible:ring-accent-ring',
+          'after:absolute after:top-0.5 after:left-0.5 after:h-4 after:w-4 after:rounded-full',
+          'after:bg-white after:shadow after:transition-transform peer-checked:after:translate-x-4',
+        )}
+      />
+    </label>
   )
 }

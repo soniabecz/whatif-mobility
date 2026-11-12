@@ -148,8 +148,9 @@ network appears on the map. Build a scenario in the sidebar, click
 **Run simulation**, and the results appear below the form and on the map.
 
 Instead of the dropdowns you can click the map: a stop (to close it), a line
-(to select that link, or on the **Frequency** tab its whole route), or two
-neighbouring stops one after the other (From, then To). The current selection
+(to select that link, or on the **Frequency** and **Add link** tabs its route),
+or two stops one after the other (From, then To; on **Add link** any two
+stops, otherwise neighbours). The current selection
 is ringed in indigo on the map; changed frequencies appear in the legend.
 
 **Sharing a scenario:** the address bar always holds a link to the current list
@@ -201,7 +202,9 @@ with the form, run the simulation and check that the results show exactly the
 numbers the backend computes; fill in the form by clicking stops and lines on
 the map; open, update and copy shareable links (including an invalid one); and
 download the CSV export and compare every row with the backend; and make a
-route run more often with the Frequency tab. It uses the real backend and the seeded sample network
+route run more often with the Frequency tab; add a link with the Add link tab
+(and see the form refuse one the route cannot get); and add whole and decimal
+minutes on the Travel time tab. It uses the real backend and the seeded sample network
 (`python -m app.seed`); nothing is written to the database.
 
 Playwright starts the backend (from `backend/.venv`) and the Vite dev server

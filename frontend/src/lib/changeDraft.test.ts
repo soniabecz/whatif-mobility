@@ -116,6 +116,7 @@ describe('draftSelection', () => {
       stopIds: ['CAS'],
       link: null,
       routeId: null,
+      newLink: null,
     })
   })
 
@@ -124,6 +125,7 @@ describe('draftSelection', () => {
       stopIds: ['DUN', 'BRK'],
       link: linkKey('BRK', 'DUN'),
       routeId: null,
+      newLink: null,
     })
   })
 })
@@ -148,36 +150,84 @@ describe('frequency', () => {
   })
 
   it('highlights the whole route', () => {
-    expect(draftSelection(freq)).toEqual({ stopIds: [], link: null, routeId: 'R1' })
+    expect(draftSelection(freq)).toEqual({ stopIds: [], link: null, routeId: 'R1', newLink: null })
   })
 
   it('builds the change and checks the 1-120 min range', () => {
-    expect(buildChange({ ...freq, headway: '7.5' }, 0)).toEqual({
+    expect(buildChange({ ...freq, headway: '7.5' }, 0, network)).toEqual({
       type: 'change_frequency',
       route_id: 'R1',
       headway_min: 7.5,
     })
     for (const headway of ['', '0.5', '121', 'x']) {
-      expect(buildChange({ ...freq, headway }, 0)).toBe('A bus can run every 1 to 120 minutes.')
+      expect(buildChange({ ...freq, headway }, 0, network)).toBe('A bus can run every 1 to 120 minutes.')
     }
-    expect(buildChange({ ...freq, routeId: '' }, 0)).toBe('Choose a route.')
+    expect(buildChange({ ...freq, routeId: '' }, 0, network)).toBe('Choose a route.')
+  })
+})
+
+describe('add link', () => {
+  // smallNetwork: R1 runs ALP-BRK-CAS, R2 runs ALP-BRK-DUN.
+  const add = withType(start, 'add_connection')
+
+  it('starts with an empty travel time (never pre-filled)', () => {
+    expect(add.travelTime).toBe('')
+  })
+
+  it('two clicks on any two stops set From and To', () => {
+    let draft = clickStop(network, add, 'CAS')
+    expect(draft).toMatchObject({ fromId: 'CAS', awaitingTo: true })
+    draft = clickStop(network, draft, 'CAS') // the same stop again: still From
+    expect(draft).toMatchObject({ fromId: 'CAS', awaitingTo: true })
+    draft = clickStop(network, draft, 'DUN') // not a neighbour: fine for a new link
+    expect(draft).toMatchObject({ fromId: 'CAS', toId: 'DUN', awaitingTo: false })
+  })
+
+  it('clicking a line chooses the route', () => {
+    expect(clickLink(network, add, 'BRK', 'DUN', 'R2').routeId).toBe('R2')
+  })
+
+  it('previews the planned link', () => {
+    const draft = { ...add, fromId: 'CAS', toId: 'DUN' }
+    expect(draftSelection(draft)).toEqual({
+      stopIds: ['CAS', 'DUN'],
+      link: null,
+      routeId: null,
+      newLink: { fromId: 'CAS', toId: 'DUN' },
+    })
+  })
+
+  it('builds the change with the backend rules and a required time', () => {
+    const draft = { ...add, routeId: 'R1', fromId: 'CAS', toId: 'DUN' }
+    expect(buildChange(draft, 0, network)).toBe('Travel time must be a number greater than 0.')
+    expect(buildChange({ ...draft, travelTime: '6' }, 0, network)).toEqual({
+      type: 'add_connection',
+      route_id: 'R1',
+      from_stop_id: 'CAS',
+      to_stop_id: 'DUN',
+      travel_time_min: 6,
+      both_directions: true,
+    })
+    expect(buildChange({ ...draft, fromId: 'ALP', toId: 'BRK', travelTime: '6' }, 0, network)).toBe(
+      'Not possible: route R1 already runs from ALP to BRK.',
+    )
   })
 })
 
 describe('buildChange', () => {
   it('builds each change type', () => {
-    expect(buildChange(clickStop(network, start, 'CAS'), 0)).toEqual({
+    expect(buildChange(clickStop(network, start, 'CAS'), 0, network)).toEqual({
       type: 'close_stop',
       stop_id: 'CAS',
     })
-    expect(buildChange(withLink(network, linkDraft(), 'BRK', 'DUN'), 0)).toEqual({
+    expect(buildChange(withLink(network, linkDraft(), 'BRK', 'DUN'), 0, network)).toEqual({
       type: 'remove_connection',
       from_stop_id: 'BRK',
       to_stop_id: 'DUN',
       both_directions: true,
     })
     const retimed = { ...linkDraft('change_travel_time'), travelTime: '7.5', bothDirections: false }
-    expect(buildChange(retimed, 0)).toEqual({
+    expect(buildChange(retimed, 0, network)).toEqual({
       type: 'change_travel_time',
       from_stop_id: 'ALP',
       to_stop_id: 'BRK',
@@ -188,19 +238,19 @@ describe('buildChange', () => {
 
   it('rejects invalid travel times', () => {
     for (const travelTime of ['', ' ', '0', '-3', 'abc', '601']) {
-      expect(typeof buildChange({ ...linkDraft('change_travel_time'), travelTime }, 0)).toBe('string')
+      expect(typeof buildChange({ ...linkDraft('change_travel_time'), travelTime }, 0, network)).toBe('string')
     }
-    expect(typeof buildChange({ ...linkDraft('change_travel_time'), travelTime: '600' }, 0)).toBe(
+    expect(typeof buildChange({ ...linkDraft('change_travel_time'), travelTime: '600' }, 0, network)).toBe(
       'object',
     )
   })
 
   it('rejects a link without a To stop', () => {
-    expect(buildChange({ ...linkDraft(), toId: '' }, 0)).toBe('Choose both stops of the connection.')
+    expect(buildChange({ ...linkDraft(), toId: '' }, 0, network)).toBe('Choose both stops of the connection.')
   })
 
   it('enforces the change limit', () => {
-    expect(buildChange(start, 20)).toBe('A scenario can have at most 20 changes.')
-    expect(typeof buildChange(start, 19)).toBe('object')
+    expect(buildChange(start, 20, network)).toBe('A scenario can have at most 20 changes.')
+    expect(typeof buildChange(start, 19, network)).toBe('object')
   })
 })

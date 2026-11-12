@@ -10,7 +10,13 @@ import {
   type ChangeType,
   type ScenarioChange,
 } from '../types/scenario'
-import { currentTravelTime, linkKey, neighbours, sortedStops } from './network'
+import {
+  addedConnectionProblem,
+  currentTravelTime,
+  linkKey,
+  neighbours,
+  sortedStops,
+} from './network'
 
 export interface ChangeDraft {
   type: ChangeType
@@ -60,7 +66,9 @@ export function withRoute(network: Network, draft: ChangeDraft, routeId: string)
 }
 
 export function withType(draft: ChangeDraft, type: ChangeType): ChangeDraft {
-  return { ...draft, type, awaitingTo: false }
+  // A new link has no current time: the user always enters it (never pre-filled).
+  const travelTime = type === 'add_connection' ? '' : draft.travelTime
+  return { ...draft, type, travelTime, awaitingTo: false }
 }
 
 /** A link was chosen: fill in its current travel time. */
@@ -87,6 +95,11 @@ export function withFrom(network: Network, draft: ChangeDraft, fromId: string): 
 export function clickStop(network: Network, draft: ChangeDraft, stopId: string): ChangeDraft {
   // A stop can belong to several routes: on "frequency" only lines select a route.
   if (draft.type === 'change_frequency') return draft
+  // "Add link": any two different stops (they are not linked yet), From then To.
+  if (draft.type === 'add_connection') {
+    if (draft.awaitingTo && stopId !== draft.fromId) return { ...draft, toId: stopId, awaitingTo: false }
+    return { ...draft, fromId: stopId, awaitingTo: true }
+  }
   if (draft.type === 'close_stop') return { ...draft, stopId, awaitingTo: false }
   const isNeighbour = neighbours(network, draft.fromId).some((stop) => stop.id === stopId)
   if (draft.awaitingTo && isNeighbour) return withLink(network, draft, draft.fromId, stopId)
@@ -105,6 +118,8 @@ export function clickLink(
   routeId: string,
 ): ChangeDraft {
   if (draft.type === 'change_frequency') return withRoute(network, draft, routeId)
+  // "Add link": a line picks the route that gets the new link.
+  if (draft.type === 'add_connection') return { ...draft, routeId, awaitingTo: false }
   const type = draft.type === 'close_stop' ? 'remove_connection' : draft.type
   return withLink(network, { ...draft, type }, fromId, toId)
 }
@@ -116,25 +131,28 @@ export interface DraftSelection {
   link: string | null
   /** The whole route, for "frequency". */
   routeId: string | null
+  /** "Add link": the planned new link (not a street yet), drawn as a preview. */
+  newLink: { fromId: string; toId: string } | null
 }
 
 export function draftSelection(draft: ChangeDraft): DraftSelection {
-  if (draft.type === 'change_frequency') {
-    return { stopIds: [], link: null, routeId: draft.routeId || null }
-  }
-  if (draft.type === 'close_stop') {
-    return { stopIds: draft.stopId ? [draft.stopId] : [], link: null, routeId: null }
-  }
+  const none = { stopIds: [], link: null, routeId: null, newLink: null }
+  if (draft.type === 'change_frequency') return { ...none, routeId: draft.routeId || null }
+  if (draft.type === 'close_stop') return { ...none, stopIds: draft.stopId ? [draft.stopId] : [] }
   const stopIds = [draft.fromId, draft.toId].filter((id) => id !== '')
-  return {
-    stopIds,
-    link: draft.fromId && draft.toId ? linkKey(draft.fromId, draft.toId) : null,
-    routeId: null,
+  const both = draft.fromId !== '' && draft.toId !== '' && draft.fromId !== draft.toId
+  if (draft.type === 'add_connection') {
+    return { ...none, stopIds, newLink: both ? { fromId: draft.fromId, toId: draft.toId } : null }
   }
+  return { ...none, stopIds, link: both ? linkKey(draft.fromId, draft.toId) : null }
 }
 
 /** Validate the draft; returns the change or an error message for the user. */
-export function buildChange(draft: ChangeDraft, changeCount: number): ScenarioChange | string {
+export function buildChange(
+  draft: ChangeDraft,
+  changeCount: number,
+  network: Network,
+): ScenarioChange | string {
   if (changeCount >= MAX_CHANGES) return `A scenario can have at most ${MAX_CHANGES} changes.`
   if (draft.type === 'close_stop') {
     if (!draft.stopId) return 'Choose a stop.'
@@ -153,6 +171,28 @@ export function buildChange(draft: ChangeDraft, changeCount: number): ScenarioCh
     }
     return { type: 'change_frequency', route_id: draft.routeId, headway_min: minutes }
   }
+  if (draft.type === 'add_connection') {
+    if (!draft.routeId) return 'Choose a route.'
+    if (!draft.fromId || !draft.toId) return 'Choose both stops of the new link.'
+    const problem = addedConnectionProblem(
+      network,
+      draft.routeId,
+      draft.fromId,
+      draft.toId,
+      draft.bothDirections,
+    )
+    if (problem) return `Not possible: ${problem}.`
+    const time = travelMinutes(draft.travelTime)
+    if (typeof time === 'string') return time
+    return {
+      type: 'add_connection',
+      route_id: draft.routeId,
+      from_stop_id: draft.fromId,
+      to_stop_id: draft.toId,
+      travel_time_min: time,
+      both_directions: draft.bothDirections,
+    }
+  }
   if (!draft.fromId || !draft.toId) return 'Choose both stops of the connection.'
   if (draft.type === 'remove_connection') {
     return {
@@ -162,13 +202,8 @@ export function buildChange(draft: ChangeDraft, changeCount: number): ScenarioCh
       both_directions: draft.bothDirections,
     }
   }
-  const minutes = Number(draft.travelTime)
-  if (draft.travelTime.trim() === '' || !Number.isFinite(minutes) || minutes <= 0) {
-    return 'Travel time must be a number greater than 0.'
-  }
-  if (minutes > MAX_TRAVEL_TIME_MIN) {
-    return `Travel time can be at most ${MAX_TRAVEL_TIME_MIN} minutes.`
-  }
+  const minutes = travelMinutes(draft.travelTime)
+  if (typeof minutes === 'string') return minutes
   return {
     type: 'change_travel_time',
     from_stop_id: draft.fromId,
@@ -176,4 +211,14 @@ export function buildChange(draft: ChangeDraft, changeCount: number): ScenarioCh
     travel_time_min: minutes,
     both_directions: draft.bothDirections,
   }
+}
+
+/** The travel time input as minutes, or an error message. */
+function travelMinutes(text: string): number | string {
+  const minutes = Number(text)
+  if (text.trim() === '' || !Number.isFinite(minutes) || minutes <= 0) {
+    return 'Travel time must be a number greater than 0.'
+  }
+  if (minutes > MAX_TRAVEL_TIME_MIN) return `Travel time can be at most ${MAX_TRAVEL_TIME_MIN} minutes.`
+  return minutes
 }
