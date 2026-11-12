@@ -6,13 +6,14 @@
 
 ## Current status
 
-- **Last completed:** Day 8, part 2 (frontend tests); 133 backend + 32 Vitest + 1 Playwright test
-- **Next up:** Day 8, part 3 (one-command start): decide Docker Compose vs a plain script
+- **Last completed:** Day 8 (generated API types, frontend tests, `./dev.sh`);
+  134 backend + 32 Vitest + 1 Playwright test
+- **Next up:** Day 9, part 1 (click a stop on the map to fill in the form)
 - **Repository:** https://github.com/soniabecz/whatif-mobility (private, branch `main`)
 
 ## Timeline
 
-Total: **7 working days done** (MVP in Days 1–5, Days 6–7 added afterwards);
+Total: **8 working days done** (MVP in Days 1–5, Days 6–8 added afterwards);
 Days 8–14 hold all later extensions (≈ 9–10 sessions; Days 10, 11 and 14 run long). A "day" is one
 working session. Every day must end with something working and committed,
 so the project is usable even if a later day is cut short.
@@ -26,7 +27,7 @@ so the project is usable even if a later day is cut short.
 | 5   | AI layer and wrap-up      | ✅ Done |
 | 6   | UI redesign               | ✅ Done |
 | 7   | Quality and explainability | ✅ Done |
-| 8   | Safety nets               | 🟡 In progress |
+| 8   | Safety nets               | ✅ Done |
 | 9   | Quick product wins        | ⬜ Todo |
 | 10  | More realistic simulation | ⬜ Todo |
 | 11  | New scenario types        | ⬜ Todo |
@@ -140,6 +141,8 @@ so the project is usable even if a later day is cut short.
 | ~~No frontend test runner~~ (superseded Day 8) | Vitest for pure `lib/` helpers, one Playwright end-to-end test |
 | Playwright e2e against the real backend + seeded data, not a mocked API | Only test that proves frontend and backend work together; simulations are read-only |
 | E2E checks UI numbers against `POST /api/simulations`, not hardcoded values | Survives model changes (Day 10) while still catching display bugs |
+| One-command start: plain `dev.sh` (bash 3.2 compatible), not Docker Compose | No new dependency; hot reload and the existing `.venv`/DB/`.env` keep working |
+| `dev.sh` never resets data: `app.seed --if-empty` | Running the app must not silently discard a database |
 | Vitest in `node` environment, tests next to the code (`*.test.ts`) | Helpers have no DOM; no jsdom dependency; `tsc -b` type-checks the tests |
 
 ### Target backend structure
@@ -356,9 +359,13 @@ and 14 are larger than one session and are marked as such.
 - [x] Pushed; CI green with Playwright starting both servers itself (run 43249884632: all 4 jobs)
 
 **3. One-command start** (S)
-- [ ] Decide: Docker Compose or a plain script
-- [ ] Start backend + frontend (and seed if the DB is empty) with one command
-- [ ] README; commit
+- [x] Decide: plain script (no new dependency, hot reload as now; Docker revisited at Day 14)
+- [x] `./dev.sh`: checks Python 3.11+/Node 20+ and free ports; creates `.venv`, installs
+      packages only when changed, copies `.env.example`, seeds only an empty DB
+      (`python -m app.seed --if-empty`, 1 new test), starts both, Ctrl+C stops both
+- [x] Tested: normal start (2.5 s, no installs, DB untouched), first run on a fresh copy
+      (28 s: venv, packages, `.env`, seed), Ctrl+C stops both, ports freed, no leftovers
+- [x] README quick start; commit
 
 ## Day 9 – Quick product wins
 
@@ -495,7 +502,7 @@ All former "maybes" are now scheduled as Days 8–14. New ideas go here.
 
 - [x] **Day 5:** AI provider and API key: Groq, `openai/gpt-oss-120b`
 - [ ] **Days 8–14:** decisions asked when each part starts: type generator
-      (Day 8.1 ✅ openapi-typescript), Docker vs script (8.3), bus frequencies (10.1), demand model
+      (Day 8.1 ✅ openapi-typescript), Docker vs script (8.3 ✅ script) (8.3), bus frequencies (10.1), demand model
       (10.2), walking speed/distance (10.3), hosting target (14.1), GTFS city
       and licence (14.2)
 - [x] **Day 7:** transfer penalty value: 5 min per change of bus, counted in journey
@@ -515,3 +522,4 @@ All former "maybes" are now scheduled as Days 8–14. New ideas go here.
 | 2026-11-11 | 7   | Transfer penalty: route-aware graph, 5 min/change; penalty-0 equivalence (0 diffs); 131 tests; browser-checked |
 | 2026-11-12 | 8   | Types generated from OpenAPI (openapi-typescript, isolated TS 5), CI drift check; 133 tests |
 | 2026-11-12 | 8   | Frontend tests: Vitest (32, lib helpers), Playwright e2e vs real backend; both in CI |
+| 2026-11-12 | 8   | `./dev.sh` one-command start, `app.seed --if-empty`; 134 tests; Day 8 done |

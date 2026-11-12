@@ -40,8 +40,27 @@ whatif-mobility/
 │       ├── components/  map, legend, scenario form, results, chart
 │       ├── lib/         pure helpers (network lookups, impact colours)
 │       └── types/       TypeScript types generated from the backend's OpenAPI schema
+├── dev.sh             one-command start (setup + both servers)
 └── CLAUDE.md          project rules and conventions
 ```
+
+## Quick start
+
+```bash
+./dev.sh
+```
+
+One command does everything (macOS and Linux; on Windows use WSL): on the first
+run it creates `backend/.venv`, installs the backend and frontend packages,
+creates `backend/.env` from the example and seeds the sample network. Later
+runs only reinstall what changed and **never reset the database**. Then it starts
+both servers with hot reload and prints the address,
+http://localhost:5173. **Ctrl+C** stops both.
+
+To enable the AI input, put your Groq API key in `backend/.env` (see
+[Configuration](#configuration)) and restart.
+
+The sections below do the same steps by hand.
 
 ## Setup (first time only)
 
@@ -57,7 +76,7 @@ cp .env.example .env             # then add your Groq API key (optional, see bel
 ```
 
 Re-run `python -m app.seed` at any time to reset the database to the sample
-network. The database file is git-ignored.
+network (`python -m app.seed --if-empty` seeds only a fresh database). The database file is git-ignored.
 
 ### Frontend
 

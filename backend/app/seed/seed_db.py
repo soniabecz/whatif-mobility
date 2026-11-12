@@ -1,10 +1,15 @@
 """Load the sample network into the database."""
 
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.models import Connection, Route, Stop
 from app.seed.sample_network import ROUTES, STOPS, route_segments, stop_coordinates
+
+
+def network_is_empty(db: Session) -> bool:
+    """True when no stops are stored yet (fresh or never-seeded database)."""
+    return db.scalar(select(Stop.id).limit(1)) is None
 
 
 def seed_database(db: Session) -> None:

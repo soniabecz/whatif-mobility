@@ -3,11 +3,11 @@
 import pytest
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.models import Connection, Route, Stop
 from app.seed.sample_network import ROUTES, STOPS, SampleRoute, route_segments
-from app.seed.seed_db import seed_database
+from app.seed.seed_db import network_is_empty, seed_database
 
 
 def _count(db: Session, model: type) -> int:
@@ -67,3 +67,14 @@ def test_database_rejects_connection_to_missing_stop(db: Session) -> None:
     with pytest.raises(IntegrityError):
         db.flush()
     db.rollback()
+
+
+def test_network_is_empty_before_and_not_after_seeding(
+    session_factory: sessionmaker[Session],
+) -> None:
+    # dev.sh relies on this to seed a fresh database but never reset one.
+    # (The `db` fixture is already seeded, so use a fresh session.)
+    with session_factory() as fresh:
+        assert network_is_empty(fresh)
+        seed_database(fresh)
+        assert not network_is_empty(fresh)
