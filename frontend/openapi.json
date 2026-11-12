@@ -1,0 +1,1033 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "WhatIf Mobility API",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/health": {
+      "get": {
+        "summary": "Health",
+        "description": "Lightweight check that the server is running.",
+        "operationId": "health_api_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/stops": {
+      "get": {
+        "tags": [
+          "network"
+        ],
+        "summary": "Get Stops",
+        "operationId": "get_stops_api_stops_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/StopOut"
+                  },
+                  "type": "array",
+                  "title": "Response Get Stops Api Stops Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/routes": {
+      "get": {
+        "tags": [
+          "network"
+        ],
+        "summary": "Get Routes",
+        "operationId": "get_routes_api_routes_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RouteOut"
+                  },
+                  "type": "array",
+                  "title": "Response Get Routes Api Routes Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/network": {
+      "get": {
+        "tags": [
+          "network"
+        ],
+        "summary": "Get Network",
+        "operationId": "get_network_api_network_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NetworkOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/simulations": {
+      "post": {
+        "tags": [
+          "simulations"
+        ],
+        "summary": "Run Simulation",
+        "description": "Simulate the scenario. Nothing is stored; the baseline is unchanged.",
+        "operationId": "run_simulation_api_simulations_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Scenario"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimulationResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai/interpret": {
+      "post": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Interpret Text",
+        "operationId": "interpret_text_api_ai_interpret_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InterpretRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InterpretResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/journeys": {
+      "post": {
+        "tags": [
+          "journeys"
+        ],
+        "summary": "Explain Journey",
+        "description": "Fastest journey before and after the changes. Nothing is stored.",
+        "operationId": "explain_journey_api_journeys_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JourneyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JourneyComparison"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ChangeTravelTime": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "change_travel_time",
+            "title": "Type"
+          },
+          "from_stop_id": {
+            "type": "string",
+            "maxLength": 10,
+            "minLength": 1,
+            "title": "From Stop Id"
+          },
+          "to_stop_id": {
+            "type": "string",
+            "maxLength": 10,
+            "minLength": 1,
+            "title": "To Stop Id"
+          },
+          "travel_time_min": {
+            "type": "number",
+            "maximum": 600.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Travel Time Min"
+          },
+          "both_directions": {
+            "type": "boolean",
+            "title": "Both Directions",
+            "default": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "from_stop_id",
+          "to_stop_id",
+          "travel_time_min"
+        ],
+        "title": "ChangeTravelTime",
+        "description": "Set a new travel time (minutes) on the link, for every route using it."
+      },
+      "CloseStop": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "close_stop",
+            "title": "Type"
+          },
+          "stop_id": {
+            "type": "string",
+            "maxLength": 10,
+            "minLength": 1,
+            "title": "Stop Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "stop_id"
+        ],
+        "title": "CloseStop",
+        "description": "Nobody can board, alight or transfer at the stop; buses drive through."
+      },
+      "ConnectionOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "route_id": {
+            "type": "string",
+            "title": "Route Id"
+          },
+          "from_stop_id": {
+            "type": "string",
+            "title": "From Stop Id"
+          },
+          "to_stop_id": {
+            "type": "string",
+            "title": "To Stop Id"
+          },
+          "travel_time_min": {
+            "type": "number",
+            "title": "Travel Time Min"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "route_id",
+          "from_stop_id",
+          "to_stop_id",
+          "travel_time_min"
+        ],
+        "title": "ConnectionOut"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "HealthResponse",
+        "description": "Shape of the /api/health response (validated by Pydantic)."
+      },
+      "InterpretRequest": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Text"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "InterpretRequest"
+      },
+      "InterpretResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "unclear"
+            ],
+            "title": "Status"
+          },
+          "changes": {
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/CloseStop"
+                },
+                {
+                  "$ref": "#/components/schemas/RemoveConnection"
+                },
+                {
+                  "$ref": "#/components/schemas/ChangeTravelTime"
+                }
+              ],
+              "discriminator": {
+                "propertyName": "type",
+                "mapping": {
+                  "change_travel_time": "#/components/schemas/ChangeTravelTime",
+                  "close_stop": "#/components/schemas/CloseStop",
+                  "remove_connection": "#/components/schemas/RemoveConnection"
+                }
+              }
+            },
+            "type": "array",
+            "title": "Changes"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "changes",
+          "message"
+        ],
+        "title": "InterpretResponse",
+        "description": "``ok``: changes are valid for the network. ``unclear``: no changes;\n``message`` explains why or asks for clarification."
+      },
+      "JourneyChange": {
+        "properties": {
+          "origin_id": {
+            "type": "string",
+            "title": "Origin Id"
+          },
+          "destination_id": {
+            "type": "string",
+            "title": "Destination Id"
+          },
+          "time_before_min": {
+            "type": "number",
+            "title": "Time Before Min"
+          },
+          "time_after_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time After Min"
+          },
+          "change_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change Min"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "slower",
+              "faster",
+              "impossible"
+            ],
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "origin_id",
+          "destination_id",
+          "time_before_min",
+          "time_after_min",
+          "change_min",
+          "status"
+        ],
+        "title": "JourneyChange",
+        "description": "One origin -> destination journey whose fastest travel time changed."
+      },
+      "JourneyComparison": {
+        "properties": {
+          "origin_id": {
+            "type": "string",
+            "title": "Origin Id"
+          },
+          "destination_id": {
+            "type": "string",
+            "title": "Destination Id"
+          },
+          "before": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JourneyPlan"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "after": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JourneyPlan"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "unchanged",
+              "slower",
+              "faster",
+              "impossible",
+              "unreachable"
+            ],
+            "title": "Status"
+          },
+          "change_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change Min"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "origin_id",
+          "destination_id",
+          "before",
+          "after",
+          "status",
+          "change_min",
+          "reason"
+        ],
+        "title": "JourneyComparison"
+      },
+      "JourneyLeg": {
+        "properties": {
+          "route_id": {
+            "type": "string",
+            "title": "Route Id"
+          },
+          "stop_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Stop Ids"
+          },
+          "travel_time_min": {
+            "type": "number",
+            "title": "Travel Time Min"
+          },
+          "passes_closed_stop_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Passes Closed Stop Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "route_id",
+          "stop_ids",
+          "travel_time_min",
+          "passes_closed_stop_ids"
+        ],
+        "title": "JourneyLeg",
+        "description": "A stretch travelled on one route without changing bus."
+      },
+      "JourneyPlan": {
+        "properties": {
+          "travel_time_min": {
+            "type": "number",
+            "title": "Travel Time Min"
+          },
+          "in_vehicle_min": {
+            "type": "number",
+            "title": "In Vehicle Min"
+          },
+          "transfers": {
+            "type": "integer",
+            "title": "Transfers"
+          },
+          "transfer_penalty_min": {
+            "type": "number",
+            "title": "Transfer Penalty Min"
+          },
+          "legs": {
+            "items": {
+              "$ref": "#/components/schemas/JourneyLeg"
+            },
+            "type": "array",
+            "title": "Legs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "travel_time_min",
+          "in_vehicle_min",
+          "transfers",
+          "transfer_penalty_min",
+          "legs"
+        ],
+        "title": "JourneyPlan"
+      },
+      "JourneyRequest": {
+        "properties": {
+          "origin_id": {
+            "type": "string",
+            "maxLength": 10,
+            "minLength": 1,
+            "title": "Origin Id"
+          },
+          "destination_id": {
+            "type": "string",
+            "maxLength": 10,
+            "minLength": 1,
+            "title": "Destination Id"
+          },
+          "changes": {
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/CloseStop"
+                },
+                {
+                  "$ref": "#/components/schemas/RemoveConnection"
+                },
+                {
+                  "$ref": "#/components/schemas/ChangeTravelTime"
+                }
+              ],
+              "discriminator": {
+                "propertyName": "type",
+                "mapping": {
+                  "change_travel_time": "#/components/schemas/ChangeTravelTime",
+                  "close_stop": "#/components/schemas/CloseStop",
+                  "remove_connection": "#/components/schemas/RemoveConnection"
+                }
+              }
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Changes"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "origin_id",
+          "destination_id"
+        ],
+        "title": "JourneyRequest"
+      },
+      "NetworkOut": {
+        "properties": {
+          "stops": {
+            "items": {
+              "$ref": "#/components/schemas/StopOut"
+            },
+            "type": "array",
+            "title": "Stops"
+          },
+          "routes": {
+            "items": {
+              "$ref": "#/components/schemas/RouteOut"
+            },
+            "type": "array",
+            "title": "Routes"
+          },
+          "connections": {
+            "items": {
+              "$ref": "#/components/schemas/ConnectionOut"
+            },
+            "type": "array",
+            "title": "Connections"
+          }
+        },
+        "type": "object",
+        "required": [
+          "stops",
+          "routes",
+          "connections"
+        ],
+        "title": "NetworkOut",
+        "description": "The whole baseline network in one response (used by the map)."
+      },
+      "RemoveConnection": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "remove_connection",
+            "title": "Type"
+          },
+          "from_stop_id": {
+            "type": "string",
+            "maxLength": 10,
+            "minLength": 1,
+            "title": "From Stop Id"
+          },
+          "to_stop_id": {
+            "type": "string",
+            "maxLength": 10,
+            "minLength": 1,
+            "title": "To Stop Id"
+          },
+          "both_directions": {
+            "type": "boolean",
+            "title": "Both Directions",
+            "default": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "from_stop_id",
+          "to_stop_id"
+        ],
+        "title": "RemoveConnection",
+        "description": "The link disappears for every route that uses it."
+      },
+      "RouteOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "color": {
+            "type": "string",
+            "title": "Color"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "color"
+        ],
+        "title": "RouteOut"
+      },
+      "Scenario": {
+        "properties": {
+          "changes": {
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/CloseStop"
+                },
+                {
+                  "$ref": "#/components/schemas/RemoveConnection"
+                },
+                {
+                  "$ref": "#/components/schemas/ChangeTravelTime"
+                }
+              ],
+              "discriminator": {
+                "propertyName": "type",
+                "mapping": {
+                  "change_travel_time": "#/components/schemas/ChangeTravelTime",
+                  "close_stop": "#/components/schemas/CloseStop",
+                  "remove_connection": "#/components/schemas/RemoveConnection"
+                }
+              }
+            },
+            "type": "array",
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Changes"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "changes"
+        ],
+        "title": "Scenario",
+        "description": "Changes are applied in the given order."
+      },
+      "SimulationResult": {
+        "properties": {
+          "scenario": {
+            "$ref": "#/components/schemas/Scenario"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/SimulationSummary"
+          },
+          "changed_journeys": {
+            "items": {
+              "$ref": "#/components/schemas/JourneyChange"
+            },
+            "type": "array",
+            "title": "Changed Journeys"
+          },
+          "stop_impacts": {
+            "items": {
+              "$ref": "#/components/schemas/StopImpact"
+            },
+            "type": "array",
+            "title": "Stop Impacts"
+          },
+          "most_affected_stop_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Most Affected Stop Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scenario",
+          "summary",
+          "changed_journeys",
+          "stop_impacts",
+          "most_affected_stop_ids"
+        ],
+        "title": "SimulationResult"
+      },
+      "SimulationSummary": {
+        "properties": {
+          "total_journeys": {
+            "type": "integer",
+            "title": "Total Journeys"
+          },
+          "unchanged": {
+            "type": "integer",
+            "title": "Unchanged"
+          },
+          "slower": {
+            "type": "integer",
+            "title": "Slower"
+          },
+          "faster": {
+            "type": "integer",
+            "title": "Faster"
+          },
+          "impossible": {
+            "type": "integer",
+            "title": "Impossible"
+          },
+          "to_or_from_closed_stop": {
+            "type": "integer",
+            "title": "To Or From Closed Stop"
+          },
+          "average_time_before_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Time Before Min"
+          },
+          "average_time_after_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Time After Min"
+          },
+          "total_time_change_min": {
+            "type": "number",
+            "title": "Total Time Change Min"
+          },
+          "largest_increase": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JourneyChange"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "transfer_penalty_min": {
+            "type": "number",
+            "title": "Transfer Penalty Min"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_journeys",
+          "unchanged",
+          "slower",
+          "faster",
+          "impossible",
+          "to_or_from_closed_stop",
+          "average_time_before_min",
+          "average_time_after_min",
+          "total_time_change_min",
+          "largest_increase",
+          "transfer_penalty_min"
+        ],
+        "title": "SimulationSummary"
+      },
+      "StopImpact": {
+        "properties": {
+          "stop_id": {
+            "type": "string",
+            "title": "Stop Id"
+          },
+          "closed": {
+            "type": "boolean",
+            "title": "Closed"
+          },
+          "affected_journeys": {
+            "type": "integer",
+            "title": "Affected Journeys"
+          },
+          "impossible_journeys": {
+            "type": "integer",
+            "title": "Impossible Journeys"
+          },
+          "average_change_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Change Min"
+          }
+        },
+        "type": "object",
+        "required": [
+          "stop_id",
+          "closed",
+          "affected_journeys",
+          "impossible_journeys",
+          "average_change_min"
+        ],
+        "title": "StopImpact",
+        "description": "Effect on journeys starting or ending at one stop."
+      },
+      "StopOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "lat": {
+            "type": "number",
+            "title": "Lat"
+          },
+          "lon": {
+            "type": "number",
+            "title": "Lon"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "lat",
+          "lon"
+        ],
+        "title": "StopOut"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

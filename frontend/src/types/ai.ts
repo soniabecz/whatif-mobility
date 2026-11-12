@@ -1,16 +1,14 @@
-// Mirrors backend/app/schemas/ai.py
+// Aliases for types generated from the backend's OpenAPI schema
+// (backend/app/schemas/ai.py). Regenerate with `npm run gen:types`.
 
-import type { ScenarioChange } from './scenario'
+import type { components } from './api.gen'
 
+type Schemas = components['schemas']
+
+// A value, not a type: keep in sync with backend/app/schemas/ai.py.
 export const MAX_AI_REQUEST_CHARS = 500
 
-export interface InterpretRequest {
-  text: string
-}
+export type InterpretRequest = Schemas['InterpretRequest']
 
 /** 'ok': changes are valid for the network. 'unclear': no changes; see message. */
-export interface InterpretResponse {
-  status: 'ok' | 'unclear'
-  changes: ScenarioChange[]
-  message: string
-}
+export type InterpretResponse = Schemas['InterpretResponse']

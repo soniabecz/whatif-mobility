@@ -1,29 +1,14 @@
-// Mirrors backend/app/schemas/network.py
+// Aliases for types generated from the backend's OpenAPI schema
+// (backend/app/schemas/network.py). Regenerate with `npm run gen:types`.
 
-export interface Stop {
-  id: string
-  name: string
-  lat: number
-  lon: number
-}
+import type { components } from './api.gen'
 
-export interface Route {
-  id: string
-  name: string
-  color: string
-}
+type Schemas = components['schemas']
+
+export type Stop = Schemas['StopOut']
+export type Route = Schemas['RouteOut']
 
 /** A directed link between two consecutive stops on one route. */
-export interface Connection {
-  id: number
-  route_id: string
-  from_stop_id: string
-  to_stop_id: string
-  travel_time_min: number
-}
+export type Connection = Schemas['ConnectionOut']
 
-export interface Network {
-  stops: Stop[]
-  routes: Route[]
-  connections: Connection[]
-}
+export type Network = Schemas['NetworkOut']

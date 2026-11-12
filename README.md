@@ -39,7 +39,7 @@ whatif-mobility/
 │       ├── api/         HTTP calls to the backend and error messages
 │       ├── components/  map, legend, scenario form, results, chart
 │       ├── lib/         pure helpers (network lookups, impact colours)
-│       └── types/       TypeScript types mirroring backend schemas
+│       └── types/       TypeScript types generated from the backend's OpenAPI schema
 └── CLAUDE.md          project rules and conventions
 ```
 
@@ -137,8 +137,29 @@ npm run build    # type-check with TypeScript and build for production
 
 Every push to `main` and every pull request runs
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) on GitHub Actions:
-backend `pytest`, and frontend `npm ci`, lint, type check and build. No secrets
-are needed: the tests use a fake AI model and an in-memory database.
+backend `pytest`; frontend `npm ci`, lint, type check and build; and a check
+that the generated API types are up to date. No secrets are needed: the tests
+use a fake AI model and an in-memory database.
+
+## API types
+
+The frontend's TypeScript types are generated from the backend's Pydantic
+schemas, so the two cannot drift apart. After changing anything in
+`backend/app/schemas/` (or an endpoint's request/response model), run:
+
+```bash
+cd backend && python -m app.export_openapi   # writes frontend/openapi.json
+cd ../frontend && npm run gen:types          # writes src/types/api.gen.ts
+```
+
+and commit both files; CI fails otherwise. The files in `src/types/*.ts` give
+the generated types short names (`Scenario`, `Stop`, …); never edit
+`api.gen.ts` by hand.
+
+The generator ([openapi-typescript](https://openapi-ts.dev)) lives in its own
+small package, `frontend/tools/openapi/`, because it needs the TypeScript 5
+compiler API, which TypeScript 7 (used by the app) no longer ships. Install it
+once with `npm ci --prefix tools/openapi` (from `frontend/`).
 
 ## Configuration
 

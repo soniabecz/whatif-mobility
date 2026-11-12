@@ -1,33 +1,22 @@
-// Mirrors backend/app/schemas/scenario.py
+// Aliases for types generated from the backend's OpenAPI schema
+// (backend/app/schemas/scenario.py). Regenerate with `npm run gen:types`.
 
-export interface CloseStop {
-  type: 'close_stop'
-  stop_id: string
-}
+import type { components } from './api.gen'
 
-export interface RemoveConnection {
-  type: 'remove_connection'
-  from_stop_id: string
-  to_stop_id: string
-  both_directions: boolean
-}
+type Schemas = components['schemas']
 
-export interface ChangeTravelTime {
-  type: 'change_travel_time'
-  from_stop_id: string
-  to_stop_id: string
-  travel_time_min: number
-  both_directions: boolean
-}
+export type CloseStop = Schemas['CloseStop']
+export type RemoveConnection = Schemas['RemoveConnection']
+export type ChangeTravelTime = Schemas['ChangeTravelTime']
 
 export type ScenarioChange = CloseStop | RemoveConnection | ChangeTravelTime
 
 export type ChangeType = ScenarioChange['type']
 
 /** Changes are applied in order. The backend accepts 1–20 changes. */
-export interface Scenario {
-  changes: ScenarioChange[]
-}
+export type Scenario = Schemas['Scenario']
 
+// Validation limits are values, not types, so OpenAPI cannot generate them.
+// Keep in sync with backend/app/schemas/scenario.py.
 export const MAX_CHANGES = 20
 export const MAX_TRAVEL_TIME_MIN = 600

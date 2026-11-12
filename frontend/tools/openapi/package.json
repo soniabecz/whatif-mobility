@@ -1,0 +1,9 @@
+{
+  "name": "whatif-openapi-codegen",
+  "private": true,
+  "description": "Isolated tooling: generates src/types/api.gen.ts from openapi.json. Kept separate because openapi-typescript needs the TypeScript 5 compiler API, which TypeScript 7 (used by the app) no longer ships.",
+  "devDependencies": {
+    "openapi-typescript": "7.13.0",
+    "typescript": "5.9.3"
+  }
+}

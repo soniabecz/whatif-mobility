@@ -1,39 +1,17 @@
-// Mirrors backend/app/schemas/journey.py
+// Aliases for types generated from the backend's OpenAPI schema
+// (backend/app/schemas/journey.py). Regenerate with `npm run gen:types`.
 
-import type { ScenarioChange } from './scenario'
+import type { components } from './api.gen'
 
-export interface JourneyRequest {
-  origin_id: string
-  destination_id: string
-  changes: ScenarioChange[]
-}
+type Schemas = components['schemas']
+
+export type JourneyRequest = Schemas['JourneyRequest']
 
 /** A stretch on one route without changing bus. */
-export interface JourneyLeg {
-  route_id: string
-  /** Every stop passed, in order, including closed stops the bus drives through. */
-  stop_ids: string[]
-  travel_time_min: number
-  passes_closed_stop_ids: string[]
-}
+export type JourneyLeg = Schemas['JourneyLeg']
 
-export interface JourneyPlan {
-  /** = in_vehicle_min + transfers * transfer_penalty_min */
-  travel_time_min: number
-  in_vehicle_min: number
-  transfers: number
-  transfer_penalty_min: number
-  legs: JourneyLeg[]
-}
+/** travel_time_min = in_vehicle_min + transfers * transfer_penalty_min */
+export type JourneyPlan = Schemas['JourneyPlan']
 
-export type JourneyComparisonStatus = 'unchanged' | 'slower' | 'faster' | 'impossible' | 'unreachable'
-
-export interface JourneyComparison {
-  origin_id: string
-  destination_id: string
-  before: JourneyPlan | null
-  after: JourneyPlan | null
-  status: JourneyComparisonStatus
-  change_min: number | null
-  reason: string | null
-}
+export type JourneyComparison = Schemas['JourneyComparison']
+export type JourneyComparisonStatus = JourneyComparison['status']
