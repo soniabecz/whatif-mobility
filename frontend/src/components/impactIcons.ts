@@ -3,6 +3,7 @@
 
 import {
   Ban,
+  BusFront,
   CircleDot,
   CircleSlash,
   Timer,
@@ -28,4 +29,5 @@ export const CHANGE_ICONS: Record<ChangeType, LucideIcon> = {
   close_stop: Ban,
   remove_connection: Unlink,
   change_travel_time: Timer,
+  change_frequency: BusFront,
 }

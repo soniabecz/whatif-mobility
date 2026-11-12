@@ -91,6 +91,8 @@ export function scenarioHighlights(changes: ScenarioChange[]): ScenarioHighlight
       case 'change_travel_time':
         highlights.retimedLinks.add(linkKey(change.from_stop_id, change.to_stop_id))
         break
+      case 'change_frequency':
+        break // affects waiting, not a street: nothing to highlight on the map
     }
   }
   return highlights
@@ -105,6 +107,8 @@ export function describeChange(change: ScenarioChange, stops: Map<string, Stop>)
       return `Remove ${name(change.from_stop_id)} ${arrow(change.both_directions)} ${name(change.to_stop_id)}`
     case 'change_travel_time':
       return `${name(change.from_stop_id)} ${arrow(change.both_directions)} ${name(change.to_stop_id)}: ${change.travel_time_min} min`
+    case 'change_frequency':
+      return `${change.route_id}: a bus every ${change.headway_min} min`
   }
 }
 

@@ -18,7 +18,13 @@ from collections.abc import Sequence
 
 import networkx as nx
 
-from app.schemas.scenario import ChangeTravelTime, CloseStop, RemoveConnection, Scenario
+from app.schemas.scenario import (
+    ChangeFrequency,
+    ChangeTravelTime,
+    CloseStop,
+    RemoveConnection,
+    Scenario,
+)
 from app.schemas.simulation import (
     JourneyChange,
     SimulationResult,
@@ -30,6 +36,8 @@ from app.services.route_graph import (
     build_route_graph,
     is_open_stop,
     ride_edges,
+    route_ids,
+    set_headway,
     travel_times_from,
 )
 
@@ -68,6 +76,10 @@ def apply_scenario(
             elif isinstance(change, ChangeTravelTime):
                 for ride in _target_rides(graph, change, closed):
                     graph.edges[ride]["weight"] = change.travel_time_min
+            elif isinstance(change, ChangeFrequency):
+                if change.route_id not in route_ids(graph):
+                    raise ScenarioError(f"unknown route '{change.route_id}'")
+                set_headway(graph, change.route_id, change.headway_min)
             else:  # pragma: no cover - guarded by the Pydantic discriminator
                 raise ScenarioError(f"Unsupported change type: {change!r}")
         except ScenarioError as error:

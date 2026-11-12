@@ -137,6 +137,21 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * ChangeFrequency
+         * @description The route runs every ``headway_min`` minutes (affects waiting time only).
+         */
+        ChangeFrequency: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "change_frequency";
+            /** Route Id */
+            route_id: string;
+            /** Headway Min */
+            headway_min: number;
+        };
+        /**
          * ChangeTravelTime
          * @description Set a new travel time (minutes) on the link, for every route using it.
          */
@@ -214,7 +229,7 @@ export interface components {
              */
             status: "ok" | "unclear";
             /** Changes */
-            changes: (components["schemas"]["CloseStop"] | components["schemas"]["RemoveConnection"] | components["schemas"]["ChangeTravelTime"])[];
+            changes: (components["schemas"]["CloseStop"] | components["schemas"]["RemoveConnection"] | components["schemas"]["ChangeTravelTime"] | components["schemas"]["ChangeFrequency"])[];
             /** Message */
             message: string;
         };
@@ -295,7 +310,7 @@ export interface components {
             /** Destination Id */
             destination_id: string;
             /** Changes */
-            changes?: (components["schemas"]["CloseStop"] | components["schemas"]["RemoveConnection"] | components["schemas"]["ChangeTravelTime"])[];
+            changes?: (components["schemas"]["CloseStop"] | components["schemas"]["RemoveConnection"] | components["schemas"]["ChangeTravelTime"] | components["schemas"]["ChangeFrequency"])[];
         };
         /**
          * NetworkOut
@@ -346,7 +361,7 @@ export interface components {
          */
         Scenario: {
             /** Changes */
-            changes: (components["schemas"]["CloseStop"] | components["schemas"]["RemoveConnection"] | components["schemas"]["ChangeTravelTime"])[];
+            changes: (components["schemas"]["CloseStop"] | components["schemas"]["RemoveConnection"] | components["schemas"]["ChangeTravelTime"] | components["schemas"]["ChangeFrequency"])[];
         };
         /** SimulationResult */
         SimulationResult: {

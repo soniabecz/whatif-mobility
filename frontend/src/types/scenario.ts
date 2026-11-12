@@ -8,8 +8,10 @@ type Schemas = components['schemas']
 export type CloseStop = Schemas['CloseStop']
 export type RemoveConnection = Schemas['RemoveConnection']
 export type ChangeTravelTime = Schemas['ChangeTravelTime']
+export type ChangeFrequency = Schemas['ChangeFrequency']
 
-export type ScenarioChange = CloseStop | RemoveConnection | ChangeTravelTime
+/** Derived from the generated Scenario, so a new backend change type appears here automatically. */
+export type ScenarioChange = Schemas['Scenario']['changes'][number]
 
 export type ChangeType = ScenarioChange['type']
 
@@ -20,3 +22,5 @@ export type Scenario = Schemas['Scenario']
 // Keep in sync with backend/app/schemas/scenario.py.
 export const MAX_CHANGES = 20
 export const MAX_TRAVEL_TIME_MIN = 600
+export const MIN_HEADWAY_MIN = 1
+export const MAX_HEADWAY_MIN = 120

@@ -9,7 +9,7 @@ passenger journeys.
 
 > **Status:** MVP complete. The backend serves an invented sample bus network
 > and simulates scenarios (close a stop, remove a connection, change a travel
-> time) with deterministic before/after metrics. The web UI shows the network
+> time, change how often a route runs) with deterministic before/after metrics. The web UI shows the network
 > on a map, builds scenarios with a form or from plain language (AI via Groq),
 > and displays the results.
 
@@ -118,10 +118,14 @@ Example scenario (changes are applied in order; `both_directions` defaults to `t
     { "type": "close_stop", "stop_id": "CEN" },
     { "type": "remove_connection", "from_stop_id": "MKT", "to_stop_id": "UNI" },
     { "type": "change_travel_time", "from_stop_id": "RIV", "to_stop_id": "EST",
-      "travel_time_min": 9, "both_directions": false }
+      "travel_time_min": 9, "both_directions": false },
+    { "type": "change_frequency", "route_id": "R3", "headway_min": 7.5 }
   ]
 }
 ```
+
+`change_frequency` sets a route's headway (a bus every 1–120 minutes). It only
+changes waiting times, so it has no effect when `INCLUDE_WAITING=false`.
 
 **Terminal 2 – frontend**
 
@@ -147,7 +151,8 @@ the simulation is deterministic. The format is readable and can be edited by han
 http://localhost:5173/?s=close:CEN~remove:MKT-UNI~time:RIV-EST:9:oneway
 ```
 
-Changes are separated by `~`; `:oneway` limits a link change to one direction.
+Changes are separated by `~`; `:oneway` limits a link change to one direction;
+`freq:R3:7.5` sets route R3 to a bus every 7.5 minutes.
 A link with any invalid change (unknown stop, no such link, time out of range,
 more than 20 changes) loads nothing and says why.
 

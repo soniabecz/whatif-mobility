@@ -80,6 +80,29 @@ def build_route_graph(
     return graph
 
 
+def route_ids(graph: nx.DiGraph) -> set[str]:
+    """Routes that serve at least one stop (they have platforms)."""
+    return {node[1] for node in graph.nodes if isinstance(node, tuple)}
+
+
+def set_headway(graph: nx.DiGraph, route_id: str, headway_min: float) -> None:
+    """Give a route a new headway: updates the wait on its board edges.
+
+    Only for a route graph built for one scenario (never the baseline).
+    Without waiting the wait stays 0, so times do not change.
+    """
+    headways = dict(graph.graph["headways"])
+    headways[route_id] = headway_min
+    graph.graph["headways"] = headways
+    if not graph.graph["include_waiting"]:
+        return
+    wait = _wait_min(headways, route_id)
+    for _, _, data in graph.edges(data=True):
+        if data["kind"] == "board" and data["route_id"] == route_id:
+            data["wait_min"] = wait
+            data["weight"] = data["penalty_min"] + wait
+
+
 def _wait_min(headways: dict[str, float], route_id: str) -> float:
     """Expected wait for a passenger arriving at random: half the headway."""
     if route_id not in headways:

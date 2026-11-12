@@ -150,6 +150,12 @@ describe('describeChange', () => {
     ).toBe('Remove Alpine Road → Brook Street')
   })
 
+  it('describes a frequency change by route', () => {
+    expect(
+      describeChange({ type: 'change_frequency', route_id: 'R2', headway_min: 7.5 }, stops),
+    ).toBe('R2: a bus every 7.5 min')
+  })
+
   it('includes the new travel time', () => {
     expect(
       describeChange(

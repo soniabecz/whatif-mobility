@@ -6,9 +6,9 @@
 
 ## Current status
 
-- **Last completed:** Day 10, part 1a (waiting time from headways; equivalence
-  0 diffs); 152 backend + 74 Vitest + 5 Playwright tests
-- **Next up:** Day 10, part 1b: scenario type "change frequency" (backend, AI prompt)
+- **Last completed:** Day 10, part 1b (scenario type "change frequency", backend + AI);
+  168 backend + 76 Vitest + 5 Playwright tests
+- **Next up:** Day 10, part 1c: "Frequency" tab in the form, map/legend feedback, e2e
 - **Repository:** https://github.com/soniabecz/whatif-mobility (private, branch `main`)
 
 ## Timeline
@@ -147,6 +147,8 @@ so the project is usable even if a later day is cut short.
 | Transfer penalty default 5 → 2 min once waiting is modelled | 5 min stood in for waiting; keeping it would count waiting twice |
 | No migrations: outdated tables are dropped and re-seeded | The database only holds generated sample data (until Day 13) |
 | One route per boarding, even where routes share a street | Simple and deterministic; combined frequency documented as a limitation |
+| Frequency change = new headway (absolute), never "+N buses" | One unambiguous number; the AI converts relative requests, as for travel times |
+| Frontend `ScenarioChange` derived from the generated `Scenario` type | A new backend change type shows up in TypeScript (and its exhaustive switches) automatically |
 | Shared link: readable `?s=` text, not base64 JSON; `:oneway` instead of `>` | Visible and hand-editable; browsers percent-encode `>` in URLs |
 | Shared links are all or nothing, never auto-run | No silently incomplete scenarios; same "review, then run" step as the AI |
 | Address bar synced on every list edit via `replaceState` | Always shareable, survives reload, no back-button spam |
@@ -433,7 +435,12 @@ transfer penalty at 0) and checks equivalence before changing defaults.
       (a bus every 10 min)"; results note describes the model; legend shows headways
 - [x] Tests: 17 new backend (152 total), agreement test also runs with waiting; 1 Vitest
 - [x] Part 1a commit (approved by the user; no separate browser check reported)
-- [ ] Part 1b: new scenario type "change frequency" (schema, engine, AI prompt, tests)
+- [x] Part 1b: `change_frequency { route_id, headway_min 1–120 }`: schema, engine
+      (`set_headway` updates the route's board edges in the scenario graph), unknown
+      route → "Change N (change_frequency): unknown route", AI schema + prompt (routes
+      with headways; "twice as often" / "12 buses an hour" → absolute headway);
+      frontend keeps working: union derived from the generated `Scenario`, change text,
+      icon, share-link code `freq:R3:7.5`; 16 backend tests (168), 3 Vitest (76)
 - [ ] Part 1c: frontend for it (form tab, share link `freq:R1:5`, e2e), commit
 
 **2. Passenger demand weighting** (M)
@@ -563,3 +570,4 @@ All former "maybes" are now scheduled as Days 8–14. New ideas go here.
 | 2026-11-12 | 9   | Shareable link (`?s=`, readable, all-or-nothing, synced URL, Copy link); 65 Vitest, 4 e2e; browser-checked |
 | 2026-11-12 | 9   | CSV export of changed journeys (backend values, table order); 73 Vitest, 5 e2e; Day 9 done |
 | 2026-11-12 | 10  | Waiting = half the headway at every boarding, penalty 5 → 2; waiting-off equivalence 0 diffs (3,374 results); 152 tests |
+| 2026-11-12 | 10  | Scenario type `change_frequency` (engine, validation, AI prompt, share link); 168 backend, 76 Vitest |

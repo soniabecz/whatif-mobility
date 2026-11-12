@@ -20,7 +20,7 @@ import networkx as nx
 from pydantic import ValidationError
 
 from app.schemas.ai import AIInterpretation, InterpretResponse, strict_json_schema
-from app.schemas.scenario import MAX_CHANGES, Scenario
+from app.schemas.scenario import MAX_CHANGES, MAX_HEADWAY_MIN, MIN_HEADWAY_MIN, Scenario
 from app.services.simulation_service import ScenarioError, apply_scenario
 
 logger = logging.getLogger(__name__)
@@ -121,6 +121,15 @@ def describe_network(graph: nx.DiGraph) -> str:
     for stop_id in sorted(graph.nodes):
         lines.append(f"- {stop_id}: {graph.nodes[stop_id]['name']}")
 
+    headways: dict[str, float] = graph.graph.get("headways", {})
+    names: dict[str, str] = graph.graph.get("route_names", {})
+    if headways:
+        lines.append("")
+        lines.append("ROUTES (id: name, current headway = minutes between buses):")
+        for route_id in sorted(headways):
+            name = names.get(route_id, route_id)
+            lines.append(f"- {route_id}: {name}, a bus every {headways[route_id]:g} min")
+
     lines.append("")
     lines.append("LINKS between directly connected stops (current fastest travel time):")
     for a, b in sorted({tuple(sorted(edge)) for edge in graph.edges}):
@@ -144,11 +153,13 @@ def build_system_prompt(graph: nx.DiGraph) -> str:
 network into a structured scenario. You only translate; you never estimate or \
 describe the impact of the changes (a separate simulation computes all results).
 
-The three possible change types:
+The four possible change types:
 - close_stop: a stop is closed (buses drive through without stopping). Needs stop_id.
 - remove_connection: the link between two DIRECTLY connected stops disappears.
 - change_travel_time: a link between two DIRECTLY connected stops gets a new \
 travel time in minutes (travel_time_min, greater than 0, at most 600).
+- change_frequency: a route runs more or less often. Needs route_id and \
+headway_min = minutes between two buses ({MIN_HEADWAY_MIN} to {MAX_HEADWAY_MIN}).
 
 Rules:
 - Use only stop ids from the list below. Match names flexibly ("the airport" = AIR).
@@ -158,9 +169,13 @@ A request about stops that are not directly linked is unclear.
 - For relative requests ("twice as slow", "5 minutes longer", "halve the time") \
 compute the new absolute time from the current time listed below, rounded to \
 one decimal.
+- Frequencies are given as a headway: "every 5 minutes" = 5; "12 buses an hour" \
+= 60 / 12 = 5; "twice as often" = half the current headway listed below; \
+"half as often" = double it. Round to one decimal. Routes are named by id \
+("R3"), name ("the ring") or line number ("line 3").
 - At most {MAX_CHANGES} changes.
 - If the request is ambiguous, refers to something not in the network, asks \
-for something other than these three change types (for example new routes or \
+for something other than these four change types (for example new routes or \
 new stops), or is not about changing the network: status "unclear", no \
 changes, and a short message that explains why or asks a clarifying question.
 - Otherwise status "ok" and a one-sentence message summarising what you \

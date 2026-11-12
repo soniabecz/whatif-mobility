@@ -1,6 +1,6 @@
 // Shareable links: the change list encoded in the URL's `s` query parameter.
 //
-//   ?s=close:CEN~remove:MKT-UNI~time:RIV-EST:9~remove:LIB-SCH:oneway
+//   ?s=close:CEN~remove:MKT-UNI~time:RIV-EST:9~remove:LIB-SCH:oneway~freq:R3:7.5
 //
 // Changes are separated by "~", fields by ":", the two stops of a link by "-".
 // Every character used is one that browsers never percent-encode, so the link
@@ -10,7 +10,13 @@
 // simulation recomputes them deterministically.
 
 import type { Network } from '../types/network'
-import { MAX_CHANGES, MAX_TRAVEL_TIME_MIN, type ScenarioChange } from '../types/scenario'
+import {
+  MAX_CHANGES,
+  MAX_HEADWAY_MIN,
+  MAX_TRAVEL_TIME_MIN,
+  MIN_HEADWAY_MIN,
+  type ScenarioChange,
+} from '../types/scenario'
 
 export const SHARE_PARAM = 's'
 const CHANGE_SEP = '~'
@@ -48,6 +54,8 @@ function encodeChange(change: ScenarioChange): string {
       const oneWay = change.both_directions ? '' : `${FIELD_SEP}${ONE_WAY}`
       return `time${FIELD_SEP}${link}${FIELD_SEP}${change.travel_time_min}${oneWay}`
     }
+    case 'change_frequency':
+      return `freq${FIELD_SEP}${encodeId(change.route_id)}${FIELD_SEP}${change.headway_min}`
   }
 }
 
@@ -107,6 +115,12 @@ function parseChange(text: string): Parsed {
       both_directions: !oneWay,
     }
   }
+  if (kind === 'freq') {
+    const routeId = fields.length === 2 && !oneWay ? decodeId(fields[0]) : null
+    if (!routeId) return `"${text}" is not a valid frequency change`
+    if (!/^\d+(\.\d+)?$/.test(fields[1])) return `"${fields[1]}" is not a number of minutes`
+    return { type: 'change_frequency', route_id: routeId, headway_min: Number(fields[1]) }
+  }
   if (kind === 'time') {
     if (fields.length !== 2) return `"${text}" is not a valid travel time change`
     const link = parseLink(fields[0])
@@ -126,6 +140,15 @@ function parseChange(text: string): Parsed {
 
 /** Same rules as the form: real stops, real links, valid times. */
 function checkAgainstNetwork(change: ScenarioChange, network: Network): string | null {
+  if (change.type === 'change_frequency') {
+    if (!network.routes.some((route) => route.id === change.route_id)) {
+      return `unknown route "${change.route_id}"`
+    }
+    if (change.headway_min < MIN_HEADWAY_MIN || change.headway_min > MAX_HEADWAY_MIN) {
+      return `a bus must run every ${MIN_HEADWAY_MIN} to ${MAX_HEADWAY_MIN} minutes`
+    }
+    return null
+  }
   const stopIds = new Set(network.stops.map((s) => s.id))
   const unknown = (id: string) => (stopIds.has(id) ? null : `unknown stop "${id}"`)
   if (change.type === 'close_stop') return unknown(change.stop_id)

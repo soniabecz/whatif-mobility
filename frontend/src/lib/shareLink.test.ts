@@ -23,12 +23,13 @@ const all: ScenarioChange[] = [
     travel_time_min: 7.5,
     both_directions: false,
   },
+  { type: 'change_frequency', route_id: 'R2', headway_min: 7.5 },
 ]
 
 describe('encodeChanges', () => {
   it('writes a short, readable text', () => {
     expect(encodeChanges(all)).toBe(
-      'close:CAS~remove:ALP-BRK~remove:BRK-DUN:oneway~time:BRK-CAS:9~time:DUN-BRK:7.5:oneway',
+      'close:CAS~remove:ALP-BRK~remove:BRK-DUN:oneway~time:BRK-CAS:9~time:DUN-BRK:7.5:oneway~freq:R2:7.5',
     )
   })
 
@@ -114,6 +115,16 @@ describe('decodeChanges rejects', () => {
   it('unknown stops and links that do not exist', () => {
     rejects('close:XYZ', 'unknown stop "XYZ"')
     rejects('remove:ALP-CAS', 'no direct link from ALP to CAS')
+  })
+
+  it('frequency changes for unknown routes or out of range', () => {
+    rejects('freq:R9:5', 'unknown route "R9"')
+    rejects('freq:R1:0.5', 'every 1 to 120 minutes')
+    rejects('freq:R1:121', 'every 1 to 120 minutes')
+    rejects('freq:R1', 'not a valid frequency change')
+    rejects('freq:R1:5:oneway', 'not a valid frequency change')
+    rejects('freq:R1:fast', 'is not a number of minutes')
+    expect(decodeChanges('freq:R1:120', network).ok).toBe(true)
   })
 
   it('more than 20 changes', () => {

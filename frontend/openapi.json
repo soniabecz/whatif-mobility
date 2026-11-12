@@ -223,6 +223,36 @@
   },
   "components": {
     "schemas": {
+      "ChangeFrequency": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "change_frequency",
+            "title": "Type"
+          },
+          "route_id": {
+            "type": "string",
+            "maxLength": 10,
+            "minLength": 1,
+            "title": "Route Id"
+          },
+          "headway_min": {
+            "type": "number",
+            "maximum": 120.0,
+            "minimum": 1.0,
+            "title": "Headway Min"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "route_id",
+          "headway_min"
+        ],
+        "title": "ChangeFrequency",
+        "description": "The route runs every ``headway_min`` minutes (affects waiting time only)."
+      },
       "ChangeTravelTime": {
         "properties": {
           "type": {
@@ -385,11 +415,15 @@
                 },
                 {
                   "$ref": "#/components/schemas/ChangeTravelTime"
+                },
+                {
+                  "$ref": "#/components/schemas/ChangeFrequency"
                 }
               ],
               "discriminator": {
                 "propertyName": "type",
                 "mapping": {
+                  "change_frequency": "#/components/schemas/ChangeFrequency",
                   "change_travel_time": "#/components/schemas/ChangeTravelTime",
                   "close_stop": "#/components/schemas/CloseStop",
                   "remove_connection": "#/components/schemas/RemoveConnection"
@@ -653,11 +687,15 @@
                 },
                 {
                   "$ref": "#/components/schemas/ChangeTravelTime"
+                },
+                {
+                  "$ref": "#/components/schemas/ChangeFrequency"
                 }
               ],
               "discriminator": {
                 "propertyName": "type",
                 "mapping": {
+                  "change_frequency": "#/components/schemas/ChangeFrequency",
                   "change_travel_time": "#/components/schemas/ChangeTravelTime",
                   "close_stop": "#/components/schemas/CloseStop",
                   "remove_connection": "#/components/schemas/RemoveConnection"
@@ -786,11 +824,15 @@
                 },
                 {
                   "$ref": "#/components/schemas/ChangeTravelTime"
+                },
+                {
+                  "$ref": "#/components/schemas/ChangeFrequency"
                 }
               ],
               "discriminator": {
                 "propertyName": "type",
                 "mapping": {
+                  "change_frequency": "#/components/schemas/ChangeFrequency",
                   "change_travel_time": "#/components/schemas/ChangeTravelTime",
                   "close_stop": "#/components/schemas/CloseStop",
                   "remove_connection": "#/components/schemas/RemoveConnection"

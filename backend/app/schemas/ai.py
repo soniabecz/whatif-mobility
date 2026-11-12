@@ -58,9 +58,15 @@ class AIChangeTravelTime(_AIModel):
     both_directions: bool
 
 
+class AIChangeFrequency(_AIModel):
+    type: Literal["change_frequency"]
+    route_id: str
+    headway_min: float
+
+
 class AIInterpretation(_AIModel):
     status: Literal["ok", "unclear"]
-    changes: list[AICloseStop | AIRemoveConnection | AIChangeTravelTime]
+    changes: list[AICloseStop | AIRemoveConnection | AIChangeTravelTime | AIChangeFrequency]
     message: str
 
 

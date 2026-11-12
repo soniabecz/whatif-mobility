@@ -9,7 +9,10 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 StopId = Annotated[str, Field(min_length=1, max_length=10)]
+RouteId = Annotated[str, Field(min_length=1, max_length=10)]
 MAX_CHANGES = 20
+MIN_HEADWAY_MIN = 1
+MAX_HEADWAY_MIN = 120
 
 
 class _Change(BaseModel):
@@ -44,8 +47,17 @@ class ChangeTravelTime(_Change):
     both_directions: bool = True
 
 
+class ChangeFrequency(_Change):
+    """The route runs every ``headway_min`` minutes (affects waiting time only)."""
+
+    type: Literal["change_frequency"]
+    route_id: RouteId
+    headway_min: float = Field(ge=MIN_HEADWAY_MIN, le=MAX_HEADWAY_MIN, allow_inf_nan=False)
+
+
 ScenarioChange = Annotated[
-    CloseStop | RemoveConnection | ChangeTravelTime, Field(discriminator="type")
+    CloseStop | RemoveConnection | ChangeTravelTime | ChangeFrequency,
+    Field(discriminator="type"),
 ]
 
 
