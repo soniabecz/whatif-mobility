@@ -63,6 +63,8 @@ from app.services.walking import Walk, WalkingModel, best_walk_option, nearby_op
 # Two travel times closer than this are equal (guards against float noise).
 _EPSILON = 1e-9
 _MOST_AFFECTED_LIMIT = 5
+MAX_CHANGED_JOURNEYS = 1000  # returned with a result; the CSV has all of them
+_CHART_JOURNEYS = 10  # the results chart: largest changes still possible
 
 
 class ScenarioError(ValueError):
@@ -347,6 +349,7 @@ def simulate(
     transfer_penalty_min: float = 0.0,
     include_waiting: bool = False,
     walking: WalkingModel | None = None,
+    max_changed: int | None = MAX_CHANGED_JOURNEYS,
 ) -> SimulationResult:
     """Apply the scenario to a copy of the baseline and compare journeys.
 
@@ -355,7 +358,7 @@ def simulate(
     ``walking``: walk to/from closed stops (None = such journeys are excluded).
     """
     state = scenario_state(baseline, scenario, transfer_penalty_min, include_waiting, walking)
-    return simulate_state(baseline, scenario, state, transfer_penalty_min, include_waiting)
+    return simulate_state(baseline, scenario, state, transfer_penalty_min, include_waiting, max_changed)
 
 
 def simulate_state(
@@ -364,8 +367,12 @@ def simulate_state(
     state: ScenarioState,
     transfer_penalty_min: float,
     include_waiting: bool,
+    max_changed: int | None = MAX_CHANGED_JOURNEYS,
 ) -> SimulationResult:
-    """The simulation's figures for an already applied scenario."""
+    """The simulation's figures for an already applied scenario.
+
+    ``max_changed``: how many changed journeys to list (None = all); every
+    figure is computed from all of them."""
     closed, new_stop_ids = state.closed, state.new_stop_ids
     stop_ids = sorted(baseline.nodes)
     n = len(stop_ids)
@@ -447,7 +454,8 @@ def simulate_state(
     return SimulationResult(
         scenario=scenario,
         summary=summary,
-        changed_journeys=changed,
+        changed_journeys=_largest_changes(changed, max_changed),
+        changed_journeys_total=len(changed),
         stop_impacts=stop_impacts,
         most_affected_stop_ids=_most_affected(stop_impacts),
     )
@@ -532,6 +540,28 @@ def _journey_change(
         change_min=_round(time_after - time_before),
         status="slower" if time_after > time_before else "faster",
     )
+
+
+def table_order(journeys: Sequence[JourneyChange]) -> list[JourneyChange]:
+    """Impossible first, then the largest change; ties keep (origin, destination)
+    order. The same order as the results table (frontend compareJourneys)."""
+    ranked = sorted(
+        enumerate(journeys),
+        key=lambda item: (item[1].status != "impossible", -abs(item[1].change_min or 0.0), item[0]),
+    )
+    return [journey for _, journey in ranked]
+
+
+def _largest_changes(changed: list[JourneyChange], limit: int | None) -> list[JourneyChange]:
+    """The first ``limit`` in table order plus the largest still possible ones
+    (the chart's), in (origin, destination) order. All of them when they fit."""
+    if limit is None or len(changed) <= limit:
+        return changed
+    keep = {id(j) for j in table_order(changed)[:limit]}
+    possible = [j for j in changed if j.change_min is not None]
+    possible.sort(key=lambda j: -abs(j.change_min or 0.0))  # stable: ties keep order
+    keep |= {id(j) for j in possible[:_CHART_JOURNEYS]}
+    return [j for j in changed if id(j) in keep]
 
 
 def _largest_increase(changed: Sequence[JourneyChange]) -> JourneyChange | None:

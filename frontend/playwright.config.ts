@@ -12,6 +12,8 @@ const python = process.env.E2E_PYTHON ?? '.venv/bin/python'
 
 export default defineConfig({
   testDir: './e2e',
+  // Runs after the servers are up: refuses a reused backend that serves another network.
+  globalSetup: './e2e/global-setup.ts',
   timeout: 30_000,
   forbidOnly: isCI,
   retries: isCI ? 1 : 0,

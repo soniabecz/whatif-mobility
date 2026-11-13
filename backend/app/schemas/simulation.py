@@ -82,6 +82,11 @@ class StopImpact(BaseModel):
 class SimulationResult(BaseModel):
     scenario: Scenario
     summary: SimulationSummary
+    # The 1,000 largest changes (impossible first, then the largest change; the
+    # results table's order) plus the 10 largest still possible (for the chart),
+    # listed by (origin, destination). A city has tens of thousands: the full
+    # list is the CSV (POST /api/simulations/csv). All figures use every journey.
     changed_journeys: list[JourneyChange]
+    changed_journeys_total: int
     stop_impacts: list[StopImpact]  # every stop, sorted by id
     most_affected_stop_ids: list[str]  # up to 5, most affected first

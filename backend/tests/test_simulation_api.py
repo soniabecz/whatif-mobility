@@ -12,8 +12,10 @@ def test_simulation_returns_metrics(client: TestClient) -> None:
     assert response.status_code == 200
     body = response.json()
     assert set(body) == {
-        "scenario", "summary", "changed_journeys", "stop_impacts", "most_affected_stop_ids",
+        "scenario", "summary", "changed_journeys", "changed_journeys_total", "stop_impacts",
+        "most_affected_stop_ids",
     }
+    assert body["changed_journeys_total"] == len(body["changed_journeys"])  # the sample fits
     assert body["summary"]["total_journeys"] == 240
     assert body["summary"]["to_or_from_closed_stop"] == 30
     assert body["scenario"]["changes"][0] == {"type": "close_stop", "stop_id": "CEN"}

@@ -19,10 +19,12 @@ import {
   formatShare,
   impactLevel,
 } from '../lib/impact'
-import { changedJourneysCsv, csvFileName, downloadCsv } from '../lib/exportCsv'
+import { describeApiError } from '../api/errors'
+import { fetchChangedJourneysCsv } from '../api/simulations'
+import { csvFileName, downloadCsv } from '../lib/exportCsv'
 import { stopLabel } from '../lib/network'
 import type { NetworkSource, Stop } from '../types/network'
-import type { JourneyChange, JourneyStatus, SimulationResult } from '../types/simulation'
+import { MAX_LISTED_JOURNEYS, type JourneyChange, type JourneyStatus, type SimulationResult } from '../types/simulation'
 import { AiSummary } from './AiSummary'
 import { IMPACT_ICONS } from './impactIcons'
 import type { JourneySelection } from './JourneyExplorer'
@@ -107,10 +109,28 @@ export function ResultsPanel({
   const weighted = summary.demand_weighted
   const name = (id: string) => stopLabel(stops, id)
 
-  const sortedJourneys = useMemo(
-    () => [...result.changed_journeys].sort(compareJourneys),
-    [result],
-  )
+  const total = result.changed_journeys_total
+  const capped = total > result.changed_journeys.length
+  // A capped list holds the largest changes plus the chart's: the table shows
+  // the first ones in its own order, which are exactly the overall largest.
+  const sortedJourneys = useMemo(() => {
+    const sorted = [...result.changed_journeys].sort(compareJourneys)
+    return capped ? sorted.slice(0, MAX_LISTED_JOURNEYS) : sorted
+  }, [result, capped])
+  const [csvState, setCsvState] = useState<{ kind: 'idle' | 'loading' } | { kind: 'error'; message: string }>({
+    kind: 'idle',
+  })
+
+  async function downloadAll() {
+    setCsvState({ kind: 'loading' })
+    try {
+      const csv = await fetchChangedJourneysCsv(result.scenario)
+      downloadCsv(csvFileName(result.scenario.changes), csv)
+      setCsvState({ kind: 'idle' })
+    } catch (error: unknown) {
+      setCsvState({ kind: 'error', message: `CSV download failed: ${describeApiError(error)}` })
+    }
+  }
   const visibleJourneys = showAll ? sortedJourneys : sortedJourneys.slice(0, TABLE_PREVIEW_ROWS)
   const impacts = new Map(result.stop_impacts.map((i) => [i.stop_id, i]))
 
@@ -129,18 +149,10 @@ export function ResultsPanel({
                 variant="ghost"
                 size="sm"
                 icon={Download}
-                onClick={() =>
-                  downloadCsv(
-                    csvFileName(result.scenario.changes),
-                    changedJourneysCsv(result.changed_journeys, stops),
-                  )
-                }
-                disabled={result.changed_journeys.length === 0}
-                title={
-                  result.changed_journeys.length === 0
-                    ? 'No journey changed'
-                    : `Download all ${result.changed_journeys.length} changed journeys as CSV`
-                }
+                onClick={() => void downloadAll()}
+                loading={csvState.kind === 'loading'}
+                disabled={total === 0}
+                title={total === 0 ? 'No journey changed' : `Download all ${total} changed journeys as CSV`}
               >
                 CSV
               </Button>
@@ -163,6 +175,11 @@ export function ResultsPanel({
         </span>
       </SectionTitle>
 
+      {csvState.kind === 'error' && (
+        <p role="alert" className="rounded-xl bg-red-50 px-3 py-2 text-xs text-red-800">
+          {csvState.message}
+        </p>
+      )}
       <SegmentedControl label="Results view" options={TABS} value={tab} onChange={onTabChange} />
 
       {tab === 'journey' && journeyExplorer}
@@ -294,9 +311,14 @@ export function ResultsPanel({
 
           <div>
             <h3 className="text-xs font-semibold text-ink-muted">
-              Changed journeys ({sortedJourneys.length})
+              Changed journeys ({total})
               <span className="ml-1 font-normal text-ink-subtle">· click one to explore</span>
             </h3>
+            {capped && (
+              <p className="mt-0.5 text-[11px] text-ink-subtle">
+                Listing the {sortedJourneys.length} largest changes; the CSV has all {total}.
+              </p>
+            )}
             {sortedJourneys.length === 0 ? (
               <p className="mt-1 text-sm text-ink-subtle">No journey changed.</p>
             ) : (
@@ -363,7 +385,7 @@ export function ResultsPanel({
                     className="mt-2"
                     onClick={() => setShowAll(!showAll)}
                   >
-                    {showAll ? 'Show fewer' : `Show all ${sortedJourneys.length}`}
+                    {showAll ? 'Show fewer' : `Show ${capped ? 'the' : 'all'} ${sortedJourneys.length}`}
                   </Button>
                 )}
               </>

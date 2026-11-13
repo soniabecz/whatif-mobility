@@ -11,3 +11,7 @@ export type JourneyStatus = JourneyChange['status']
 export type SimulationSummary = Schemas['SimulationSummary']
 export type StopImpact = Schemas['StopImpact']
 export type SimulationResult = Schemas['SimulationResult']
+
+/** A result lists at most this many changed journeys (backend MAX_CHANGED_JOURNEYS),
+ *  plus the chart's; `changed_journeys_total` counts all, and the CSV has all. */
+export const MAX_LISTED_JOURNEYS = 1000

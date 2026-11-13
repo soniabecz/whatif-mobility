@@ -6,9 +6,9 @@
 
 ## Current status
 
-- **Last completed:** Day 14.2 step B1 (fast engine: SciPy, vectorised, cached;
-  0 differences; full Gdańsk ~1 s per simulation); 353 backend tests
-- **Next up:** B2 (response size), B3 (AI), B4 (map); full network in backend/gdansk-all.db
+- **Last completed:** Day 14.2 step B2 (results list the 1,000 largest changes; CSV from
+  the backend); 358 backend + 126 Vitest tests
+- **Next up:** B3 (AI on big networks), B4 (map); full network in backend/gdansk-all.db
   (`WHATIF_DATABASE=gdansk-all.db python -m app.import_gtfs --modes all`)
 - **Real city:** `WHATIF_DATABASE=gdansk.db python -m app.import_gtfs`, then
   `WHATIF_DATABASE=gdansk.db ./dev.sh` (see README "Real city data")
@@ -713,8 +713,16 @@ transfer penalty at 0) and checks equivalence before changing defaults.
       simulations (220,717 changed journeys), 36 comparisons: all 0 differences.
       Full network: ~1.0 s per simulation (was 15–18 s), compare 2.2 s (was 56 s).
       7 tests (353). Committed (approved by the user)
-- [ ] B2 response size: cap `changed_journeys` at 1,000 (impossible first, then largest
-      change) + `changed_journeys_total`; CSV from the backend; sample unchanged
+- [x] B2 response size: `changed_journeys` = the 1,000 largest in table order (impossible
+      first, then largest change) + the chart's 10 largest still possible, listed by
+      (origin, destination); `changed_journeys_total`; all figures still use every journey.
+      CSV written by the backend (`POST /api/simulations/csv`, every journey, same format;
+      the browser adds the BOM and file name). Table shows the first 1,000 with "the CSV
+      has all N". Full network: response 5.1 MB → 205 kB (1.1 s); CSV 39,534 rows in 1.5 s.
+      5 backend tests (358; the 5 CSV-writer Vitest tests moved there, 126 Vitest)
+- [x] e2e guard (`e2e/global-setup.ts`): locally Playwright reuses a running app; if it
+      serves another network (WHATIF_DATABASE=gdansk.db) the run stops with one clear message
+- [x] Commit B2 (approved by the user; e2e not run locally: the dev server served Gdańsk)
 - [ ] B3 AI on big networks: pre-select stations (diacritic-insensitive, word stems for
       Polish endings) and lines named in the request or the change list; short line list
 - [ ] B4 map and UI at scale (measure; canvas only if needed; legend scroll); live check
@@ -725,6 +733,11 @@ part 2 can stop after a small extract of the city works.
 ---
 
 ## Open issues
+
+- [ ] Walking only to/from CLOSED stops: on a real city two open stops 300 m apart can
+      need a 36-min bus detour, so closing one makes nearby journeys "faster" (walk 3 min).
+      Consider allowing short walks between open stops in the baseline too (model change:
+      needs a design and an equivalence decision)
 
 - [ ] Starlette deprecation warning in tests: `httpx` → `httpx2`
       (verify `httpx2` is the official successor before switching)
@@ -786,3 +799,4 @@ All former "maybes" are now scheduled as Days 8–14. New ideas go here.
 | 2026-11-13 | 13  | Save / load / delete UI and comparison card (A vs B, better highlighted, largest differences); 128 Vitest, 20 e2e; screenshots checked |
 | 2026-11-13 | 14  | GTFS import: Gdańsk trams (122 stations, 10 lines; CC BY + terms; attribution shown); compact AI prompt; 346 backend, 131 Vitest; live app + AI checked |
 | 2026-11-13 | 14  | Fast engine (SciPy all-pairs, vectorised, cached baseline): full Gdańsk 15–18 s → ~1 s, compare 56 s → 2.2 s; 0 differences (598 simulations); 353 backend |
+| 2026-11-13 | 14  | Results list the 1,000 largest changes (5.1 MB → 205 kB), CSV from the backend; e2e guard against a non-sample backend; 358 backend, 126 Vitest |

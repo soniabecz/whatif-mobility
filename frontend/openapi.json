@@ -137,6 +137,44 @@
         }
       }
     },
+    "/api/simulations/csv": {
+      "post": {
+        "tags": [
+          "simulations"
+        ],
+        "summary": "Changed Journeys Csv",
+        "description": "Every changed journey as CSV (a result lists only the largest changes).",
+        "operationId": "changed_journeys_csv_api_simulations_csv_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Scenario"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Every changed journey",
+            "content": {
+              "text/csv": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/ai/interpret": {
       "post": {
         "tags": [
@@ -2067,6 +2105,10 @@
             "type": "array",
             "title": "Changed Journeys"
           },
+          "changed_journeys_total": {
+            "type": "integer",
+            "title": "Changed Journeys Total"
+          },
           "stop_impacts": {
             "items": {
               "$ref": "#/components/schemas/StopImpact"
@@ -2087,6 +2129,7 @@
           "scenario",
           "summary",
           "changed_journeys",
+          "changed_journeys_total",
           "stop_impacts",
           "most_affected_stop_ids"
         ],

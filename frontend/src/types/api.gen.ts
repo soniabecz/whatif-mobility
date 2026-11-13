@@ -95,6 +95,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/simulations/csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Changed Journeys Csv
+         * @description Every changed journey as CSV (a result lists only the largest changes).
+         */
+        post: operations["changed_journeys_csv_api_simulations_csv_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/ai/interpret": {
         parameters: {
             query?: never;
@@ -737,6 +757,8 @@ export interface components {
             summary: components["schemas"]["SimulationSummary"];
             /** Changed Journeys */
             changed_journeys: components["schemas"]["JourneyChange"][];
+            /** Changed Journeys Total */
+            changed_journeys_total: number;
             /** Stop Impacts */
             stop_impacts: components["schemas"]["StopImpact"][];
             /** Most Affected Stop Ids */
@@ -956,6 +978,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SimulationResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    changed_journeys_csv_api_simulations_csv_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Scenario"];
+            };
+        };
+        responses: {
+            /** @description Every changed journey */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": unknown;
                 };
             };
             /** @description Validation Error */
