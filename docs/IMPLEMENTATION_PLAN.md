@@ -6,10 +6,10 @@
 
 ## Current status
 
-- **Last completed:** Day 13, part 13a (saved scenarios + comparison API, committed);
-  327 backend tests
-- **Next up:** Day 13, part 13b (UI: save, saved list, comparison card; see the
-  checklist under Day 13)
+- **Last completed:** Day 13 done (save, load, compare scenarios);
+  327 backend + 128 Vitest + 20 Playwright tests
+- **Next up:** Day 14 (deployment and real data): decisions needed first (hosting
+  target; GTFS city and licence)
 - **How to start:** `./dev.sh` (app on http://localhost:5173); after pulling, it
   rebuilds outdated database tables automatically
 - **Working pattern used so far:** each part = design proposal → approval → build
@@ -19,7 +19,7 @@
 
 ## Timeline
 
-Total: **12 working days done** (MVP in Days 1–5, Days 6–10 added afterwards);
+Total: **13 working days done** (MVP in Days 1–5, Days 6–10 added afterwards);
 Days 8–14 hold all later extensions (≈ 9–10 sessions; Days 10, 11 and 14 run long). A "day" is one
 working session. Every day must end with something working and committed,
 so the project is usable even if a later day is cut short.
@@ -38,7 +38,7 @@ so the project is usable even if a later day is cut short.
 | 10  | More realistic simulation | ✅ Done |
 | 11  | New scenario types        | ✅ Done |
 | 12  | AI features               | ✅ Done |
-| 13  | Saving and comparing      | 🟡 In progress |
+| 13  | Saving and comparing      | ✅ Done |
 | 14  | Deployment and real data  | ⬜ Todo |
 
 ---
@@ -622,7 +622,7 @@ transfer penalty at 0) and checks equivalence before changing defaults.
       error in a burst of calls (not reproduced; the UI offers "Try again")
 - [x] Commit (approved by the user)
 
-## Day 13 – Saving and comparing
+## Day 13 – Saving and comparing ✅
 
 **Outcome:** scenarios can be saved and compared side by side.
 **Size:** ≈ 1 session.
@@ -642,11 +642,19 @@ transfer penalty at 0) and checks equivalence before changing defaults.
       and stops (instead of dropping) if `saved_scenarios` is outdated
 - [x] Tests: 20 backend (327) incl. the network changing after saving, an unreadable
       stored list, comparison times = each scenario's own simulation, seed keeps saves
-- [ ] Part 13b UI: Save next to Copy link, "Saved scenarios" (load, delete, A/B pick,
-      current list as a side), comparison card (Baseline | A | B, better highlighted,
-      largest differences); Vitest + e2e
+- [x] Part 13b UI: "Save" next to Copy link (inline name; a taken name offers
+      Overwrite), "Saved scenarios" section (load → notice, two-step delete, rows that no
+      longer fit show why and cannot be loaded), A/B pickers with "Current list",
+      comparison card in the results card's place (phone: top of the sheet, scrolled
+      into view). Columns A | B with each side's own "was" average instead of a shared
+      Baseline column (each side's average covers different journeys); better side
+      highlighted (`lib/comparison.ts`); journey-by-journey counts; largest differences
+      (A − B, positive = longer in A). A comparison using the current list closes when
+      the list is edited
+- [x] Tests: 5 Vitest (128), e2e `saved-scenarios.spec.ts` (2 tests, 20 e2e; they delete
+      what they save); screenshots checked (desktop, card, phone)
 - [x] Commit 13a (approved by the user)
-- [ ] Commit 13b
+- [x] Commit 13b (approved by the user)
 
 ## Day 14 – Deployment and real data
 
@@ -729,3 +737,4 @@ All former "maybes" are now scheduled as Days 8–14. New ideas go here.
 | 2026-11-13 | 12  | AI edits the current change list (remove / replace / add operations, validated full list, Undo, stale guard); 288 backend, 123 Vitest, 16 e2e; live AI checked |
 | 2026-11-13 | 12  | AI summary of results: placeholders filled by the backend, digits/number words rejected, one retry; 307 backend, 18 e2e; live AI checked (5 scenarios) |
 | 2026-11-13 | 13  | Saved scenarios (changes only, checked on read) + comparison API; `scenario_state` extracted (0 diffs); seed keeps saved data; 327 backend |
+| 2026-11-13 | 13  | Save / load / delete UI and comparison card (A vs B, better highlighted, largest differences); 128 Vitest, 20 e2e; screenshots checked |

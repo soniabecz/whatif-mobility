@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Check, Info, Link2, ListChecks, Trash2, TriangleAlert, X } from 'lucide-react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { Check, Info, Link2, ListChecks, Save, Trash2, TriangleAlert, X } from 'lucide-react'
 
 import { describeChange, stopsById } from '../lib/network'
 import { sharePath } from '../lib/shareLink'
@@ -7,8 +7,10 @@ import type { Network } from '../types/network'
 import { MAX_CHANGES, type ScenarioChange } from '../types/scenario'
 import { CHANGE_ICONS } from './impactIcons'
 import { Badge } from './ui/Badge'
+import { cx } from './ui/cx'
 import { Button } from './ui/Button'
 import { IconButton } from './ui/IconButton'
+import { inputBaseClass } from './ui/Field'
 import { SectionTitle } from './ui/SectionTitle'
 
 /** Message about the list itself, e.g. the result of opening a shared link. */
@@ -24,6 +26,10 @@ interface ChangeListProps {
   disabled: boolean
   notice: ListNotice | null
   onDismissNotice: () => void
+  /** Names already saved: saving under one of them asks to overwrite it. */
+  savedNames: string[]
+  /** Save (or overwrite) the list under a name; resolves to an error message or null. */
+  onSave: (name: string, overwrite: boolean) => Promise<string | null>
 }
 
 type CopyState = 'idle' | 'copied' | 'failed'
@@ -35,9 +41,26 @@ export function ChangeList({
   disabled,
   notice,
   onDismissNotice,
+  savedNames,
+  onSave,
 }: ChangeListProps) {
   const stops = useMemo(() => stopsById(network), [network])
   const [copyState, setCopyState] = useState<CopyState>('idle')
+  // Inline "Save" field: null = closed.
+  const [saveName, setSaveName] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const nameTaken = saveName !== null && savedNames.includes(saveName.trim())
+
+  async function submitSave(event: FormEvent) {
+    event.preventDefault()
+    if (saveName === null || !saveName.trim()) return
+    setSaving(true)
+    const error = await onSave(saveName.trim(), nameTaken)
+    setSaving(false)
+    setSaveError(error)
+    if (error === null) setSaveName(null)
+  }
 
   // Reset the "Copied" / "Copy failed" label after a moment.
   useEffect(() => {
@@ -85,6 +108,21 @@ export function ChangeList({
               <Button
                 variant="ghost"
                 size="sm"
+                icon={Save}
+                onClick={() => {
+                  setSaveName(saveName === null ? '' : null)
+                  setSaveError(null)
+                }}
+                aria-expanded={saveName !== null}
+                disabled={disabled}
+              >
+                Save
+              </Button>
+            )}
+            {changes.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
                 icon={Trash2}
                 onClick={() => onChangesChange([])}
                 disabled={disabled}
@@ -97,6 +135,35 @@ export function ChangeList({
       >
         Scenario
       </SectionTitle>
+
+      {saveName !== null && changes.length > 0 && (
+        <form onSubmit={submitSave} className="space-y-1.5 rounded-xl bg-surface-muted p-2.5">
+          <div className="flex gap-2">
+            <label className="min-w-0 flex-1">
+              <span className="sr-only">Name of the saved scenario</span>
+              <input
+                className={cx(inputBaseClass, 'h-9 w-full')}
+                maxLength={100}
+                placeholder="Name, e.g. Central closed"
+                value={saveName}
+                onChange={(e) => {
+                  setSaveName(e.target.value)
+                  setSaveError(null)
+                }}
+                autoFocus
+                disabled={saving}
+              />
+            </label>
+            <Button type="submit" size="sm" variant="primary" className="h-9" loading={saving} disabled={!saveName.trim()}>
+              {nameTaken ? 'Overwrite' : 'Save'}
+            </Button>
+          </div>
+          {nameTaken && !saveError && (
+            <p className="text-[11px] text-amber-800">A scenario with this name is saved already: saving replaces it.</p>
+          )}
+          {saveError && <p role="alert" className="text-[11px] text-red-700">{saveError}</p>}
+        </form>
+      )}
 
       {notice && (
         <div

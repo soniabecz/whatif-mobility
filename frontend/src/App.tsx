@@ -4,9 +4,18 @@ import { BusFront, ChevronDown, ChevronUp, Loader2, RotateCcw, TriangleAlert } f
 import { describeApiError } from './api/errors'
 import { compareJourney } from './api/journeys'
 import { fetchNetwork } from './api/network'
+import {
+  compareScenarios,
+  deleteSaved,
+  getSaved,
+  listSaved,
+  overwriteScenario,
+  saveScenario,
+} from './api/scenarios'
 import { runSimulation } from './api/simulations'
 import { AiScenarioInput } from './components/AiScenarioInput'
 import { ChangeList, type ListNotice } from './components/ChangeList'
+import { ComparisonPanel } from './components/ComparisonPanel'
 import {
   JourneyExplorer,
   type JourneySelection,
@@ -16,6 +25,11 @@ import { MapLegend } from './components/MapLegend'
 import { NetworkMap, type MapPadding } from './components/NetworkMap'
 import { ResultsPanel, type ResultsTab } from './components/ResultsPanel'
 import { RunBar } from './components/RunBar'
+import {
+  SavedScenarios,
+  type CompareChoice,
+  type SavedListState,
+} from './components/SavedScenarios'
 import { ScenarioForm } from './components/ScenarioForm'
 import { Badge } from './components/ui/Badge'
 import { Button } from './components/ui/Button'
@@ -33,6 +47,7 @@ import {
 import { applyAddedChanges, stopsById } from './lib/network'
 import { decodeChanges, readShareParam, sharePath } from './lib/shareLink'
 import type { Network } from './types/network'
+import type { ComparisonResult, SavedScenarioInfo } from './types/saved'
 import type { ScenarioChange } from './types/scenario'
 import type { SimulationResult } from './types/simulation'
 
@@ -41,6 +56,13 @@ type NetworkState =
   | { kind: 'loading' }
   | { kind: 'error'; message: string }
   | { kind: 'ready'; network: Network }
+
+type ComparisonState =
+  | { kind: 'idle' }
+  | { kind: 'running' }
+  | { kind: 'error'; message: string }
+  /** `usesCurrent`: one side is the list being built, so editing it ends the comparison. */
+  | { kind: 'success'; result: ComparisonResult; labelA: string; labelB: string; usesCurrent: boolean }
 
 type SimulationState =
   | { kind: 'idle' }
@@ -95,6 +117,32 @@ function App() {
   // Incremented on every run and every edit, so a slow response for an
   // outdated scenario is ignored instead of overwriting newer state.
   const requestId = useRef(0)
+  const [saved, setSaved] = useState<SavedListState>({ kind: 'loading' })
+  const [comparison, setComparison] = useState<ComparisonState>({ kind: 'idle' })
+  const comparisonId = useRef(0)
+
+  const savedListState = (scenarios: Promise<SavedScenarioInfo[]>): Promise<SavedListState> =>
+    scenarios.then(
+      (list): SavedListState => ({ kind: 'ready', scenarios: list }),
+      (error: unknown): SavedListState => ({
+        kind: 'error',
+        message: `Saved scenarios could not be loaded: ${describeApiError(error)}`,
+      }),
+    )
+
+  async function refreshSaved() {
+    setSaved(await savedListState(listSaved()))
+  }
+
+  useEffect(() => {
+    let ignore = false
+    void savedListState(listSaved()).then((state) => {
+      if (!ignore) setSaved(state)
+    })
+    return () => {
+      ignore = true
+    }
+  }, [])
 
   useEffect(() => {
     let ignore = false
@@ -136,6 +184,8 @@ function App() {
 
   function handleChangesChange(next: ScenarioChange[]) {
     requestId.current += 1
+    // A comparison that used the current list no longer matches it.
+    setComparison((current) => (current.kind === 'success' && current.usesCurrent ? { kind: 'idle' } : current))
     setChanges(next)
     setListNotice(null)
     // The address bar always holds a shareable link to the current list.
@@ -180,6 +230,73 @@ function App() {
         setSimulation({ kind: 'error', message: describeApiError(error) })
       }
     }
+  }
+
+  const savedScenarios = saved.kind === 'ready' ? saved.scenarios : []
+
+  async function handleSave(name: string, overwrite: boolean): Promise<string | null> {
+    try {
+      const existing = savedScenarios.find((scenario) => scenario.name === name)
+      if (overwrite && existing) await overwriteScenario(existing.id, name, changes)
+      else await saveScenario(name, changes)
+      await refreshSaved()
+      setListNotice({ tone: 'info', text: `Saved as “${name}”.` })
+      return null
+    } catch (error: unknown) {
+      return describeApiError(error)
+    }
+  }
+
+  async function handleLoad(scenario: SavedScenarioInfo) {
+    try {
+      const loaded = await getSaved(scenario.id)
+      handleChangesChange(loaded.changes)
+      const count = loaded.changes.length
+      setListNotice({
+        tone: 'info',
+        text: `Loaded “${loaded.name}” (${count} ${count === 1 ? 'change' : 'changes'}). Run the simulation to see its results.`,
+      })
+    } catch (error: unknown) {
+      setListNotice({ tone: 'error', text: `“${scenario.name}” could not be loaded: ${describeApiError(error)}` })
+    }
+  }
+
+  async function handleDelete(scenario: SavedScenarioInfo) {
+    try {
+      await deleteSaved(scenario.id)
+    } catch (error: unknown) {
+      setListNotice({ tone: 'error', text: `“${scenario.name}” could not be deleted: ${describeApiError(error)}` })
+    }
+    await refreshSaved()
+  }
+
+  async function handleCompare(a: CompareChoice, b: CompareChoice) {
+    const id = ++comparisonId.current
+    setComparison({ kind: 'running' })
+    const side = async (choice: CompareChoice) => {
+      if (choice === 'current') return { label: 'Current list', changes }
+      const loaded = await getSaved(choice)
+      return { label: loaded.name, changes: loaded.changes }
+    }
+    try {
+      const [sideA, sideB] = await Promise.all([side(a), side(b)])
+      const result = await compareScenarios(sideA.changes, sideB.changes)
+      if (id !== comparisonId.current) return
+      setComparison({
+        kind: 'success',
+        result,
+        labelA: sideA.label,
+        labelB: sideB.label,
+        usesCurrent: a === 'current' || b === 'current',
+      })
+    } catch (error: unknown) {
+      if (id === comparisonId.current) setComparison({ kind: 'error', message: describeApiError(error) })
+    }
+  }
+
+  function closeComparison() {
+    comparisonId.current += 1
+    setComparison({ kind: 'idle' })
   }
 
   const stops = useMemo(
@@ -258,6 +375,8 @@ function App() {
         notice={listNotice}
         onDismissNotice={() => setListNotice(null)}
         disabled={running}
+        savedNames={savedScenarios.map((scenario) => scenario.name)}
+        onSave={handleSave}
       />
       <ScenarioForm
         network={scenarioNetwork}
@@ -267,7 +386,26 @@ function App() {
         onAdd={(change) => handleChangesChange([...changes, change])}
         disabled={running}
       />
+      <SavedScenarios
+        state={saved}
+        hasCurrent={changes.length > 0}
+        onLoad={(scenario) => void handleLoad(scenario)}
+        onDelete={(scenario) => void handleDelete(scenario)}
+        onCompare={(a, b) => void handleCompare(a, b)}
+        comparing={comparison.kind === 'running'}
+        compareError={comparison.kind === 'error' ? comparison.message : null}
+        disabled={running}
+      />
     </>
+  )
+  const comparisonPanel = comparison.kind === 'success' && (
+    <ComparisonPanel
+      result={comparison.result}
+      labelA={comparison.labelA}
+      labelB={comparison.labelB}
+      stops={stops}
+      onClose={closeComparison}
+    />
   )
   const runBar = (
     <RunBar
@@ -312,9 +450,10 @@ function App() {
             <div className="border-t border-line bg-white/70 p-4">{runBar}</div>
           </Card>
 
-          {result && (
+          {/* The comparison, when open, takes the results card's place. */}
+          {(comparisonPanel || result) && (
             <Card className="absolute right-2.5 bottom-7 z-[1100] max-h-[calc(100dvh-7rem)] w-[420px] overflow-y-auto p-4">
-              {resultsPanel}
+              {comparisonPanel || resultsPanel}
             </Card>
           )}
         </>
@@ -350,7 +489,7 @@ function App() {
           {sheetOpen && (
             <>
               <div className="flex-1 space-y-7 overflow-y-auto px-4 pt-2 pb-4">
-                {resultsPanel}
+                {comparisonPanel || resultsPanel}
                 {scenarioSections}
               </div>
               <div className="border-t border-line bg-white/70 p-3">{runBar}</div>
