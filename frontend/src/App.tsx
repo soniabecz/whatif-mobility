@@ -217,7 +217,7 @@ function App() {
   const mapSelect = running
     ? null
     : {
-        selection: draftSelection(currentDraft),
+        selection: draftSelection(currentDraft, scenarioNetwork),
         // Functional updates: one click on a line fires both the line's and the
         // map's handler, and each must build on the other's result.
         onStopClick: (stopId: string) =>
@@ -301,7 +301,7 @@ function App() {
       {/* Leaflet panes use z-index up to 1000, so overlays sit above that. */}
       <MapLegend
         key={isDesktop ? 'desktop' : 'mobile'}
-        routes={network.routes}
+        routes={scenarioNetwork.routes}
         changes={changes}
         showImpact={result !== null}
         showScenario={changes.length > 0}

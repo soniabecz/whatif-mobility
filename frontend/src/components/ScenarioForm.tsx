@@ -2,6 +2,7 @@ import { useMemo, type FormEvent } from 'react'
 import { MapPin, MousePointerClick, Plus, SlidersHorizontal } from 'lucide-react'
 
 import {
+  EMPTY_ROUTE,
   buildChange,
   withFrom,
   nextStopId,
@@ -29,11 +30,13 @@ import {
   type ChangeType,
   type ScenarioChange,
 } from '../types/scenario'
+import { AddRouteFields } from './AddRouteFields'
 import { CHANGE_ICONS } from './impactIcons'
 import { Button } from './ui/Button'
 import { Field, inputClass } from './ui/Field'
 import { SectionTitle } from './ui/SectionTitle'
 import { SegmentedControl, type SegmentOption } from './ui/SegmentedControl'
+import { Switch } from './ui/Switch'
 import { cx } from './ui/cx'
 
 interface ScenarioFormProps {
@@ -54,6 +57,7 @@ const CHANGE_TYPES: SegmentOption<ChangeType>[] = [
   { value: 'change_frequency', label: 'Frequency', icon: CHANGE_ICONS.change_frequency },
   { value: 'add_connection', label: 'Add link', icon: CHANGE_ICONS.add_connection },
   { value: 'add_stop', label: 'Add stop', icon: CHANGE_ICONS.add_stop },
+  { value: 'add_route', label: 'Add route', icon: CHANGE_ICONS.add_route },
 ]
 
 /** Builds one change at a time and hands it to the parent's list. */
@@ -89,7 +93,10 @@ export function ScenarioForm({
 
   function handleAdd(event: FormEvent) {
     event.preventDefault()
-    if (typeof change !== 'string') onAdd(change)
+    if (typeof change === 'string') return
+    onAdd(change)
+    // A route is added once: start the next one empty (its colour picks the next free one).
+    if (change.type === 'add_route') onDraftChange({ ...draft, route: EMPTY_ROUTE })
   }
 
   return (
@@ -97,7 +104,13 @@ export function ScenarioForm({
       <SectionTitle icon={SlidersHorizontal}>Build a change</SectionTitle>
       <p className="flex items-center gap-1.5 text-[11px] text-ink-subtle" aria-live="polite">
         <MousePointerClick size={13} className="shrink-0" aria-hidden />
-        {draft.type === 'add_stop'
+        {draft.type === 'add_route'
+          ? draft.route.stopIds.length === 0
+            ? 'Click the stops on the map in the order the bus calls.'
+            : draft.route.stopIds.length >= 3 && !draft.route.isLoop
+              ? 'Click the next stop, or the first one again to make a loop.'
+              : 'Click the next stop on the map.'
+          : draft.type === 'add_stop'
           ? draft.position
             ? 'Click the map again to move it, or a line to choose the route and link.'
             : 'Click the map where the new stop should be.'
@@ -177,6 +190,13 @@ export function ScenarioForm({
               />
             </Field>
           </>
+        ) : draft.type === 'add_route' ? (
+          <AddRouteFields
+            network={network}
+            draft={draft}
+            onDraftChange={onDraftChange}
+            disabled={disabled}
+          />
         ) : draft.type === 'add_stop' ? (
           <>
             <p className="flex items-center gap-2 rounded-xl bg-surface-muted px-3 py-2 text-xs text-ink-muted">
@@ -409,26 +429,5 @@ function BothDirections({
   onChange: (checked: boolean) => void
   disabled: boolean
 }) {
-  return (
-    <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl bg-surface-muted px-3 py-2 text-sm text-ink">
-      Both directions
-      <input
-        type="checkbox"
-        role="switch"
-        className="peer sr-only"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        disabled={disabled}
-      />
-      <span
-        aria-hidden
-        className={cx(
-          'relative h-5 w-9 shrink-0 rounded-full bg-ink-subtle/40 transition-colors',
-          'peer-checked:bg-accent peer-focus-visible:ring-2 peer-focus-visible:ring-accent-ring',
-          'after:absolute after:top-0.5 after:left-0.5 after:h-4 after:w-4 after:rounded-full',
-          'after:bg-white after:shadow after:transition-transform peer-checked:after:translate-x-4',
-        )}
-      />
-    </label>
-  )
+  return <Switch label="Both directions" checked={checked} onChange={onChange} disabled={disabled} />
 }

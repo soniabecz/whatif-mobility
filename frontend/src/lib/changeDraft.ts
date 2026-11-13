@@ -6,13 +6,17 @@ import {
   MAX_CHANGES,
   MAX_HEADWAY_MIN,
   MAX_TRAVEL_TIME_MIN,
+  MAX_ROUTE_STOPS,
   MIN_HEADWAY_MIN,
+  NEW_ROUTE_COLORS,
+  type AddRoute,
   type AddStop,
   type ChangeType,
   type ScenarioChange,
 } from '../types/scenario'
 import {
   addedConnectionProblem,
+  addedRouteProblem,
   addedStopProblem,
   currentTravelTime,
   linkKey,
@@ -40,6 +44,24 @@ export interface ChangeDraft {
   position: { lat: number; lon: number } | null
   stopName: string
   secondTime: string
+  /** "Add route": stops in order, the time of each stretch between consecutive
+      stops (one fewer than stops), and of the way back to the first if a loop. */
+  route: RouteDraft
+}
+
+export interface RouteDraft {
+  name: string
+  /** "" = automatic: the first palette colour no route uses yet. */
+  color: string
+  headway: string
+  stopIds: string[]
+  times: string[]
+  loopTime: string
+  isLoop: boolean
+}
+
+export const EMPTY_ROUTE: RouteDraft = {
+  name: '', color: '', headway: '', stopIds: [], times: [], loopTime: '', isLoop: false,
 }
 
 function timeText(network: Network, fromId: string, toId: string): string {
@@ -67,6 +89,7 @@ export function initialDraft(network: Network): ChangeDraft {
     position: null,
     stopName: '',
     secondTime: '',
+    route: EMPTY_ROUTE,
   }
 }
 
@@ -116,6 +139,45 @@ export function nextStopId(network: Network): string {
   return `N${n}`
 }
 
+/** First free route id R1, R2, ... (the network passed includes routes added earlier). */
+export function nextRouteId(network: Network): string {
+  const used = new Set(network.routes.map((route) => route.id))
+  let n = 1
+  while (used.has(`R${n}`)) n += 1
+  return `R${n}`
+}
+
+/** The draft's colour, or (automatic) the first palette colour no route uses yet. */
+export function routeColor(network: Network, draft: ChangeDraft): string {
+  if (draft.route.color) return draft.route.color
+  const used = new Set(network.routes.map((route) => route.color.toLowerCase()))
+  const added = network.routes.length
+  return NEW_ROUTE_COLORS.find((color) => !used.has(color)) ?? NEW_ROUTE_COLORS[added % NEW_ROUTE_COLORS.length]
+}
+
+/** "Add route": change the route being drawn. */
+export function withRouteDraft(draft: ChangeDraft, patch: Partial<RouteDraft>): ChangeDraft {
+  return { ...draft, route: { ...draft.route, ...patch } }
+}
+
+/** "Add route": the next stop in order (ignored if already on the route or the route is full). */
+export function appendRouteStop(draft: ChangeDraft, stopId: string): ChangeDraft {
+  const { stopIds, times } = draft.route
+  if (stopIds.includes(stopId) || stopIds.length >= MAX_ROUTE_STOPS) return draft
+  const nextTimes = stopIds.length === 0 ? times : [...times, '']
+  return withRouteDraft(draft, { stopIds: [...stopIds, stopId], times: nextTimes })
+}
+
+/** "Add route": drop the last stop (and its stretch; a loop needs 3 stops). */
+export function removeLastRouteStop(draft: ChangeDraft): ChangeDraft {
+  const stopIds = draft.route.stopIds.slice(0, -1)
+  return withRouteDraft(draft, {
+    stopIds,
+    times: draft.route.times.slice(0, Math.max(0, stopIds.length - 1)),
+    isLoop: draft.route.isLoop && stopIds.length >= 3,
+  })
+}
+
 /** A link was chosen: fill in its current travel time. */
 export function withLink(
   network: Network,
@@ -138,6 +200,12 @@ export function withFrom(network: Network, draft: ChangeDraft, fromId: string): 
  *   of its neighbours; then it becomes To.
  */
 export function clickStop(network: Network, draft: ChangeDraft, stopId: string): ChangeDraft {
+  // "Add route": stops in order; the first one again (3+ stops) closes a loop.
+  if (draft.type === 'add_route') {
+    const { stopIds } = draft.route
+    if (stopIds.length >= 3 && stopId === stopIds[0]) return withRouteDraft(draft, { isLoop: true })
+    return appendRouteStop(draft, stopId)
+  }
   // A stop can belong to several routes: on "frequency" only lines select a route.
   // "Add stop" places a NEW stop, so an existing one is not a target.
   if (draft.type === 'change_frequency' || draft.type === 'add_stop') return draft
@@ -163,6 +231,7 @@ export function clickLink(
   toId: string,
   routeId: string,
 ): ChangeDraft {
+  if (draft.type === 'add_route') return draft // a new route is drawn stop by stop
   if (draft.type === 'change_frequency') return withRoute(network, draft, routeId)
   // "Add link": a line picks the route that gets the new link.
   if (draft.type === 'add_connection') return { ...draft, routeId, awaitingTo: false }
@@ -188,10 +257,16 @@ export interface DraftSelection {
   newLink: { fromId: string; toId: string } | null
   /** "Add stop": where the new stop will be placed. */
   newStop: { lat: number; lon: number } | null
+  /** "Add route": the route being drawn, previewed in its colour. */
+  newRoute: { stopIds: string[]; color: string; isLoop: boolean } | null
 }
 
-export function draftSelection(draft: ChangeDraft): DraftSelection {
-  const none = { stopIds: [], link: null, routeId: null, newLink: null, newStop: null }
+export function draftSelection(draft: ChangeDraft, network: Network): DraftSelection {
+  const none = { stopIds: [], link: null, routeId: null, newLink: null, newStop: null, newRoute: null }
+  if (draft.type === 'add_route') {
+    const { stopIds, isLoop } = draft.route
+    return { ...none, stopIds, newRoute: { stopIds, color: routeColor(network, draft), isLoop } }
+  }
   if (draft.type === 'change_frequency') return { ...none, routeId: draft.routeId || null }
   if (draft.type === 'close_stop') return { ...none, stopIds: draft.stopId ? [draft.stopId] : [] }
   const stopIds = [draft.fromId, draft.toId].filter((id) => id !== '')
@@ -234,6 +309,7 @@ export function buildChange(
     }
     return { type: 'change_frequency', route_id: draft.routeId, headway_min: minutes }
   }
+  if (draft.type === 'add_route') return buildRoute(draft, network)
   if (draft.type === 'add_stop') {
     if (!draft.position) return 'Click the map to place the new stop.'
     if (!draft.stopName.trim()) return 'Give the new stop a name.'
@@ -297,6 +373,40 @@ export function buildChange(
     travel_time_min: minutes,
     both_directions: draft.bothDirections,
   }
+}
+
+function buildRoute(draft: ChangeDraft, network: Network): AddRoute | string {
+  const { name, headway, stopIds, times, loopTime, isLoop } = draft.route
+  if (!name.trim()) return 'Give the new route a name.'
+  const minutes = Number(headway)
+  if (headway.trim() === '' || !Number.isFinite(minutes) || minutes < MIN_HEADWAY_MIN || minutes > MAX_HEADWAY_MIN) {
+    return `Enter how often a bus runs: every ${MIN_HEADWAY_MIN} to ${MAX_HEADWAY_MIN} minutes.`
+  }
+  if (stopIds.length < 2) return 'Click at least 2 stops on the map, in the order the bus calls.'
+  if (isLoop && stopIds.length < 3) return 'A loop needs at least 3 stops.'
+  const label = (id: string) => network.stops.find((stop) => stop.id === id)?.name ?? id
+  const texts = isLoop ? [...times, loopTime] : times
+  const travel: number[] = []
+  for (const [index, text] of texts.entries()) {
+    const time = travelMinutes(text)
+    const from = stopIds[index]
+    const to = stopIds[(index + 1) % stopIds.length]
+    if (typeof time === 'string') return `${label(from)} → ${label(to)}: ${time}`
+    travel.push(time)
+  }
+  const change: AddRoute = {
+    type: 'add_route',
+    route_id: nextRouteId(network),
+    name: name.trim(),
+    color: routeColor(network, draft),
+    headway_min: minutes,
+    stop_ids: stopIds,
+    travel_times_min: travel,
+    is_loop: isLoop,
+    both_directions: draft.bothDirections,
+  }
+  const problem = addedRouteProblem(network, change)
+  return problem ? `Not possible: ${problem}.` : change
 }
 
 /** The travel time input as minutes, or an error message. */

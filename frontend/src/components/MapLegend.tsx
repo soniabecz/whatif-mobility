@@ -10,8 +10,9 @@ import { Card } from './ui/Card'
 import { cx } from './ui/cx'
 
 interface MapLegendProps {
+  /** Routes of the scenario network: the baseline's plus any the scenario adds. */
   routes: Route[]
-  /** The scenario being built: changed frequencies are shown per route. */
+  /** The scenario being built: changed frequencies and new routes are shown per route. */
   changes: ScenarioChange[]
   /** Results are shown: explain every stop colour. */
   showImpact: boolean
@@ -33,11 +34,13 @@ export function MapLegend({
   className,
 }: MapLegendProps) {
   const [open, setOpen] = useState(defaultOpen)
-  const newHeadways = scenarioHighlights(changes).headways
+  const highlights = scenarioHighlights(changes)
+  const newHeadways = highlights.headways
+  const newRouteIds = new Set(highlights.addedRoutes.map((route) => route.route_id))
   const levels: ImpactLevel[] = showImpact ? IMPACT_ORDER : showScenario ? ['closed'] : []
 
   return (
-    <Card className={cx('w-64 text-xs', className)}>
+    <Card className={cx('w-72 text-xs', className)}>
       <button
         type="button"
         onClick={() => setOpen(!open)}
@@ -56,11 +59,20 @@ export function MapLegend({
           <ul className="space-y-1.5">
             {routes.map((route) => (
               <li key={route.id} className="flex items-center gap-2 whitespace-nowrap">
-                <span
-                  className="h-1.5 w-6 shrink-0 rounded-full ring-2 ring-white"
-                  style={{ backgroundColor: route.color }}
-                />
-                <span className="font-semibold text-ink">{route.id}</span> {route.name}
+                {newRouteIds.has(route.id) ? (
+                  <span className="w-6 shrink-0 border-t-[3px] border-dashed" style={{ borderColor: route.color }} />
+                ) : (
+                  <span
+                    className="h-1.5 w-6 shrink-0 rounded-full ring-2 ring-white"
+                    style={{ backgroundColor: route.color }}
+                  />
+                )}
+                <span className="min-w-0 truncate">
+                  <span className="font-semibold text-ink">{route.id}</span> {route.name}
+                </span>
+                {newRouteIds.has(route.id) && (
+                  <span className="rounded bg-accent/10 px-1 text-[10px] font-semibold text-accent">new</span>
+                )}
                 {newHeadways.has(route.id) ? (
                   <span className="ml-auto pl-3 text-[11px] font-semibold text-accent tabular-nums">
                     every <s className="font-normal text-ink-subtle">{route.headway_min}</s>{' '}

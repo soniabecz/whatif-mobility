@@ -15,7 +15,7 @@ import { divIcon, type LatLngBoundsExpression, type LatLngTuple, type PointTuple
 
 import type { DraftSelection } from '../lib/changeDraft'
 import { ACTIVITY_LABELS, IMPACT_STYLES, describeImpact, impactLevel } from '../lib/impact'
-import { linkKey, routeSegments, scenarioHighlights } from '../lib/network'
+import { linkKey, routeSegments, routeStretches, scenarioHighlights } from '../lib/network'
 import type { JourneyComparison, JourneyLeg, WalkLeg } from '../types/journey'
 import type { Network, Route, Stop } from '../types/network'
 import type { ScenarioChange } from '../types/scenario'
@@ -65,15 +65,21 @@ export function NetworkMap({
   mapSelect,
 }: NetworkMapProps) {
   const segments = useMemo(() => routeSegments(network), [network])
-  const routes = useMemo(
-    () => new Map(network.routes.map((route) => [route.id, route])),
-    [network],
-  )
+
   const bounds = useMemo<LatLngBoundsExpression>(
     () => network.stops.map((stop) => [stop.lat, stop.lon] as [number, number]),
     [network],
   )
   const highlights = useMemo(() => scenarioHighlights(changes), [changes])
+  // Baseline routes plus routes the scenario adds (for colours and names everywhere).
+  const addedRoutes = highlights.addedRoutes
+  const routes = useMemo(() => {
+    const map = new Map(network.routes.map((route) => [route.id, route]))
+    for (const added of addedRoutes) {
+      map.set(added.route_id, { id: added.route_id, name: added.name, color: added.color, headway_min: added.headway_min })
+    }
+    return map
+  }, [network, addedRoutes])
   // Baseline stops plus stops the scenario adds (journeys may pass through them).
   const addedStops = highlights.addedStops
   const stopMap = useMemo(() => {
@@ -83,6 +89,21 @@ export function NetworkMap({
     }
     return map
   }, [network, addedStops])
+  // Stretches of routes the scenario adds, one line per street (both directions share it).
+  const addedRouteLines = useMemo(
+    () =>
+      addedRoutes.flatMap((added) =>
+        routeStretches(added).map(([fromId, toId, minutes]) => ({
+          key: `${added.route_id}:${linkKey(fromId, toId)}`,
+          routeId: added.route_id,
+          fromId,
+          toId,
+          minutes,
+          bothDirections: added.both_directions,
+        })),
+      ),
+    [addedRoutes],
+  )
   // Fade the network further while a journey is shown.
   const lineOpacity = journey ? 0.18 : result ? 0.5 : 0.95
   const impacts = useMemo(
@@ -141,6 +162,17 @@ export function NetworkMap({
                 pathOptions={{ color: SELECTED, weight: 19, opacity: 0.6, lineCap: 'round' }}
               />
             ))}
+        {selection?.routeId &&
+          addedRouteLines
+            .filter((line) => line.routeId === selection.routeId)
+            .map((line) => (
+              <Polyline
+                key={`${line.key}:selected`}
+                positions={positions(stopMap, [line.fromId, line.toId])}
+                interactive={false}
+                pathOptions={{ color: SELECTED, weight: 19, opacity: 0.6, lineCap: 'round' }}
+              />
+            ))}
 
         {/* "Add stop": dashed indigo marker where the new stop will go. */}
         {selection?.newStop && (
@@ -158,6 +190,26 @@ export function NetworkMap({
             positions={positions(stopMap, [selection.newLink.fromId, selection.newLink.toId])}
             interactive={false}
             pathOptions={{ color: SELECTED, weight: 5, opacity: 0.8, dashArray: '6 8', lineCap: 'round' }}
+          />
+        )}
+
+        {/* "Add route": dashed preview through the chosen stops, in the route's colour. */}
+        {selection?.newRoute && selection.newRoute.stopIds.length > 1 && (
+          <Polyline
+            positions={positions(stopMap, [
+              ...selection.newRoute.stopIds,
+              ...(selection.newRoute.isLoop ? [selection.newRoute.stopIds[0]] : []),
+            ])}
+            interactive={false}
+            pathOptions={{
+              className: 'new-route-preview',
+              color: selection.newRoute.color,
+              weight: 6,
+              opacity: 0.85,
+              dashArray: '6 8',
+              lineCap: 'round',
+              lineJoin: 'round',
+            }}
           />
         )}
 
@@ -201,6 +253,40 @@ export function NetworkMap({
                   <br />
                   {stopMap.get(added.fromId)?.name} {added.bothDirections ? '–' : '→'}{' '}
                   {stopMap.get(added.toId)?.name}: {added.travelTimeMin} min
+                </Tooltip>
+              </Polyline>
+            </Fragment>
+          )
+        })}
+        {/* Routes added by the scenario: dashed in their colour, clickable like other lines
+            (so later changes such as a frequency or a new stop can pick them). */}
+        {addedRouteLines.map((line) => {
+          const route = routes.get(line.routeId)
+          const points = positions(stopMap, [line.fromId, line.toId])
+          return (
+            <Fragment key={`added-route-${line.key}`}>
+              <Polyline
+                positions={points}
+                eventHandlers={linkClick(line.fromId, line.toId, line.routeId)}
+                pathOptions={{ color: '#ffffff', weight: 9, opacity: journey ? 0.3 : 0.9, lineCap: 'round' }}
+              />
+              <Polyline
+                positions={points}
+                eventHandlers={linkClick(line.fromId, line.toId, line.routeId)}
+                pathOptions={{
+                  className: `added-route route-${line.routeId} link-${line.fromId}-${line.toId}`,
+                  color: route?.color ?? REMOVED,
+                  weight: 5,
+                  opacity: journey ? 0.3 : 0.95,
+                  dashArray: '10 8',
+                }}
+              >
+                <Tooltip sticky>
+                  <strong>{route?.name ?? line.routeId}</strong> (new route in this scenario)
+                  <br />
+                  {stopMap.get(line.fromId)?.name} {line.bothDirections ? '–' : '→'}{' '}
+                  {stopMap.get(line.toId)?.name}: {line.minutes} min
+                  {clickHint}
                 </Tooltip>
               </Polyline>
             </Fragment>

@@ -6,10 +6,10 @@
 
 ## Current status
 
-- **Last completed:** Day 11, part 3a ("add route": backend, AI, share link, display
-  support; commit 14020d7); 268 backend + 111 Vitest + 11 Playwright tests, CI green
-- **Next up:** Day 11, part 3b (the "Add route" form tab and map drawing; see the
-  checklist under part 3)
+- **Last completed:** Day 11, part 3b ("Add route" tab, map drawing, legend; not yet
+  committed); 268 backend + 120 Vitest + 13 Playwright tests pass locally
+- **Next up:** commit 3b when the user approves (Day 11 is then done); then Day 12
+  (AI aware of the change list; AI summary of results)
 - **How to start:** `./dev.sh` (app on http://localhost:5173); after pulling, it
   rebuilds outdated database tables automatically
 - **Working pattern used so far:** each part = design proposal → approval → build
@@ -562,11 +562,18 @@ transfer penalty at 0) and checks equivalence before changing defaults.
       a request without times is refused (its message still asks for a name, which the
       AI could choose itself: harmless)
 - [x] Commit 3a (approved by the user; CI green)
-- [ ] Part 3b: "Add route" tab (click stops in order, a time per stretch with the distance
-      hint, remove last stop, palette, headway, loop/both-ways switches); dashed preview in
-      the chosen colour; new routes drawn on the map (the map still gets the baseline
-      network: draw from `highlights.addedRoutes`), journey legs on a new route coloured,
-      legend entry; e2e `add-route.spec.ts`
+- [x] Part 3b: "Add route" tab (7th tab): name with automatic id R5…, palette swatches
+      (colours in use disabled; automatic = first free), required headway, stops in order
+      by map clicks or "Add a stop…", a time per stretch with the straight-line hint,
+      "Remove last", loop switch (also: click the first stop again with 3+ stops), both
+      directions; the next route starts empty after adding. Dashed preview in the chosen
+      colour; new routes drawn dashed in their colour and clickable (Frequency, Add link,
+      Add stop can pick them); the map's route lookup includes new routes (journey legs
+      coloured); legend lists the scenario's routes with a "new" tag (legend 16 px wider)
+- [x] Small refactors: `ui/Switch` (shared by the toggles), `inputBaseClass` in `ui/Field`;
+      `draftSelection` takes the network (for the automatic colour)
+- [x] Tests: 9 Vitest (120), Playwright `e2e/add-route.spec.ts` (2 tests, 13 e2e);
+      screenshots checked (desktop drawing, loop preview, legend, explorer leg on R5; phone)
 - [ ] Commit 3b
 
 **Fallback:** "add a route" (part 3) is the largest; parts 1–2 stand on their own.
@@ -674,3 +681,4 @@ All former "maybes" are now scheduled as Days 8–14. New ideas go here.
 | 2026-11-12 | 11  | Scenario type `add_stop` (insert into a route; new-stop journeys reported separately; 0 diffs); 240 backend, 97 Vitest |
 | 2026-11-12 | 11  | "Add stop" tab (place by map click), new-stop markers, explorer with new stops; fixed stale-draft click race; 103 Vitest, 11 e2e; parts 1–2 done |
 | 2026-11-13 | 11  | Scenario type `add_route` (engine, AI, share link, display support); 0 diffs (5,738 journeys); 268 backend, 111 Vitest; live AI checked |
+| 2026-11-13 | 11  | "Add route" tab (click stops in order, loop by clicking the first again), new routes on the map and in the legend; 120 Vitest, 13 e2e; screenshots checked |

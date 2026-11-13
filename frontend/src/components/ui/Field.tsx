@@ -1,10 +1,14 @@
 import type { ReactNode } from 'react'
 
-export const inputClass =
-  'mt-1 h-10 w-full rounded-xl border border-line bg-white px-3 text-sm text-ink ' +
+/** Look of a text/number/select input, without size or margin. */
+export const inputBaseClass =
+  'rounded-xl border border-line bg-white px-3 text-sm text-ink ' +
   'transition-colors hover:border-ink-subtle/60 ' +
   'focus:border-accent focus:ring-2 focus:ring-accent-ring/50 focus:outline-none ' +
   'disabled:cursor-not-allowed disabled:opacity-50'
+
+/** A full-width input below its label. */
+export const inputClass = `mt-1 h-10 w-full ${inputBaseClass}`
 
 interface FieldProps {
   label: string

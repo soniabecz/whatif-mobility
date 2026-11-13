@@ -5,7 +5,13 @@ import {
   buildChange,
   clickLink,
   clickStop,
+  appendRouteStop,
   draftSelection,
+  EMPTY_ROUTE,
+  nextRouteId,
+  removeLastRouteStop,
+  routeColor,
+  withRouteDraft,
   initialDraft,
   withFrom,
   nextStopId,
@@ -37,6 +43,7 @@ describe('initialDraft', () => {
       position: null,
       stopName: '',
       secondTime: '',
+      route: EMPTY_ROUTE,
     })
   })
 })
@@ -119,22 +126,24 @@ describe('clickLink', () => {
 
 describe('draftSelection', () => {
   it('highlights the stop to close', () => {
-    expect(draftSelection(clickStop(network, start, 'CAS'))).toEqual({
+    expect(draftSelection(clickStop(network, start, 'CAS'), network)).toEqual({
       stopIds: ['CAS'],
       link: null,
       routeId: null,
       newLink: null,
       newStop: null,
+      newRoute: null,
     })
   })
 
   it('highlights both stops and the street of a link', () => {
-    expect(draftSelection(withLink(network, linkDraft(), 'DUN', 'BRK'))).toEqual({
+    expect(draftSelection(withLink(network, linkDraft(), 'DUN', 'BRK'), network)).toEqual({
       stopIds: ['DUN', 'BRK'],
       link: linkKey('BRK', 'DUN'),
       routeId: null,
       newLink: null,
       newStop: null,
+      newRoute: null,
     })
   })
 })
@@ -159,12 +168,13 @@ describe('frequency', () => {
   })
 
   it('highlights the whole route', () => {
-    expect(draftSelection(freq)).toEqual({
+    expect(draftSelection(freq, network)).toEqual({
       stopIds: [],
       link: null,
       routeId: 'R1',
       newLink: null,
       newStop: null,
+      newRoute: null,
     })
   })
 
@@ -204,12 +214,13 @@ describe('add link', () => {
 
   it('previews the planned link', () => {
     const draft = { ...add, fromId: 'CAS', toId: 'DUN' }
-    expect(draftSelection(draft)).toEqual({
+    expect(draftSelection(draft, network)).toEqual({
       stopIds: ['CAS', 'DUN'],
       link: null,
       routeId: null,
       newLink: { fromId: 'CAS', toId: 'DUN' },
       newStop: null,
+      newRoute: null,
     })
   })
 
@@ -285,7 +296,7 @@ describe('add stop', () => {
 
   it('previews the position and the link', () => {
     const draft = placeStop(withStopRoute(network, add, 'R1'), 0, 0.5)
-    expect(draftSelection(draft)).toMatchObject({
+    expect(draftSelection(draft, network)).toMatchObject({
       link: linkKey('ALP', 'BRK'),
       newStop: { lat: 0, lon: 0.5 },
     })
@@ -330,5 +341,75 @@ describe('buildChange', () => {
   it('enforces the change limit', () => {
     expect(buildChange(start, 20, network)).toBe('A scenario can have at most 20 changes.')
     expect(typeof buildChange(start, 19, network)).toBe('object')
+  })
+})
+
+describe('add route', () => {
+  const route = withType(start, 'add_route')
+  const clicked = (...ids: string[]) => ids.reduce((draft, id) => clickStop(network, draft, id), route)
+  const ready = withRouteDraft(clicked('CAS', 'BRK', 'DUN'), { name: 'Green', headway: '12', times: ['4', '5'] })
+
+  it('map clicks add stops in order; a stop already on the route is ignored', () => {
+    expect(clicked('CAS', 'BRK', 'CAS').route).toMatchObject({ stopIds: ['CAS', 'BRK'], times: [''], isLoop: false })
+  })
+
+  it('clicking the first stop again (3+ stops) makes a loop', () => {
+    expect(clicked('CAS', 'BRK', 'DUN', 'CAS').route).toMatchObject({ stopIds: ['CAS', 'BRK', 'DUN'], isLoop: true })
+  })
+
+  it('lines do nothing: a new route is drawn stop by stop', () => {
+    expect(clickLink(network, route, 'ALP', 'BRK', 'R1')).toBe(route)
+  })
+
+  it('removing the last stop drops its stretch, and the loop below 3 stops', () => {
+    const loop = withRouteDraft(ready, { isLoop: true })
+    expect(removeLastRouteStop(loop).route).toMatchObject({ stopIds: ['CAS', 'BRK'], times: ['4'], isLoop: false })
+    expect(removeLastRouteStop(withRouteDraft(route, { stopIds: ['CAS'] })).route.stopIds).toEqual([])
+  })
+
+  it('stops at 30 stops', () => {
+    const full = withRouteDraft(route, { stopIds: Array.from({ length: 30 }, (_, i) => `S${i}`) })
+    expect(appendRouteStop(full, 'CAS')).toBe(full)
+  })
+
+  it('picks the next free id and colour automatically, or the chosen colour', () => {
+    expect(nextRouteId(network)).toBe('R3')
+    expect(routeColor(network, route)).toBe('#7c3aed')
+    const used = { ...network, routes: [...network.routes, { id: 'R3', name: 'X', color: '#7C3AED', headway_min: 5 }] }
+    expect(routeColor(used, route)).toBe('#db2777')
+    expect(routeColor(network, withRouteDraft(route, { color: '#0d9488' }))).toBe('#0d9488')
+  })
+
+  it('previews the route in its colour and rings its stops', () => {
+    expect(draftSelection(ready, network)).toMatchObject({
+      stopIds: ['CAS', 'BRK', 'DUN'],
+      newRoute: { stopIds: ['CAS', 'BRK', 'DUN'], color: '#7c3aed', isLoop: false },
+    })
+  })
+
+  it('builds the change', () => {
+    expect(buildChange(ready, 0, network)).toEqual({
+      type: 'add_route',
+      route_id: 'R3',
+      name: 'Green',
+      color: '#7c3aed',
+      headway_min: 12,
+      stop_ids: ['CAS', 'BRK', 'DUN'],
+      travel_times_min: [4, 5],
+      is_loop: false,
+      both_directions: true,
+    })
+    const loop = withRouteDraft(ready, { isLoop: true, loopTime: '6' })
+    expect(buildChange(loop, 0, network)).toMatchObject({ travel_times_min: [4, 5, 6], is_loop: true })
+  })
+
+  it('explains what is missing, naming the stretch without a time', () => {
+    const error = (patch: Parameters<typeof withRouteDraft>[1]) => buildChange(withRouteDraft(ready, patch), 0, network)
+    expect(error({ name: ' ' })).toBe('Give the new route a name.')
+    expect(error({ headway: '' })).toBe('Enter how often a bus runs: every 1 to 120 minutes.')
+    expect(error({ stopIds: ['CAS'], times: [] })).toBe('Click at least 2 stops on the map, in the order the bus calls.')
+    expect(error({ times: ['4', ''] })).toBe('Brook Street → Dunes: Travel time must be a number greater than 0.')
+    expect(error({ isLoop: true })).toBe('Dunes → Castle: Travel time must be a number greater than 0.')
+    expect(error({ name: 'Blue' })).toBe('Not possible: a route called "Blue" already exists.')
   })
 })
