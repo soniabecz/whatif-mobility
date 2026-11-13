@@ -30,7 +30,7 @@ import {
   placeStop,
   type ChangeDraft,
 } from './lib/changeDraft'
-import { applyAddedStops, stopsById } from './lib/network'
+import { applyAddedChanges, stopsById } from './lib/network'
 import { decodeChanges, readShareParam, sharePath } from './lib/shareLink'
 import type { Network } from './types/network'
 import { MAX_CHANGES, type ScenarioChange } from './types/scenario'
@@ -210,10 +210,10 @@ function App() {
   const { network } = networkState
   const currentDraft = draft ?? initialDraft(network)
   // Map clicks edit the form's draft; ignored while a simulation runs.
-  // The network including stops the scenario adds: the form, the list and
-  // the explorer can then refer to them (the map draws them separately).
-  const scenarioNetwork = applyAddedStops(network, changes)
-  const resultNetwork = result ? applyAddedStops(network, result.scenario.changes) : network
+  // The network including stops and routes the scenario adds: the form, the
+  // list and the explorer can then refer to them (the map draws them separately).
+  const scenarioNetwork = applyAddedChanges(network, changes)
+  const resultNetwork = result ? applyAddedChanges(network, result.scenario.changes) : network
   const mapSelect = running
     ? null
     : {

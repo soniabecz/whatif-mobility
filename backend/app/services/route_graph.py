@@ -57,6 +57,8 @@ def build_route_graph(
         transfer_penalty_min=transfer_penalty_min,
         include_waiting=include_waiting,
         headways=headways,
+        # Copied so that names of routes added by a scenario stay in this graph.
+        route_names=dict(network.graph.get("route_names", {})),
     )
     for stop_id, data in network.nodes(data=True):
         graph.add_node(stop_id, kind="stop", **data)
@@ -90,6 +92,13 @@ def add_ride(graph: nx.DiGraph, u: str, v: str, route_id: str, minutes: float) -
     add_platform(graph, u, route_id)
     add_platform(graph, v, route_id)
     graph.add_edge((u, route_id), (v, route_id), kind="ride", route_id=route_id, weight=minutes)
+
+
+def add_route(graph: nx.DiGraph, route_id: str, name: str, headway_min: float) -> None:
+    """Register a new route (name and headway) before its rides are added,
+    so its board edges get the right wait. Only for a scenario's graph."""
+    graph.graph["headways"] = {**graph.graph["headways"], route_id: headway_min}
+    graph.graph["route_names"] = {**graph.graph.get("route_names", {}), route_id: name}
 
 
 def route_ids(graph: nx.DiGraph) -> set[str]:

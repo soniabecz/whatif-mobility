@@ -6,10 +6,10 @@
 
 ## Current status
 
-- **Last completed:** Day 11, parts 1–2 ("add connection" and "add stop": backend, AI,
-  form, map); 240 backend + 103 Vitest + 11 Playwright tests, CI green
-- **Next up:** Day 11, part 3 (add a route): open questions listed under part 3;
-  explain the design and wait for approval
+- **Last completed:** Day 11, part 3a ("add route": backend, AI, share link, display
+  support; not yet committed); 268 backend + 111 Vitest + 11 Playwright tests pass locally
+- **Next up:** commit 3a when the user approves; then Day 11, part 3b (the "Add route"
+  form tab and map drawing; see the checklist under part 3)
 - **How to start:** `./dev.sh` (app on http://localhost:5173); after pulling, it
   rebuilds outdated database tables automatically
 - **Working pattern used so far:** each part = design proposal → approval → build
@@ -541,17 +541,32 @@ transfer penalty at 0) and checks equivalence before changing defaults.
 - [x] Commit (approved by the user; no separate browser check reported)
 
 **3. Add a route** (L)
-- [ ] Explain the design and get approval. Questions to settle first:
-      - format: new route id/name/colour, headway (1–120), ordered stops with a
-        time per stretch, loop or not, both directions (likely yes)
-      - may it use stops added earlier in the same scenario (likely yes, as with
-        `withAddedStop`), and must it touch the existing network (≥ 1 existing stop)?
-      - engine: reuse `add_ride` / `add_platform` for every stretch; validation
-        before any change (unknown/closed stops, repeated stop, id/name/colour taken)
-      - AI: allowed only if every stop exists and every time is given (never guessed)?
-      - UI: map editor (click stops in order, enter times), legend entry, colour
-        picker or fixed palette for new routes; share code
-- [ ] Split as before: 3a backend + AI + display support; 3b form/map editor, e2e
+- [x] Design approved: `add_route` = id, name, colour (display only, fixed palette of 6),
+      headway (required, never guessed), 2–30 different stops in order with one time per
+      stretch (a loop has one more, back to the first stop), `is_loop`, `both_directions`
+      (default true); may use stops added earlier; later changes may refer to the new route;
+      no "must touch the network" rule (every stop is already in the network);
+      AI allowed only when stops, every time and the headway are given (it picks id/colour)
+- [x] Part 3a: schema (`AddRoute`, `stretches()`, `MAX_ROUTE_STOPS`, `NEW_ROUTE_COLORS`),
+      engine `_add_route` (validated first: id/name unused, stops open; headway registered
+      before the rides so waits are right; route names kept in the route graph); network
+      graph keeps `route_colors`; AI schema + prompt (next free id, free palette colours,
+      ask only for missing stops/times/headway); 28 backend tests (268)
+- [x] Existing scenarios unchanged: previous engine vs new, 186 simulations (62 scenarios ×
+      3 settings), 5,738 changed journeys, byte-identical
+- [x] Frontend display support: text, icon, share code `route:R5:Name:7c3aed:12:OLD-MKT-RIV:3-4`
+      (`:loop`, `:oneway`), shared rule `addedRouteProblem`, `withAddedRoute`,
+      `applyAddedStops` → `applyAddedChanges` (form, list, explorer know new routes);
+      8 Vitest (111); 11 e2e still pass
+- [x] Live AI check (Groq): route built from an English and a Polish (loop) request;
+      a request without times is refused (its message still asks for a name, which the
+      AI could choose itself: harmless)
+- [ ] Part 3b: "Add route" tab (click stops in order, a time per stretch with the distance
+      hint, remove last stop, palette, headway, loop/both-ways switches); dashed preview in
+      the chosen colour; new routes drawn on the map (the map still gets the baseline
+      network: draw from `highlights.addedRoutes`), journey legs on a new route coloured,
+      legend entry; e2e `add-route.spec.ts`
+- [ ] Commit
 
 **Fallback:** "add a route" (part 3) is the largest; parts 1–2 stand on their own.
 
@@ -657,3 +672,4 @@ All former "maybes" are now scheduled as Days 8–14. New ideas go here.
 | 2026-11-12 | 11  | "Add link" tab, map preview and dashed added links; fixed Day 4 bug (Travel time input refused whole minutes); 92 Vitest, 10 e2e |
 | 2026-11-12 | 11  | Scenario type `add_stop` (insert into a route; new-stop journeys reported separately; 0 diffs); 240 backend, 97 Vitest |
 | 2026-11-12 | 11  | "Add stop" tab (place by map click), new-stop markers, explorer with new stops; fixed stale-draft click race; 103 Vitest, 11 e2e; parts 1–2 done |
+| 2026-11-13 | 11  | Scenario type `add_route` (engine, AI, share link, display support); 0 diffs (5,738 journeys); 268 backend, 111 Vitest; live AI checked |

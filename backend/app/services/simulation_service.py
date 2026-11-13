@@ -26,6 +26,7 @@ import networkx as nx
 
 from app.schemas.scenario import (
     AddConnection,
+    AddRoute,
     AddStop,
     ChangeFrequency,
     ChangeTravelTime,
@@ -44,6 +45,7 @@ from app.schemas.simulation import (
 from app.services.route_graph import (
     Platform,
     add_ride,
+    add_route,
     added_stop_ids,
     build_route_graph,
     is_open_stop,
@@ -98,6 +100,8 @@ def apply_scenario(
                     add_ride(graph, u, v, change.route_id, change.travel_time_min)
             elif isinstance(change, AddStop):
                 _insert_stop(graph, change, closed)
+            elif isinstance(change, AddRoute):
+                _add_route(graph, change, closed)
             else:  # pragma: no cover - guarded by the Pydantic discriminator
                 raise ScenarioError(f"Unsupported change type: {change!r}")
         except ScenarioError as error:
@@ -161,6 +165,24 @@ def _insert_stop(graph: nx.DiGraph, change: AddStop, closed: set[str]) -> None:
         graph.remove_edge((u, route), (v, route))  # buses now stop at the new stop
         add_ride(graph, u, new, route, t_u)
         add_ride(graph, new, v, route, t_v)
+
+
+def _add_route(graph: nx.DiGraph, change: AddRoute, closed: set[str]) -> None:
+    """Add a new route through existing (or earlier added) open stops (validated first)."""
+    route = change.route_id
+    if route in route_ids(graph) or route in graph.graph["headways"]:
+        raise ScenarioError(f"route id '{route}' is already used")
+    name = change.name.strip()
+    if name in graph.graph.get("route_names", {}).values():
+        raise ScenarioError(f"a route called '{name}' already exists")
+    for stop_id in change.stop_ids:
+        _require_open_stop(graph, stop_id, closed)
+
+    add_route(graph, route, name, change.headway_min)
+    for u, v, minutes in change.stretches():
+        add_ride(graph, u, v, route, minutes)
+        if change.both_directions:
+            add_ride(graph, v, u, route, minutes)
 
 
 def _new_rides(

@@ -162,6 +162,42 @@ export interface components {
             both_directions: boolean;
         };
         /**
+         * AddRoute
+         * @description A new bus line through stops that exist (or were added by an earlier
+         *     change), in order. ``travel_times_min[i]`` is the time from stop i to
+         *     stop i+1; a loop has one more, from the last stop back to the first.
+         *     The user gives every time and the headway (nothing is guessed).
+         */
+        AddRoute: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "add_route";
+            /** Route Id */
+            route_id: string;
+            /** Name */
+            name: string;
+            /** Color */
+            color: string;
+            /** Headway Min */
+            headway_min: number;
+            /** Stop Ids */
+            stop_ids: string[];
+            /** Travel Times Min */
+            travel_times_min: number[];
+            /**
+             * Is Loop
+             * @default false
+             */
+            is_loop: boolean;
+            /**
+             * Both Directions
+             * @default true
+             */
+            both_directions: boolean;
+        };
+        /**
          * AddStop
          * @description A new stop inserted into a route between two consecutive stops: the
          *     route's buses now run from -> new stop -> to (and back, if the route runs
@@ -309,7 +345,7 @@ export interface components {
              */
             status: "ok" | "unclear";
             /** Changes */
-            changes: (components["schemas"]["CloseStop"] | components["schemas"]["RemoveConnection"] | components["schemas"]["ChangeTravelTime"] | components["schemas"]["ChangeFrequency"] | components["schemas"]["AddConnection"] | components["schemas"]["AddStop"])[];
+            changes: (components["schemas"]["CloseStop"] | components["schemas"]["RemoveConnection"] | components["schemas"]["ChangeTravelTime"] | components["schemas"]["ChangeFrequency"] | components["schemas"]["AddConnection"] | components["schemas"]["AddStop"] | components["schemas"]["AddRoute"])[];
             /** Message */
             message: string;
         };
@@ -394,7 +430,7 @@ export interface components {
             /** Destination Id */
             destination_id: string;
             /** Changes */
-            changes?: (components["schemas"]["CloseStop"] | components["schemas"]["RemoveConnection"] | components["schemas"]["ChangeTravelTime"] | components["schemas"]["ChangeFrequency"] | components["schemas"]["AddConnection"] | components["schemas"]["AddStop"])[];
+            changes?: (components["schemas"]["CloseStop"] | components["schemas"]["RemoveConnection"] | components["schemas"]["ChangeTravelTime"] | components["schemas"]["ChangeFrequency"] | components["schemas"]["AddConnection"] | components["schemas"]["AddStop"] | components["schemas"]["AddRoute"])[];
         };
         /**
          * NetworkOut
@@ -460,7 +496,7 @@ export interface components {
          */
         Scenario: {
             /** Changes */
-            changes: (components["schemas"]["CloseStop"] | components["schemas"]["RemoveConnection"] | components["schemas"]["ChangeTravelTime"] | components["schemas"]["ChangeFrequency"] | components["schemas"]["AddConnection"] | components["schemas"]["AddStop"])[];
+            changes: (components["schemas"]["CloseStop"] | components["schemas"]["RemoveConnection"] | components["schemas"]["ChangeTravelTime"] | components["schemas"]["ChangeFrequency"] | components["schemas"]["AddConnection"] | components["schemas"]["AddStop"] | components["schemas"]["AddRoute"])[];
         };
         /** SimulationResult */
         SimulationResult: {

@@ -2,8 +2,10 @@
 //
 //   ?s=close:CEN~remove:MKT-UNI~time:RIV-EST:9~remove:LIB-SCH:oneway~freq:R3:7.5~add:R2:EST-TEC:5
 //      ~stop:N1:Old%20Market:50.0644:19.9366:R1:MKT-UNI:1.5:2
+//      ~route:R5:Cross%20Town:7c3aed:12:OLD-MKT-RIV:3-4   (optional :loop, then :oneway)
 //
-// Changes are separated by "~", fields by ":", the two stops of a link by "-".
+// Changes are separated by "~", fields by ":", the stops of a link or route by "-"
+// (a route's travel times too).
 // Every character used is one that browsers never percent-encode, so the link
 // stays readable in the address bar. Stop ids are escaped if they contain one
 // of these characters (not the case for today's ids, but possible with real
@@ -11,7 +13,7 @@
 // simulation recomputes them deterministically.
 
 import type { Network } from '../types/network'
-import { addedConnectionProblem, addedStopProblem, withAddedStop } from './network'
+import { addedConnectionProblem, addedRouteProblem, addedStopProblem, withAddedChange } from './network'
 import {
   MAX_CHANGES,
   MAX_HEADWAY_MIN,
@@ -26,6 +28,8 @@ const CHANGE_SEP = '~'
 const FIELD_SEP = ':'
 const LINK_SEP = '-'
 const ONE_WAY = 'oneway'
+const LOOP = 'loop'
+const MINUTES = /^\d+(\.\d+)?$/
 
 function encodeId(id: string): string {
   // encodeURIComponent leaves "-" and "~" alone; they are separators here.
@@ -75,6 +79,18 @@ function encodeChange(change: ScenarioChange): string {
         `${encodeId(change.from_stop_id)}${LINK_SEP}${encodeId(change.to_stop_id)}`,
         change.time_from_min,
         change.time_to_min,
+      ].join(FIELD_SEP)
+    case 'add_route':
+      return [
+        'route',
+        encodeId(change.route_id),
+        encodeId(change.name),
+        change.color.replace(/^#/, ''), // "#" would start the URL fragment
+        change.headway_min,
+        change.stop_ids.map(encodeId).join(LINK_SEP),
+        change.travel_times_min.join(LINK_SEP),
+        ...(change.is_loop ? [LOOP] : []),
+        ...(change.both_directions ? [] : [ONE_WAY]),
       ].join(FIELD_SEP)
   }
 }
@@ -169,6 +185,33 @@ function parseChange(text: string): Parsed {
       time_to_min: Number(timeTo),
     }
   }
+  if (kind === 'route') {
+    const invalid = `"${text}" is not a valid new route`
+    const loop = fields.at(-1) === LOOP
+    if (loop) fields.pop()
+    if (fields.length !== 6) return invalid
+    const [id, name, color, headway, stopList, timeList] = fields
+    const routeId = decodeId(id)
+    const routeName = decodeId(name)
+    const stopIds = stopList.split(LINK_SEP).map(decodeId)
+    if (!routeId || !routeName || stopIds.some((stopId) => !stopId)) return invalid
+    if (!/^[0-9a-fA-F]{6}$/.test(color)) return `"${color}" is not a colour`
+    if (!MINUTES.test(headway)) return `"${headway}" is not a number of minutes`
+    const times = timeList.split(LINK_SEP)
+    const bad = times.find((minutes) => !MINUTES.test(minutes))
+    if (bad !== undefined) return `"${bad}" is not a number of minutes`
+    return {
+      type: 'add_route',
+      route_id: routeId,
+      name: routeName,
+      color: `#${color}`,
+      headway_min: Number(headway),
+      stop_ids: stopIds as string[],
+      travel_times_min: times.map(Number),
+      is_loop: loop,
+      both_directions: !oneWay,
+    }
+  }
   if (kind === 'add') {
     if (fields.length !== 3) return `"${text}" is not a valid added connection`
     const routeId = decodeId(fields[0])
@@ -213,6 +256,7 @@ function checkAgainstNetwork(change: ScenarioChange, network: Network): string |
     }
     return null
   }
+  if (change.type === 'add_route') return addedRouteProblem(network, change)
   const stopIds = new Set(network.stops.map((s) => s.id))
   const unknown = (id: string) => (stopIds.has(id) ? null : `unknown stop "${id}"`)
   if (change.type === 'close_stop') return unknown(change.stop_id)
@@ -280,7 +324,7 @@ export function decodeChanges(raw: string, network: Network): DecodeResult {
     return { ok: false, error: `it has ${parts.length} changes (at most ${MAX_CHANGES})` }
   }
   const changes: ScenarioChange[] = []
-  // Later changes may refer to a stop added by an earlier one, as in the backend.
+  // Later changes may refer to a stop or route added by an earlier one, as in the backend.
   let current = network
   for (const [index, part] of parts.entries()) {
     const parsed = parseChange(part)
@@ -289,7 +333,7 @@ export function decodeChanges(raw: string, network: Network): DecodeResult {
       return { ok: false, error: `change ${index + 1}: ${problem ?? parsed}` }
     }
     changes.push(parsed)
-    if (parsed.type === 'add_stop') current = withAddedStop(current, parsed)
+    current = withAddedChange(current, parsed)
   }
   return { ok: true, changes }
 }

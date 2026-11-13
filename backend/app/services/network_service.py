@@ -9,7 +9,8 @@ Graph rules (see docs/IMPLEMENTATION_PLAN.md):
 - No transfer penalty: a journey is simply the fastest path.
 - Graph attribute ``headways`` = {route id: minutes between buses}; used by
   the route graph for waiting times (stop-level paths ignore it).
-  ``route_names`` = {route id: name}, for the AI prompt.
+  ``route_names`` = {route id: name} and ``route_colors`` = {route id: colour},
+  for the AI prompt.
 
 The graph-building and journey functions take plain data, not a database
 session, so they can be tested (and reused by the simulation) without a DB.
@@ -71,6 +72,7 @@ def build_graph(
     graph = nx.DiGraph(
         headways={route.id: route.headway_min for route in routes},
         route_names={route.id: route.name for route in routes},
+        route_colors={route.id: route.color for route in routes},
     )
     for stop in stops:
         # activity: missing (stops built in tests) counts as 1, i.e. equal weights.

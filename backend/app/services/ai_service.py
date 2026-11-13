@@ -20,7 +20,14 @@ import networkx as nx
 from pydantic import ValidationError
 
 from app.schemas.ai import AIInterpretation, InterpretResponse, strict_json_schema
-from app.schemas.scenario import MAX_CHANGES, MAX_HEADWAY_MIN, MIN_HEADWAY_MIN, Scenario
+from app.schemas.scenario import (
+    MAX_CHANGES,
+    MAX_HEADWAY_MIN,
+    MAX_ROUTE_STOPS,
+    MIN_HEADWAY_MIN,
+    NEW_ROUTE_COLORS,
+    Scenario,
+)
 from app.services.simulation_service import ScenarioError, apply_scenario
 
 logger = logging.getLogger(__name__)
@@ -155,12 +162,26 @@ def describe_network(graph: nx.DiGraph) -> str:
     return "\n".join(lines)
 
 
+def describe_new_route_defaults(graph: nx.DiGraph) -> str:
+    """Display-only values for a new route: the next free id and unused colours."""
+    used_ids = set(graph.graph.get("headways", {})) | set(graph.graph.get("route_names", {}))
+    number = 1
+    while f"R{number}" in used_ids:
+        number += 1
+    used_colors = {c.lower() for c in graph.graph.get("route_colors", {}).values()}
+    free = [c for c in NEW_ROUTE_COLORS if c not in used_colors] or list(NEW_ROUTE_COLORS)
+    return (
+        f"NEW ROUTES: use route_id R{number} (R{number + 1}, ... for further ones) "
+        f"and a colour from: {', '.join(free)} (a different one per new route)."
+    )
+
+
 def build_system_prompt(graph: nx.DiGraph) -> str:
     return f"""You translate a user's description of hypothetical changes to a city bus \
 network into a structured scenario. You only translate; you never estimate or \
 describe the impact of the changes (a separate simulation computes all results).
 
-The five possible change types:
+The six possible change types:
 - close_stop: a stop is closed (buses drive through without stopping). Needs stop_id.
 - remove_connection: the link between two DIRECTLY connected stops disappears.
 - change_travel_time: a link between two DIRECTLY connected stops gets a new \
@@ -173,6 +194,18 @@ travel_time_min and both_directions. At least one of the two stops must already 
 be served by that route (see ROUTES), the stops must differ, and the route must \
 not already run between them. The user must give the travel time; never guess \
 it: without one the request is unclear.
+- add_route: a new bus line through existing stops in order. Needs route_id, \
+name, color, headway_min, stop_ids (2 to {MAX_ROUTE_STOPS} different stops, \
+in the order the bus calls), travel_times_min (one per stretch between \
+consecutive stops; if is_loop, one more for the way from the last stop back \
+to the first), is_loop and both_directions. Stops do not need to be directly \
+linked today. The user must give the stops in order, EVERY travel time and the \
+headway; never guess any of them: if one is missing the request is unclear, \
+and the message asks only for what is missing, in plain words (never for \
+route_id, color, name or field names: you choose those). Take the name from \
+the user's words, or "New line" plus the route id; route_id and color as in \
+NEW ROUTES below; is_loop only if the user says the bus returns to the first \
+stop (a ring or loop).
 
 Rules:
 - Use only stop ids from the list below. Match names flexibly ("the airport" = AIR).
@@ -191,14 +224,16 @@ one decimal.
 of the form.
 - At most {MAX_CHANGES} changes.
 - If the request is ambiguous, refers to something not in the network, asks \
-for something other than these five change types (for example new routes or \
-new stops), or is not about changing the network: status "unclear", no \
+for something other than these six change types (for example new stops), or \
+is not about changing the network: status "unclear", no \
 changes, and a short message that explains why or asks a clarifying question.
 - Otherwise status "ok" and a one-sentence message summarising what you \
 understood, using stop names.
 - Write the message in the language of the user's request.
 
 {describe_network(graph)}
+
+{describe_new_route_defaults(graph)}
 """
 
 

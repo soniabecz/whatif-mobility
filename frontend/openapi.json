@@ -272,6 +272,81 @@
         "title": "AddConnection",
         "description": "An existing route also runs directly between two stops (an extension or\na shortcut). At least one of the stops must already be on the route."
       },
+      "AddRoute": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "add_route",
+            "title": "Type"
+          },
+          "route_id": {
+            "type": "string",
+            "maxLength": 10,
+            "minLength": 1,
+            "title": "Route Id"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "color": {
+            "type": "string",
+            "pattern": "^#[0-9a-fA-F]{6}$",
+            "title": "Color"
+          },
+          "headway_min": {
+            "type": "number",
+            "maximum": 120.0,
+            "minimum": 1.0,
+            "title": "Headway Min"
+          },
+          "stop_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 10,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 30,
+            "minItems": 2,
+            "title": "Stop Ids"
+          },
+          "travel_times_min": {
+            "items": {
+              "type": "number",
+              "maximum": 600.0,
+              "exclusiveMinimum": 0.0
+            },
+            "type": "array",
+            "title": "Travel Times Min"
+          },
+          "is_loop": {
+            "type": "boolean",
+            "title": "Is Loop",
+            "default": false
+          },
+          "both_directions": {
+            "type": "boolean",
+            "title": "Both Directions",
+            "default": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "route_id",
+          "name",
+          "color",
+          "headway_min",
+          "stop_ids",
+          "travel_times_min"
+        ],
+        "title": "AddRoute",
+        "description": "A new bus line through stops that exist (or were added by an earlier\nchange), in order. ``travel_times_min[i]`` is the time from stop i to\nstop i+1; a loop has one more, from the last stop back to the first.\nThe user gives every time and the headway (nothing is guessed)."
+      },
       "AddStop": {
         "properties": {
           "type": {
@@ -615,12 +690,16 @@
                 },
                 {
                   "$ref": "#/components/schemas/AddStop"
+                },
+                {
+                  "$ref": "#/components/schemas/AddRoute"
                 }
               ],
               "discriminator": {
                 "propertyName": "type",
                 "mapping": {
                   "add_connection": "#/components/schemas/AddConnection",
+                  "add_route": "#/components/schemas/AddRoute",
                   "add_stop": "#/components/schemas/AddStop",
                   "change_frequency": "#/components/schemas/ChangeFrequency",
                   "change_travel_time": "#/components/schemas/ChangeTravelTime",
@@ -923,12 +1002,16 @@
                 },
                 {
                   "$ref": "#/components/schemas/AddStop"
+                },
+                {
+                  "$ref": "#/components/schemas/AddRoute"
                 }
               ],
               "discriminator": {
                 "propertyName": "type",
                 "mapping": {
                   "add_connection": "#/components/schemas/AddConnection",
+                  "add_route": "#/components/schemas/AddRoute",
                   "add_stop": "#/components/schemas/AddStop",
                   "change_frequency": "#/components/schemas/ChangeFrequency",
                   "change_travel_time": "#/components/schemas/ChangeTravelTime",
@@ -1107,12 +1190,16 @@
                 },
                 {
                   "$ref": "#/components/schemas/AddStop"
+                },
+                {
+                  "$ref": "#/components/schemas/AddRoute"
                 }
               ],
               "discriminator": {
                 "propertyName": "type",
                 "mapping": {
                   "add_connection": "#/components/schemas/AddConnection",
+                  "add_route": "#/components/schemas/AddRoute",
                   "add_stop": "#/components/schemas/AddStop",
                   "change_frequency": "#/components/schemas/ChangeFrequency",
                   "change_travel_time": "#/components/schemas/ChangeTravelTime",

@@ -73,10 +73,27 @@ class AIAddConnection(_AIModel):
     both_directions: bool
 
 
+class AIAddRoute(_AIModel):
+    type: Literal["add_route"]
+    route_id: str
+    name: str
+    color: str
+    headway_min: float
+    stop_ids: list[str]
+    travel_times_min: list[float]
+    is_loop: bool
+    both_directions: bool
+
+
 class AIInterpretation(_AIModel):
     status: Literal["ok", "unclear"]
     changes: list[
-        AICloseStop | AIRemoveConnection | AIChangeTravelTime | AIChangeFrequency | AIAddConnection
+        AICloseStop
+        | AIRemoveConnection
+        | AIChangeTravelTime
+        | AIChangeFrequency
+        | AIAddConnection
+        | AIAddRoute
     ]
     message: str
 

@@ -2,10 +2,13 @@ import { describe, expect, it } from 'vitest'
 
 import { smallNetwork } from '../test/smallNetwork'
 import type { Network } from '../types/network'
-import type { ScenarioChange } from '../types/scenario'
+import type { AddRoute, ScenarioChange } from '../types/scenario'
 import {
   addedConnectionProblem,
+  addedRouteProblem,
   addedStopProblem,
+  applyAddedChanges,
+  withAddedRoute,
   withAddedStop,
   currentTravelTime,
   describeChange,
@@ -260,5 +263,76 @@ describe('new stops', () => {
     expect(addedStopProblem(network, { ...change, to_stop_id: 'DUN' })).toBe(
       'route R1 does not run directly from BRK to DUN',
     )
+  })
+})
+
+describe('new routes', () => {
+  // CAS -> ALP -> DUN: CAS and DUN are not linked today.
+  const route: AddRoute = {
+    type: 'add_route',
+    route_id: 'R3',
+    name: 'Green',
+    color: '#0d9488',
+    headway_min: 12,
+    stop_ids: ['CAS', 'ALP', 'DUN'],
+    travel_times_min: [6, 4.5],
+    is_loop: false,
+    both_directions: true,
+  }
+
+  it('describes a new route, a loop and a one-way route', () => {
+    expect(describeChange(route, stops)).toBe(
+      'New route R3 Green, every 12 min: Castle ↔ Alpine Road ↔ Dunes (6 + 4.5 min)',
+    )
+    const loop = { ...route, travel_times_min: [6, 4.5, 3], is_loop: true, both_directions: false }
+    expect(describeChange(loop, stops)).toBe(
+      'New route R3 Green, every 12 min: Castle → Alpine Road → Dunes → Castle (loop, 6 + 4.5 + 3 min)',
+    )
+  })
+
+  it('adds the route and its links in both directions', () => {
+    const after = withAddedRoute(network, route)
+    expect(after.routes.at(-1)).toEqual({ id: 'R3', name: 'Green', color: '#0d9488', headway_min: 12 })
+    const r3 = after.connections
+      .filter((c) => c.route_id === 'R3')
+      .map((c) => `${c.from_stop_id}>${c.to_stop_id}:${c.travel_time_min}`)
+    expect(r3).toEqual(['CAS>ALP:6', 'ALP>CAS:6', 'ALP>DUN:4.5', 'DUN>ALP:4.5'])
+    expect(new Set(after.connections.map((c) => c.id)).size).toBe(after.connections.length)
+    expect(network.routes).toHaveLength(2) // the original is untouched
+  })
+
+  it('closes a loop and runs one way only when asked', () => {
+    const loop = { ...route, travel_times_min: [6, 4.5, 3], is_loop: true, both_directions: false }
+    const r3 = withAddedRoute(network, loop).connections.filter((c) => c.route_id === 'R3')
+    expect(r3.map((c) => `${c.from_stop_id}>${c.to_stop_id}`)).toEqual(['CAS>ALP', 'ALP>DUN', 'DUN>CAS'])
+  })
+
+  it('lets later changes use added stops and routes, in order', () => {
+    const stop: ScenarioChange = {
+      type: 'add_stop', stop_id: 'N1', name: 'New Square', lat: 0, lon: 0.5,
+      route_id: 'R3', from_stop_id: 'CAS', to_stop_id: 'ALP', time_from_min: 2, time_to_min: 4,
+    }
+    const after = applyAddedChanges(network, [route, stop])
+    expect(after.routes.map((r) => r.id)).toEqual(['R1', 'R2', 'R3'])
+    expect(after.connections.some((c) => c.route_id === 'R3' && c.from_stop_id === 'N1')).toBe(true)
+  })
+
+  it('checks the backend rules', () => {
+    expect(addedRouteProblem(network, route)).toBeNull()
+    const problem = (overrides: Partial<AddRoute>) => addedRouteProblem(network, { ...route, ...overrides })
+    expect(problem({ route_id: 'R1' })).toBe('route id "R1" is already used')
+    expect(problem({ name: ' Blue ' })).toBe('a route called "Blue" already exists')
+    expect(problem({ name: ' ' })).toBe('the new route needs a name')
+    expect(problem({ color: 'teal' })).toBe('"teal" is not a colour')
+    expect(problem({ headway_min: 0.5 })).toBe('a bus must run every 1 to 120 minutes')
+    expect(problem({ stop_ids: ['CAS'], travel_times_min: [] })).toBe('a route needs 2 to 30 stops')
+    expect(problem({ stop_ids: ['CAS', 'ALP', 'CAS'] })).toBe('a route cannot stop at the same stop twice')
+    expect(problem({ stop_ids: ['CAS', 'XYZ', 'DUN'] })).toBe('unknown stop "XYZ"')
+    expect(problem({ travel_times_min: [6] })).toBe('3 stops need 2 travel times')
+    expect(problem({ is_loop: true })).toBe('3 stops need 3 travel times')
+    expect(problem({ stop_ids: ['CAS', 'ALP'], travel_times_min: [6, 1], is_loop: true })).toBe(
+      'a loop needs at least 3 stops',
+    )
+    expect(problem({ travel_times_min: [6, 0] })).toContain('more than 0')
   })
 })

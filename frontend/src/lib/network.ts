@@ -1,7 +1,15 @@
 // Pure helpers over the network data. No React, no API calls.
 
 import type { Network, Stop } from '../types/network'
-import type { AddStop, ScenarioChange } from '../types/scenario'
+import {
+  MAX_HEADWAY_MIN,
+  MAX_ROUTE_STOPS,
+  MAX_TRAVEL_TIME_MIN,
+  MIN_HEADWAY_MIN,
+  type AddRoute,
+  type AddStop,
+  type ScenarioChange,
+} from '../types/scenario'
 
 /** Order-independent key for the street between two stops. */
 export function linkKey(a: string, b: string): string {
@@ -78,6 +86,8 @@ export interface ScenarioHighlights {
   addedLinks: AddedLink[]
   /** Stops added by the scenario (drawn with their own marker). */
   addedStops: AddStop[]
+  /** Routes added by the scenario. */
+  addedRoutes: AddRoute[]
 }
 
 export interface AddedLink {
@@ -96,6 +106,7 @@ export function scenarioHighlights(changes: ScenarioChange[]): ScenarioHighlight
     headways: new Map(),
     addedLinks: [],
     addedStops: [],
+    addedRoutes: [],
   }
   for (const change of changes) {
     switch (change.type) {
@@ -123,6 +134,9 @@ export function scenarioHighlights(changes: ScenarioChange[]): ScenarioHighlight
       case 'add_stop':
         highlights.addedStops.push(change)
         break
+      case 'add_route':
+        highlights.addedRoutes.push(change)
+        break
     }
   }
   return highlights
@@ -143,6 +157,12 @@ export function describeChange(change: ScenarioChange, stops: Map<string, Stop>)
       return `Add ${change.route_id}: ${name(change.from_stop_id)} ${arrow(change.both_directions)} ${name(change.to_stop_id)}, ${change.travel_time_min} min`
     case 'add_stop':
       return `New stop ${change.name} on ${change.route_id}: ${name(change.from_stop_id)} ${change.time_from_min} min → ${change.time_to_min} min ${name(change.to_stop_id)}`
+    case 'add_route': {
+      const path = change.is_loop ? [...change.stop_ids, change.stop_ids[0]] : change.stop_ids
+      const times = change.travel_times_min.join(' + ')
+      const loop = change.is_loop ? 'loop, ' : ''
+      return `New route ${change.route_id} ${change.name}, every ${change.headway_min} min: ${path.map(name).join(` ${arrow(change.both_directions)} `)} (${loop}${times} min)`
+    }
   }
 }
 
@@ -214,9 +234,16 @@ export function addedStopProblem(network: Network, change: AddStop): string | nu
   return null
 }
 
-/** The network with every stop the changes add (in order), for the UI. */
-export function applyAddedStops(network: Network, changes: ScenarioChange[]): Network {
-  return changes.reduce((current, change) => (change.type === 'add_stop' ? withAddedStop(current, change) : current), network)
+/** The network with every stop and route the changes add (in order), for the UI. */
+export function applyAddedChanges(network: Network, changes: ScenarioChange[]): Network {
+  return changes.reduce(withAddedChange, network)
+}
+
+/** The network after one change, if it adds a stop or a route (else unchanged). */
+export function withAddedChange(network: Network, change: ScenarioChange): Network {
+  if (change.type === 'add_stop') return withAddedStop(network, change)
+  if (change.type === 'add_route') return withAddedRoute(network, change)
+  return network
 }
 
 /**
@@ -242,4 +269,61 @@ export function withAddedStop(network: Network, change: AddStop): Network {
   })
   const stop = { id: n, name: change.name.trim(), lat: change.lat, lon: change.lon, activity: 1 }
   return { ...network, stops: [...network.stops, stop], connections }
+}
+
+/** (from, to, minutes) for every stretch of a new route, in its own direction. */
+export function routeStretches(change: AddRoute): [string, string, number][] {
+  const stops = change.stop_ids
+  const ends = change.is_loop ? [...stops.slice(1), stops[0]] : stops.slice(1)
+  return ends.map((to, i) => [stops[i], to, change.travel_times_min[i]])
+}
+
+/**
+ * Why a new route cannot be added (null if it can). Same rules as the backend
+ * schema and engine: an unused id and name, a colour, a valid headway, 2 or more
+ * different known stops (a loop at least 3) and one valid time per stretch.
+ */
+export function addedRouteProblem(network: Network, change: AddRoute): string | null {
+  if (change.route_id.trim() === '') return 'the new route needs an id'
+  if (network.routes.some((route) => route.id === change.route_id)) {
+    return `route id "${change.route_id}" is already used`
+  }
+  const name = change.name.trim()
+  if (name === '') return 'the new route needs a name'
+  if (network.routes.some((route) => route.name === name)) return `a route called "${name}" already exists`
+  if (!/^#[0-9a-fA-F]{6}$/.test(change.color)) return `"${change.color}" is not a colour`
+  if (change.headway_min < MIN_HEADWAY_MIN || change.headway_min > MAX_HEADWAY_MIN) {
+    return `a bus must run every ${MIN_HEADWAY_MIN} to ${MAX_HEADWAY_MIN} minutes`
+  }
+  const stops = change.stop_ids
+  if (stops.length < 2 || stops.length > MAX_ROUTE_STOPS) {
+    return `a route needs 2 to ${MAX_ROUTE_STOPS} stops`
+  }
+  if (change.is_loop && stops.length < 3) return 'a loop needs at least 3 stops'
+  if (new Set(stops).size !== stops.length) return 'a route cannot stop at the same stop twice'
+  const known = new Set(network.stops.map((stop) => stop.id))
+  const unknown = stops.find((id) => !known.has(id))
+  if (unknown !== undefined) return `unknown stop "${unknown}"`
+  const stretches = stops.length - (change.is_loop ? 0 : 1)
+  if (change.travel_times_min.length !== stretches) {
+    return `${stops.length} stops need ${stretches} travel times`
+  }
+  if (change.travel_times_min.some((t) => !(t > 0 && t <= MAX_TRAVEL_TIME_MIN))) {
+    return `travel time must be more than 0 and at most ${MAX_TRAVEL_TIME_MIN} minutes`
+  }
+  return null
+}
+
+/** The network with a new route (frontend view only, e.g. so later changes may refer to it). */
+export function withAddedRoute(network: Network, change: AddRoute): Network {
+  let nextId = Math.max(0, ...network.connections.map((c) => c.id)) + 1
+  const route = change.route_id
+  const connections = routeStretches(change).flatMap(([from, to, minutes]) => {
+    const directions = change.both_directions ? [[from, to], [to, from]] : [[from, to]]
+    return directions.map(([a, b]) => ({
+      id: nextId++, route_id: route, from_stop_id: a, to_stop_id: b, travel_time_min: minutes,
+    }))
+  })
+  const added = { id: route, name: change.name.trim(), color: change.color, headway_min: change.headway_min }
+  return { ...network, routes: [...network.routes, added], connections: [...network.connections, ...connections] }
 }

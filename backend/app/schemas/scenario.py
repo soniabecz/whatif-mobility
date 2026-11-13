@@ -13,6 +13,10 @@ RouteId = Annotated[str, Field(min_length=1, max_length=10)]
 MAX_CHANGES = 20
 MIN_HEADWAY_MIN = 1
 MAX_HEADWAY_MIN = 120
+MAX_ROUTE_STOPS = 30
+# Colours offered for new routes (the form and the AI pick one not yet used).
+# Chosen to stay apart from the sample routes' red, blue, green and orange.
+NEW_ROUTE_COLORS = ("#7c3aed", "#db2777", "#0d9488", "#92400e", "#ca8a04", "#475569")
 
 
 class _Change(BaseModel):
@@ -98,8 +102,56 @@ class AddStop(_Change):
         return self
 
 
+class AddRoute(_Change):
+    """A new bus line through stops that exist (or were added by an earlier
+    change), in order. ``travel_times_min[i]`` is the time from stop i to
+    stop i+1; a loop has one more, from the last stop back to the first.
+    The user gives every time and the headway (nothing is guessed)."""
+
+    type: Literal["add_route"]
+    route_id: RouteId
+    name: str = Field(min_length=1, max_length=100)
+    # Display only (the map); not used by the simulation.
+    color: str = Field(pattern=r"^#[0-9a-fA-F]{6}$")
+    headway_min: float = Field(ge=MIN_HEADWAY_MIN, le=MAX_HEADWAY_MIN, allow_inf_nan=False)
+    stop_ids: list[StopId] = Field(min_length=2, max_length=MAX_ROUTE_STOPS)
+    travel_times_min: list[Annotated[float, Field(gt=0, le=600, allow_inf_nan=False)]]
+    is_loop: bool = False
+    both_directions: bool = True
+
+    @model_validator(mode="after")
+    def _consistent(self) -> "AddRoute":
+        if not self.name.strip():
+            raise ValueError("the new route needs a name")
+        if len(set(self.stop_ids)) != len(self.stop_ids):
+            raise ValueError("a route cannot stop at the same stop twice")
+        if self.is_loop and len(self.stop_ids) < 3:
+            raise ValueError("a loop needs at least 3 stops")
+        stretches = len(self.stop_ids) - (0 if self.is_loop else 1)
+        if len(self.travel_times_min) != stretches:
+            raise ValueError(
+                f"{len(self.stop_ids)} stops need {stretches} travel times"
+                f"{' (a loop includes the way back to the first stop)' if self.is_loop else ''}"
+                f", got {len(self.travel_times_min)}"
+            )
+        return self
+
+    def stretches(self) -> list[tuple[str, str, float]]:
+        """(from, to, minutes) in the route's own direction."""
+        stops = self.stop_ids
+        starts = stops if self.is_loop else stops[:-1]
+        ends = stops[1:] + ([stops[0]] if self.is_loop else [])
+        return list(zip(starts, ends, self.travel_times_min, strict=True))
+
+
 ScenarioChange = Annotated[
-    CloseStop | RemoveConnection | ChangeTravelTime | ChangeFrequency | AddConnection | AddStop,
+    CloseStop
+    | RemoveConnection
+    | ChangeTravelTime
+    | ChangeFrequency
+    | AddConnection
+    | AddStop
+    | AddRoute,
     Field(discriminator="type"),
 ]
 

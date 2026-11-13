@@ -179,6 +179,19 @@ describe('decodeChanges rejects', () => {
       'stop id "N1" is already used')
   })
 
+  it('new routes the backend would refuse', () => {
+    const route = (fields: string) => `route:${fields}`
+    rejects(route('R1:New:0d9488:12:CAS-DUN:6'), 'route id "R1" is already used')
+    rejects(route('R3:Red:0d9488:12:CAS-DUN:6'), 'a route called "Red" already exists')
+    rejects(route('R3:New:teal:12:CAS-DUN:6'), '"teal" is not a colour')
+    rejects(route('R3:New:0d9488:12:CAS-DUN:6-2'), '2 stops need 1 travel times')
+    rejects(route('R3:New:0d9488:12:CAS-DUN:x'), '"x" is not a number')
+    rejects(route('R3:New:0d9488:200:CAS-DUN:6'), 'every 1 to 120 minutes')
+    rejects(route('R3:New:0d9488:12:CAS-DUN:6:loop'), 'a loop needs at least 3 stops')
+    rejects(route('R3:New:0d9488:12:CAS--DUN:6'), 'not a valid new route')
+    rejects(route('R3:New:0d9488:12:CAS-DUN'), 'not a valid new route')
+  })
+
   it('more than 20 changes', () => {
     rejects(Array(21).fill('close:CAS').join('~'), '21 changes')
     expect(decodeChanges(Array(20).fill('close:CAS').join('~'), network).ok).toBe(true)
@@ -193,5 +206,42 @@ describe('decodeChanges rejects', () => {
 
   it('nothing for an empty value', () => {
     expect(decodeChanges('', network)).toEqual({ ok: true, changes: [] })
+  })
+})
+
+describe('new routes in shared links', () => {
+  it('round-trips a loop, one way, with a later change on the new route', () => {
+    const changes: ScenarioChange[] = [
+      {
+        type: 'add_route',
+        route_id: 'R3',
+        name: 'Cross-Town: Green',
+        color: '#0d9488',
+        headway_min: 7.5,
+        stop_ids: ['CAS', 'ALP', 'DUN'],
+        travel_times_min: [6, 4.5, 3],
+        is_loop: true,
+        both_directions: false,
+      },
+      { type: 'change_frequency', route_id: 'R3', headway_min: 5 },
+    ]
+    const encoded = encodeChanges(changes)
+    expect(encoded).toBe('route:R3:Cross%2DTown%3A%20Green:0d9488:7.5:CAS-ALP-DUN:6-4.5-3:loop:oneway~freq:R3:5')
+    expect(encoded).toMatch(/^[A-Za-z0-9:~.\-%]*$/)
+    expect(decodeChanges(encoded, network)).toEqual({ ok: true, changes })
+  })
+
+  it('round-trips a route through a stop added earlier', () => {
+    const changes: ScenarioChange[] = [
+      {
+        type: 'add_stop', stop_id: 'N1', name: 'New Square', lat: 0, lon: 1.5,
+        route_id: 'R1', from_stop_id: 'BRK', to_stop_id: 'CAS', time_from_min: 2, time_to_min: 2,
+      },
+      {
+        type: 'add_route', route_id: 'R3', name: 'Green', color: '#0d9488', headway_min: 12,
+        stop_ids: ['N1', 'DUN'], travel_times_min: [5], is_loop: false, both_directions: true,
+      },
+    ]
+    expect(decodeChanges(encodeChanges(changes), network)).toEqual({ ok: true, changes })
   })
 })
