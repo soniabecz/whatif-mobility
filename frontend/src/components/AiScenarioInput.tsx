@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type KeyboardEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import axios from 'axios'
 import {
   CircleCheck,
@@ -7,27 +7,34 @@ import {
   SendHorizontal,
   Sparkles,
   TriangleAlert,
+  Undo2,
   type LucideIcon,
 } from 'lucide-react'
 
 import { interpretText } from '../api/ai'
 import { describeApiError } from '../api/errors'
+import { describeAiEdit, isStale } from '../lib/aiEdit'
 import { MAX_AI_REQUEST_CHARS } from '../types/ai'
 import type { ScenarioChange } from '../types/scenario'
 import { Badge } from './ui/Badge'
+import { Button } from './ui/Button'
 import { IconButton } from './ui/IconButton'
 import { SectionTitle } from './ui/SectionTitle'
 import { cx } from './ui/cx'
 
 interface AiScenarioInputProps {
-  /** Adds the interpreted changes to the list; returns how many fitted. */
-  onAddChanges: (changes: ScenarioChange[]) => number
+  /** The current change list: sent with the request, so the AI can edit it. */
+  changes: ScenarioChange[]
+  /** Replaces the whole list (the AI's result, or the previous list on Undo). */
+  onChangesChange: (changes: ScenarioChange[]) => void
   disabled: boolean
 }
 
 type Feedback =
   | { kind: 'none' }
-  | { kind: 'added'; message: string; added: number; total: number }
+  /** `applied` is the list the AI produced; Undo restores `previous` while it is unchanged. */
+  | { kind: 'applied'; message: string; summary: string; previous: ScenarioChange[]; applied: ScenarioChange[] }
+  | { kind: 'info'; message: string }
   | { kind: 'unclear'; message: string }
   | { kind: 'not-configured'; message: string }
   | { kind: 'error'; message: string }
@@ -38,16 +45,22 @@ const FEEDBACK_STYLES: Record<
   Exclude<Feedback['kind'], 'none'>,
   { icon: LucideIcon; className: string }
 > = {
-  added: { icon: CircleCheck, className: 'bg-green-50 text-green-800' },
+  applied: { icon: CircleCheck, className: 'bg-green-50 text-green-800' },
+  info: { icon: Info, className: 'bg-surface-muted text-ink-muted' },
   unclear: { icon: CircleHelp, className: 'bg-amber-50 text-amber-900' },
   'not-configured': { icon: Info, className: 'bg-surface-muted text-ink-muted' },
   error: { icon: TriangleAlert, className: 'bg-red-50 text-red-800' },
 }
 
-export function AiScenarioInput({ onAddChanges, disabled }: AiScenarioInputProps) {
+export function AiScenarioInput({ changes, onChangesChange, disabled }: AiScenarioInputProps) {
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
   const [feedback, setFeedback] = useState<Feedback>({ kind: 'none' })
+  // The list as it is now, read after the AI answers (the request's closure holds the old one).
+  const latestChanges = useRef(changes)
+  useEffect(() => {
+    latestChanges.current = changes
+  }, [changes])
 
   const canSubmit = !busy && !disabled && text.trim() !== ''
 
@@ -56,12 +69,24 @@ export function AiScenarioInput({ onAddChanges, disabled }: AiScenarioInputProps
     if (!trimmed) return
     setBusy(true)
     setFeedback({ kind: 'none' })
+    const sent = changes
     try {
-      const result = await interpretText(trimmed)
-      if (result.status === 'ok') {
-        const added = onAddChanges(result.changes)
-        setFeedback({ kind: 'added', message: result.message, added, total: result.changes.length })
-        if (added > 0) setText('')
+      const result = await interpretText(trimmed, sent)
+      if (isStale(sent, latestChanges.current)) {
+        setFeedback({
+          kind: 'info',
+          message: 'The list changed while the AI was thinking, so its answer was not applied. Please try again.',
+        })
+      } else if (result.status === 'ok') {
+        onChangesChange(result.changes)
+        setFeedback({
+          kind: 'applied',
+          message: result.message,
+          summary: describeAiEdit(result),
+          previous: sent,
+          applied: result.changes,
+        })
+        setText('')
       } else {
         setFeedback({ kind: 'unclear', message: result.message })
       }
@@ -137,11 +162,26 @@ export function AiScenarioInput({ onAddChanges, disabled }: AiScenarioInputProps
           className={cx('flex gap-2 rounded-xl px-3 py-2 text-sm', style.className)}
         >
           <style.icon size={16} className="mt-0.5 shrink-0" aria-hidden />
-          <span>
+          <span className="min-w-0 flex-1">
+            {feedback.kind === 'applied' && <strong className="font-semibold">{feedback.summary}. </strong>}
             {feedback.message}
-            {feedback.kind === 'added' && feedback.added < feedback.total &&
-              ` Only ${feedback.added} of ${feedback.total} changes fitted (limit reached).`}
           </span>
+          {/* Undo only while the list is still exactly what the AI made of it. */}
+          {feedback.kind === 'applied' && feedback.applied === changes && (
+            <Button
+              size="sm"
+              variant="ghost"
+              icon={Undo2}
+              className="-my-1 shrink-0 text-green-800 hover:bg-green-100 hover:text-green-900"
+              onClick={() => {
+                onChangesChange(feedback.previous)
+                setFeedback({ kind: 'info', message: 'Undone: the list is back as it was.' })
+              }}
+              disabled={disabled}
+            >
+              Undo
+            </Button>
+          )}
         </p>
       )}
 

@@ -10,5 +10,5 @@ export const MAX_AI_REQUEST_CHARS = 500
 
 export type InterpretRequest = Schemas['InterpretRequest']
 
-/** 'ok': changes are valid for the network. 'unclear': no changes; see message. */
+/** 'ok': `changes` is the complete new list (valid for the network). 'unclear': nothing changes; see message. */
 export type InterpretResponse = Schemas['InterpretResponse']

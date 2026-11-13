@@ -18,7 +18,8 @@ class FakeChatModel:
     def complete_json(self, system_prompt: str, user_text: str, schema: dict) -> str:
         if isinstance(self.answer, Exception):
             raise self.answer
-        return json.dumps(self.answer)
+        # Operations on the change list default to none (Day 12).
+        return json.dumps({"remove_numbers": [], "replace": [], **self.answer})
 
 
 def _use_model(answer: dict[str, Any] | Exception) -> None:
@@ -40,6 +41,9 @@ def test_interpret_returns_validated_changes(client: TestClient) -> None:
         "status": "ok",
         "changes": [{"type": "remove_connection", "from_stop_id": "TEC",
                      "to_stop_id": "AIR", "both_directions": True}],
+        "removed": [],
+        "replaced": [],
+        "added": 1,
         "message": "Remove the link between Tech Park and Airport.",
     }
 

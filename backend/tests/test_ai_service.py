@@ -29,7 +29,11 @@ class FakeChatModel:
     """Returns a fixed answer and records what it was asked."""
 
     def __init__(self, answer: dict[str, Any] | str) -> None:
-        self.answer = answer if isinstance(answer, str) else json.dumps(answer)
+        # Dict answers: operations on the change list default to none (Day 12).
+        self.answer = (
+            answer if isinstance(answer, str)
+            else json.dumps({"remove_numbers": [], "replace": [], **answer})
+        )
         self.calls: list[dict[str, Any]] = []
 
     def complete_json(self, system_prompt: str, user_text: str, schema: dict) -> str:
@@ -38,7 +42,7 @@ class FakeChatModel:
 
 
 def _ok(*changes: dict[str, Any], message: str = "Understood.") -> dict[str, Any]:
-    return {"status": "ok", "changes": list(changes), "message": message}
+    return {"status": "ok", "remove_numbers": [], "replace": [], "changes": list(changes), "message": message}
 
 
 @pytest.fixture
@@ -177,7 +181,7 @@ def test_strict_schema_is_valid_for_groq_strict_mode() -> None:
 
     assert '"title"' not in text and '"const"' not in text
     assert schema["additionalProperties"] is False
-    assert set(schema["required"]) == {"status", "changes", "message"}
+    assert set(schema["required"]) == {"status", "remove_numbers", "replace", "changes", "message"}
 
 
 def test_strict_schema_rejects_optional_fields() -> None:

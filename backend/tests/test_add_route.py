@@ -233,7 +233,7 @@ class _FakeModel:
 
 
 def _ai(*changes: dict[str, Any]) -> dict[str, Any]:
-    return {"status": "ok", "changes": list(changes), "message": "Understood."}
+    return {"status": "ok", "remove_numbers": [], "replace": [], "changes": list(changes), "message": "Understood."}
 
 
 AI_ROUTE = {**CROSS_TOWN, "is_loop": False, "both_directions": True}

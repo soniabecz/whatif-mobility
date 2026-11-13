@@ -651,6 +651,48 @@
             "maxLength": 500,
             "minLength": 1,
             "title": "Text"
+          },
+          "current_changes": {
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/CloseStop"
+                },
+                {
+                  "$ref": "#/components/schemas/RemoveConnection"
+                },
+                {
+                  "$ref": "#/components/schemas/ChangeTravelTime"
+                },
+                {
+                  "$ref": "#/components/schemas/ChangeFrequency"
+                },
+                {
+                  "$ref": "#/components/schemas/AddConnection"
+                },
+                {
+                  "$ref": "#/components/schemas/AddStop"
+                },
+                {
+                  "$ref": "#/components/schemas/AddRoute"
+                }
+              ],
+              "discriminator": {
+                "propertyName": "type",
+                "mapping": {
+                  "add_connection": "#/components/schemas/AddConnection",
+                  "add_route": "#/components/schemas/AddRoute",
+                  "add_stop": "#/components/schemas/AddStop",
+                  "change_frequency": "#/components/schemas/ChangeFrequency",
+                  "change_travel_time": "#/components/schemas/ChangeTravelTime",
+                  "close_stop": "#/components/schemas/CloseStop",
+                  "remove_connection": "#/components/schemas/RemoveConnection"
+                }
+              }
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Current Changes"
           }
         },
         "additionalProperties": false,
@@ -711,6 +753,25 @@
             "type": "array",
             "title": "Changes"
           },
+          "removed": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Removed"
+          },
+          "replaced": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Replaced"
+          },
+          "added": {
+            "type": "integer",
+            "title": "Added",
+            "default": 0
+          },
           "message": {
             "type": "string",
             "title": "Message"
@@ -723,7 +784,7 @@
           "message"
         ],
         "title": "InterpretResponse",
-        "description": "``ok``: changes are valid for the network. ``unclear``: no changes;\n``message`` explains why or asks for clarification."
+        "description": "``ok``: ``changes`` is the complete NEW change list (it may be empty, e.g.\nafter \"undo the only change\"), valid for the network; ``removed`` and\n``replaced`` are numbers (1-based) in the current list, ``added`` how many\nchanges were appended. ``unclear``: nothing changes (``changes`` is empty);\n``message`` explains why or asks for clarification."
       },
       "JourneyChange": {
         "properties": {

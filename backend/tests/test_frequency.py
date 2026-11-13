@@ -174,7 +174,7 @@ class _FakeModel:
 
 
 def _ai(*changes: dict[str, Any]) -> dict[str, Any]:
-    return {"status": "ok", "changes": list(changes), "message": "Understood."}
+    return {"status": "ok", "remove_numbers": [], "replace": [], "changes": list(changes), "message": "Understood."}
 
 
 def test_prompt_lists_routes_with_their_headways(sample: nx.DiGraph) -> None:

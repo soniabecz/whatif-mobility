@@ -332,10 +332,15 @@ export interface components {
         InterpretRequest: {
             /** Text */
             text: string;
+            /** Current Changes */
+            current_changes?: (components["schemas"]["CloseStop"] | components["schemas"]["RemoveConnection"] | components["schemas"]["ChangeTravelTime"] | components["schemas"]["ChangeFrequency"] | components["schemas"]["AddConnection"] | components["schemas"]["AddStop"] | components["schemas"]["AddRoute"])[];
         };
         /**
          * InterpretResponse
-         * @description ``ok``: changes are valid for the network. ``unclear``: no changes;
+         * @description ``ok``: ``changes`` is the complete NEW change list (it may be empty, e.g.
+         *     after "undo the only change"), valid for the network; ``removed`` and
+         *     ``replaced`` are numbers (1-based) in the current list, ``added`` how many
+         *     changes were appended. ``unclear``: nothing changes (``changes`` is empty);
          *     ``message`` explains why or asks for clarification.
          */
         InterpretResponse: {
@@ -346,6 +351,15 @@ export interface components {
             status: "ok" | "unclear";
             /** Changes */
             changes: (components["schemas"]["CloseStop"] | components["schemas"]["RemoveConnection"] | components["schemas"]["ChangeTravelTime"] | components["schemas"]["ChangeFrequency"] | components["schemas"]["AddConnection"] | components["schemas"]["AddStop"] | components["schemas"]["AddRoute"])[];
+            /** Removed */
+            removed?: number[];
+            /** Replaced */
+            replaced?: number[];
+            /**
+             * Added
+             * @default 0
+             */
+            added: number;
             /** Message */
             message: string;
         };

@@ -6,13 +6,17 @@ Two separate shapes on purpose:
   limits), so it is NOT the Scenario schema itself.
 - ``InterpretResponse``: what the API returns. Its changes are real, fully
   validated ``ScenarioChange`` objects (the Day 3 scenario format).
+
+The AI knows the user's current change list (Day 12). It never rewrites that
+list: it answers with operations (remove / replace by number, add at the end),
+which the backend applies and validates, so every effect is explicit.
 """
 
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.schemas.scenario import ScenarioChange
+from app.schemas.scenario import MAX_CHANGES, ScenarioChange
 
 MAX_REQUEST_CHARS = 500
 
@@ -21,14 +25,22 @@ class InterpretRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     text: str = Field(min_length=1, max_length=MAX_REQUEST_CHARS)
+    # The scenario being built, in order; the AI may remove, replace or add to it.
+    current_changes: list[ScenarioChange] = Field(default_factory=list, max_length=MAX_CHANGES)
 
 
 class InterpretResponse(BaseModel):
-    """``ok``: changes are valid for the network. ``unclear``: no changes;
+    """``ok``: ``changes`` is the complete NEW change list (it may be empty, e.g.
+    after "undo the only change"), valid for the network; ``removed`` and
+    ``replaced`` are numbers (1-based) in the current list, ``added`` how many
+    changes were appended. ``unclear``: nothing changes (``changes`` is empty);
     ``message`` explains why or asks for clarification."""
 
     status: Literal["ok", "unclear"]
     changes: list[ScenarioChange]
+    removed: list[int] = Field(default_factory=list)
+    replaced: list[int] = Field(default_factory=list)
+    added: int = 0
     message: str
 
 
@@ -85,16 +97,26 @@ class AIAddRoute(_AIModel):
     both_directions: bool
 
 
+AIChange = (
+    AICloseStop
+    | AIRemoveConnection
+    | AIChangeTravelTime
+    | AIChangeFrequency
+    | AIAddConnection
+    | AIAddRoute
+)
+
+
+class AIReplacement(_AIModel):
+    number: int  # of the change in the current list
+    change: AIChange
+
+
 class AIInterpretation(_AIModel):
     status: Literal["ok", "unclear"]
-    changes: list[
-        AICloseStop
-        | AIRemoveConnection
-        | AIChangeTravelTime
-        | AIChangeFrequency
-        | AIAddConnection
-        | AIAddRoute
-    ]
+    remove_numbers: list[int]  # current changes to remove
+    replace: list[AIReplacement]  # current changes to replace, in place
+    changes: list[AIChange]  # new changes, appended at the end
     message: str
 
 

@@ -38,7 +38,9 @@ def interpret_text(
 ) -> InterpretResponse:
     baseline = network_service.build_graph_from_db(db)
     try:
-        return ai_service.interpret(request.text, baseline, model)
+        return ai_service.interpret(request.text, baseline, model, request.current_changes)
+    except ai_service.InvalidChangeListError as error:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)) from error
     except ai_service.AIUnavailableError as error:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(error)) from error
     except ai_service.AIOutputError as error:

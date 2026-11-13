@@ -6,10 +6,10 @@
 
 ## Current status
 
-- **Last completed:** Day 11 done (add connection, add stop, add route; last commit
-  13d74c3); 268 backend + 120 Vitest + 13 Playwright tests, CI green
-- **Next up:** Day 12, part 1 (AI aware of the current change list); explain the
-  design and wait for approval
+- **Last completed:** Day 12, part 1 (AI edits the current change list);
+  288 backend + 123 Vitest + 16 Playwright tests
+- **Next up:** Day 12, part 2 (AI summary of results): explain the safeguard and
+  wait for approval
 - **How to start:** `./dev.sh` (app on http://localhost:5173); after pulling, it
   rebuilds outdated database tables automatically
 - **Working pattern used so far:** each part = design proposal → approval → build
@@ -37,7 +37,7 @@ so the project is usable even if a later day is cut short.
 | 9   | Quick product wins        | ✅ Done |
 | 10  | More realistic simulation | ✅ Done |
 | 11  | New scenario types        | ✅ Done |
-| 12  | AI features               | ⬜ Todo |
+| 12  | AI features               | 🟡 In progress |
 | 13  | Saving and comparing      | ⬜ Todo |
 | 14  | Deployment and real data  | ⬜ Todo |
 
@@ -584,8 +584,23 @@ transfer penalty at 0) and checks equivalence before changing defaults.
 **Size:** ≈ 1 session.
 
 **1. AI aware of the current change list** (S)
-- [ ] Send the current list with the request; support "undo the last one",
-      "and also …"; tests with the fake model; commit
+- [x] Design approved: the request sends `current_changes`; the AI answers with
+      operations, never a rewritten list: `remove_numbers`, `replace` ({number, change},
+      in place: later changes may depend on it), `changes` (appended). The backend checks
+      the current list (422 if it does not fit), the numbers (exist, used once), ≤ 20 and
+      dry-runs the complete new list; the response is the full new list plus
+      removed / replaced / added. Applied directly, with a one-level Undo
+- [x] Prompt: numbered CURRENT CHANGES in plain words (new stops and routes with their
+      stops), next free route id and colours count routes in the list, relative requests
+      start from a value already in the list and replace that change
+- [x] Frontend: sends the list; feedback "Removed 1 · changed 1 · added 2" + AI message;
+      Undo while the list is still exactly the AI's result; an answer for a list edited
+      meanwhile is not applied (`lib/aiEdit.ts`)
+- [x] Tests: 20 backend (288) incl. a dependency broken by a removal, 3 Vitest (123),
+      e2e `ai-edit.spec.ts` with the AI endpoint answered by the test (16 e2e)
+- [x] Live AI check (Groq): undo last, and also, replace in place, "3 min slower still"
+      from the listed 9 min → 12, new route's headway edited in place, unknown number refused
+- [x] Commit (approved by the user)
 
 **2. AI summary of results** (M)
 - [ ] Explain the safeguard and get approval: the AI may only rephrase
@@ -682,3 +697,4 @@ All former "maybes" are now scheduled as Days 8–14. New ideas go here.
 | 2026-11-12 | 11  | "Add stop" tab (place by map click), new-stop markers, explorer with new stops; fixed stale-draft click race; 103 Vitest, 11 e2e; parts 1–2 done |
 | 2026-11-13 | 11  | Scenario type `add_route` (engine, AI, share link, display support); 0 diffs (5,738 journeys); 268 backend, 111 Vitest; live AI checked |
 | 2026-11-13 | 11  | "Add route" tab (click stops in order, loop by clicking the first again), new routes on the map and in the legend; 120 Vitest, 13 e2e; screenshots checked |
+| 2026-11-13 | 12  | AI edits the current change list (remove / replace / add operations, validated full list, Undo, stale guard); 288 backend, 123 Vitest, 16 e2e; live AI checked |

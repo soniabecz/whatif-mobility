@@ -33,7 +33,7 @@ import {
 import { applyAddedChanges, stopsById } from './lib/network'
 import { decodeChanges, readShareParam, sharePath } from './lib/shareLink'
 import type { Network } from './types/network'
-import { MAX_CHANGES, type ScenarioChange } from './types/scenario'
+import type { ScenarioChange } from './types/scenario'
 import type { SimulationResult } from './types/simulation'
 
 // Discriminated unions: TypeScript knows which fields exist in each state.
@@ -167,12 +167,6 @@ function App() {
   }
 
   /** Append AI-interpreted changes (up to the limit); returns how many fitted. */
-  function handleAddChanges(added: ScenarioChange[]): number {
-    const fitting = added.slice(0, Math.max(0, MAX_CHANGES - changes.length))
-    if (fitting.length > 0) handleChangesChange([...changes, ...fitting])
-    return fitting.length
-  }
-
   async function handleRun() {
     const id = ++requestId.current
     clearJourney()
@@ -256,7 +250,7 @@ function App() {
 
   const scenarioSections = (
     <>
-      <AiScenarioInput onAddChanges={handleAddChanges} disabled={running} />
+      <AiScenarioInput changes={changes} onChangesChange={handleChangesChange} disabled={running} />
       <ChangeList
         network={scenarioNetwork}
         changes={changes}
