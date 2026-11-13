@@ -21,6 +21,7 @@ walking.py) and those journeys are compared like any other.
 """
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 
 import networkx as nx
 
@@ -209,6 +210,66 @@ def _new_rides(
     return directions
 
 
+# --- Journey times after a scenario --------------------------------------------
+
+@dataclass(frozen=True)
+class ScenarioState:
+    """The network after a scenario, with every journey's fastest time.
+
+    Shared by the simulation and the comparison of two scenarios, so both use
+    exactly the same rules (closed stops, walking, added stops).
+    """
+
+    graph: nx.DiGraph
+    closed: set[str]
+    new_stop_ids: list[str]
+    # Fastest times from every open stop (baseline and added) to every reachable open stop.
+    times: dict[str, dict[str, float]]
+    places: nx.DiGraph
+    walking: WalkingModel | None
+
+    def excludes(self, origin: str, destination: str) -> bool:
+        """True for a journey to or from a closed stop when walking is off."""
+        return self.walking is None and (origin in self.closed or destination in self.closed)
+
+    def journey_time(self, origin: str, destination: str) -> float | None:
+        """Fastest time (None = impossible). Only for journeys not ``excludes``d;
+        a journey to or from a closed stop walks to a nearby open stop."""
+        if origin in self.closed or destination in self.closed:
+            if self.walking is None:
+                raise ValueError("journeys to or from a closed stop are excluded without walking")
+            option = best_walk_option(
+                self.places, self.walking, origin, destination, self.closed,
+                lambda a, b: self.times[a].get(b),
+            )
+            return option.total_min if option else None
+        return self.times[origin].get(destination)
+
+
+def scenario_state(
+    baseline: nx.DiGraph,
+    scenario: Scenario,
+    transfer_penalty_min: float = 0.0,
+    include_waiting: bool = False,
+    walking: WalkingModel | None = None,
+) -> ScenarioState:
+    """Apply the scenario to a copy of the baseline and compute journey times."""
+    graph, closed = apply_scenario(baseline, scenario, transfer_penalty_min, include_waiting)
+    new_stop_ids = added_stop_ids(graph)
+    times = {
+        s: travel_times_from(graph, s)
+        for s in [*sorted(baseline.nodes), *new_stop_ids] if s not in closed
+    }
+    return ScenarioState(
+        graph=graph,
+        closed=closed,
+        new_stop_ids=new_stop_ids,
+        times=times,
+        places=stop_places(baseline, graph),
+        walking=walking,
+    )
+
+
 # --- Metrics ----------------------------------------------------------------
 
 def simulate(
@@ -225,18 +286,11 @@ def simulate(
     ``walking``: walk to/from closed stops (None = such journeys are excluded).
     """
     before_graph = build_route_graph(baseline, transfer_penalty_min, include_waiting)
-    after_graph, closed = apply_scenario(
-        baseline, scenario, transfer_penalty_min, include_waiting
-    )
+    state = scenario_state(baseline, scenario, transfer_penalty_min, include_waiting, walking)
+    closed, new_stop_ids, after = state.closed, state.new_stop_ids, state.times
     stop_ids = sorted(baseline.nodes)
-    new_stop_ids = added_stop_ids(after_graph)
-    places = stop_places(baseline, after_graph)
 
     before = {s: travel_times_from(before_graph, s) for s in stop_ids}
-    after = {
-        s: travel_times_from(after_graph, s)
-        for s in [*stop_ids, *new_stop_ids] if s not in closed
-    }
 
     changed: list[JourneyChange] = []
     unchanged = closed_count = walked_count = newly_possible = 0
@@ -257,19 +311,13 @@ def simulate(
                 continue
             weight = float(activity[origin] * activity[destination])
             time_before = before[origin].get(destination)
+            if state.excludes(origin, destination):
+                closed_count += 1
+                add_weight("closed", weight)
+                continue
             if origin in closed or destination in closed:
-                if walking is None:
-                    closed_count += 1
-                    add_weight("closed", weight)
-                    continue
                 walked_count += 1
-                option = best_walk_option(
-                    places, walking, origin, destination, closed,
-                    lambda a, b: after[a].get(b),
-                )
-                time_after = option.total_min if option else None
-            else:
-                time_after = after[origin].get(destination)
+            time_after = state.journey_time(origin, destination)
             if time_before is None:
                 # Impossible already in the baseline. An added connection can
                 # make it possible; there is no "before" time to compare with.

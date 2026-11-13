@@ -261,6 +261,237 @@
           }
         }
       }
+    },
+    "/api/scenarios": {
+      "get": {
+        "tags": [
+          "scenarios"
+        ],
+        "summary": "List Saved",
+        "description": "Newest first; each checked against the current network (``fits``).",
+        "operationId": "list_saved_api_scenarios_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SavedScenarioInfo"
+                  },
+                  "type": "array",
+                  "title": "Response List Saved Api Scenarios Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "scenarios"
+        ],
+        "summary": "Save",
+        "operationId": "save_api_scenarios_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SavedScenarioIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedScenarioOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/scenarios/{scenario_id}": {
+      "get": {
+        "tags": [
+          "scenarios"
+        ],
+        "summary": "Get Saved",
+        "operationId": "get_saved_api_scenarios__scenario_id__get",
+        "parameters": [
+          {
+            "name": "scenario_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Scenario Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedScenarioOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "scenarios"
+        ],
+        "summary": "Overwrite",
+        "operationId": "overwrite_api_scenarios__scenario_id__put",
+        "parameters": [
+          {
+            "name": "scenario_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Scenario Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SavedScenarioIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedScenarioOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "scenarios"
+        ],
+        "summary": "Delete",
+        "operationId": "delete_api_scenarios__scenario_id__delete",
+        "parameters": [
+          {
+            "name": "scenario_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Scenario Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/comparisons": {
+      "post": {
+        "tags": [
+          "comparisons"
+        ],
+        "summary": "Compare Scenarios",
+        "operationId": "compare_scenarios_api_comparisons_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComparisonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComparisonResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -562,6 +793,163 @@
         ],
         "title": "CloseStop",
         "description": "Nobody can board, alight or transfer at the stop; buses drive through."
+      },
+      "ComparisonRequest": {
+        "properties": {
+          "a": {
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/CloseStop"
+                },
+                {
+                  "$ref": "#/components/schemas/RemoveConnection"
+                },
+                {
+                  "$ref": "#/components/schemas/ChangeTravelTime"
+                },
+                {
+                  "$ref": "#/components/schemas/ChangeFrequency"
+                },
+                {
+                  "$ref": "#/components/schemas/AddConnection"
+                },
+                {
+                  "$ref": "#/components/schemas/AddStop"
+                },
+                {
+                  "$ref": "#/components/schemas/AddRoute"
+                }
+              ],
+              "discriminator": {
+                "propertyName": "type",
+                "mapping": {
+                  "add_connection": "#/components/schemas/AddConnection",
+                  "add_route": "#/components/schemas/AddRoute",
+                  "add_stop": "#/components/schemas/AddStop",
+                  "change_frequency": "#/components/schemas/ChangeFrequency",
+                  "change_travel_time": "#/components/schemas/ChangeTravelTime",
+                  "close_stop": "#/components/schemas/CloseStop",
+                  "remove_connection": "#/components/schemas/RemoveConnection"
+                }
+              }
+            },
+            "type": "array",
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "A"
+          },
+          "b": {
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/CloseStop"
+                },
+                {
+                  "$ref": "#/components/schemas/RemoveConnection"
+                },
+                {
+                  "$ref": "#/components/schemas/ChangeTravelTime"
+                },
+                {
+                  "$ref": "#/components/schemas/ChangeFrequency"
+                },
+                {
+                  "$ref": "#/components/schemas/AddConnection"
+                },
+                {
+                  "$ref": "#/components/schemas/AddStop"
+                },
+                {
+                  "$ref": "#/components/schemas/AddRoute"
+                }
+              ],
+              "discriminator": {
+                "propertyName": "type",
+                "mapping": {
+                  "add_connection": "#/components/schemas/AddConnection",
+                  "add_route": "#/components/schemas/AddRoute",
+                  "add_stop": "#/components/schemas/AddStop",
+                  "change_frequency": "#/components/schemas/ChangeFrequency",
+                  "change_travel_time": "#/components/schemas/ChangeTravelTime",
+                  "close_stop": "#/components/schemas/CloseStop",
+                  "remove_connection": "#/components/schemas/RemoveConnection"
+                }
+              }
+            },
+            "type": "array",
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "B"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "a",
+          "b"
+        ],
+        "title": "ComparisonRequest"
+      },
+      "ComparisonResult": {
+        "properties": {
+          "a": {
+            "$ref": "#/components/schemas/SimulationSummary"
+          },
+          "b": {
+            "$ref": "#/components/schemas/SimulationSummary"
+          },
+          "compared_journeys": {
+            "type": "integer",
+            "title": "Compared Journeys"
+          },
+          "same": {
+            "type": "integer",
+            "title": "Same"
+          },
+          "a_faster": {
+            "type": "integer",
+            "title": "A Faster"
+          },
+          "b_faster": {
+            "type": "integer",
+            "title": "B Faster"
+          },
+          "only_possible_in_a": {
+            "type": "integer",
+            "title": "Only Possible In A"
+          },
+          "only_possible_in_b": {
+            "type": "integer",
+            "title": "Only Possible In B"
+          },
+          "impossible_in_both": {
+            "type": "integer",
+            "title": "Impossible In Both"
+          },
+          "largest_differences": {
+            "items": {
+              "$ref": "#/components/schemas/JourneyDifference"
+            },
+            "type": "array",
+            "title": "Largest Differences"
+          }
+        },
+        "type": "object",
+        "required": [
+          "a",
+          "b",
+          "compared_journeys",
+          "same",
+          "a_faster",
+          "b_faster",
+          "only_possible_in_a",
+          "only_possible_in_b",
+          "impossible_in_both",
+          "largest_differences"
+        ],
+        "title": "ComparisonResult",
+        "description": "Every number is computed by comparison_service from two fresh simulations.\n\nJourneys are the baseline's ordered stop pairs; a journey to or from a stop\nthat A or B closes (with walking off) is left out of the journey counts."
       },
       "ConnectionOut": {
         "properties": {
@@ -963,6 +1351,73 @@
         ],
         "title": "JourneyComparison"
       },
+      "JourneyDifference": {
+        "properties": {
+          "origin_id": {
+            "type": "string",
+            "title": "Origin Id"
+          },
+          "destination_id": {
+            "type": "string",
+            "title": "Destination Id"
+          },
+          "time_baseline_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time Baseline Min"
+          },
+          "time_a_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time A Min"
+          },
+          "time_b_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time B Min"
+          },
+          "difference_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Difference Min"
+          }
+        },
+        "type": "object",
+        "required": [
+          "origin_id",
+          "destination_id",
+          "time_baseline_min",
+          "time_a_min",
+          "time_b_min",
+          "difference_min"
+        ],
+        "title": "JourneyDifference",
+        "description": "One journey between baseline stops under both scenarios (None = impossible)."
+      },
       "JourneyLeg": {
         "properties": {
           "route_id": {
@@ -1270,6 +1725,214 @@
           "headway_min"
         ],
         "title": "RouteOut"
+      },
+      "SavedScenarioIn": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "changes": {
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/CloseStop"
+                },
+                {
+                  "$ref": "#/components/schemas/RemoveConnection"
+                },
+                {
+                  "$ref": "#/components/schemas/ChangeTravelTime"
+                },
+                {
+                  "$ref": "#/components/schemas/ChangeFrequency"
+                },
+                {
+                  "$ref": "#/components/schemas/AddConnection"
+                },
+                {
+                  "$ref": "#/components/schemas/AddStop"
+                },
+                {
+                  "$ref": "#/components/schemas/AddRoute"
+                }
+              ],
+              "discriminator": {
+                "propertyName": "type",
+                "mapping": {
+                  "add_connection": "#/components/schemas/AddConnection",
+                  "add_route": "#/components/schemas/AddRoute",
+                  "add_stop": "#/components/schemas/AddStop",
+                  "change_frequency": "#/components/schemas/ChangeFrequency",
+                  "change_travel_time": "#/components/schemas/ChangeTravelTime",
+                  "close_stop": "#/components/schemas/CloseStop",
+                  "remove_connection": "#/components/schemas/RemoveConnection"
+                }
+              }
+            },
+            "type": "array",
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Changes"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "changes"
+        ],
+        "title": "SavedScenarioIn",
+        "description": "Create or overwrite: a name and a change list (1-20 changes)."
+      },
+      "SavedScenarioInfo": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "change_count": {
+            "type": "integer",
+            "title": "Change Count"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "fits": {
+            "type": "boolean",
+            "title": "Fits"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "change_count",
+          "created_at",
+          "updated_at",
+          "fits",
+          "problem"
+        ],
+        "title": "SavedScenarioInfo",
+        "description": "One row of the list. ``fits`` = it applies to the CURRENT network\n(checked on every listing); ``problem`` says why not."
+      },
+      "SavedScenarioOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "change_count": {
+            "type": "integer",
+            "title": "Change Count"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "fits": {
+            "type": "boolean",
+            "title": "Fits"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem"
+          },
+          "changes": {
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/CloseStop"
+                },
+                {
+                  "$ref": "#/components/schemas/RemoveConnection"
+                },
+                {
+                  "$ref": "#/components/schemas/ChangeTravelTime"
+                },
+                {
+                  "$ref": "#/components/schemas/ChangeFrequency"
+                },
+                {
+                  "$ref": "#/components/schemas/AddConnection"
+                },
+                {
+                  "$ref": "#/components/schemas/AddStop"
+                },
+                {
+                  "$ref": "#/components/schemas/AddRoute"
+                }
+              ],
+              "discriminator": {
+                "propertyName": "type",
+                "mapping": {
+                  "add_connection": "#/components/schemas/AddConnection",
+                  "add_route": "#/components/schemas/AddRoute",
+                  "add_stop": "#/components/schemas/AddStop",
+                  "change_frequency": "#/components/schemas/ChangeFrequency",
+                  "change_travel_time": "#/components/schemas/ChangeTravelTime",
+                  "close_stop": "#/components/schemas/CloseStop",
+                  "remove_connection": "#/components/schemas/RemoveConnection"
+                }
+              }
+            },
+            "type": "array",
+            "title": "Changes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "change_count",
+          "created_at",
+          "updated_at",
+          "fits",
+          "problem",
+          "changes"
+        ],
+        "title": "SavedScenarioOut"
       },
       "Scenario": {
         "properties": {

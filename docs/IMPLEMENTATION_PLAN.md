@@ -6,10 +6,10 @@
 
 ## Current status
 
-- **Last completed:** Day 12 done (AI edits the change list; AI summary of results);
-  307 backend + 123 Vitest + 18 Playwright tests
-- **Next up:** Day 13 (save and compare scenarios): explain the data model and wait
-  for approval
+- **Last completed:** Day 13, part 13a (saved scenarios + comparison API, committed);
+  327 backend tests
+- **Next up:** Day 13, part 13b (UI: save, saved list, comparison card; see the
+  checklist under Day 13)
 - **How to start:** `./dev.sh` (app on http://localhost:5173); after pulling, it
   rebuilds outdated database tables automatically
 - **Working pattern used so far:** each part = design proposal → approval → build
@@ -38,7 +38,7 @@ so the project is usable even if a later day is cut short.
 | 10  | More realistic simulation | ✅ Done |
 | 11  | New scenario types        | ✅ Done |
 | 12  | AI features               | ✅ Done |
-| 13  | Saving and comparing      | ⬜ Todo |
+| 13  | Saving and comparing      | 🟡 In progress |
 | 14  | Deployment and real data  | ⬜ Todo |
 
 ---
@@ -628,10 +628,25 @@ transfer penalty at 0) and checks equivalence before changing defaults.
 **Size:** ≈ 1 session.
 
 **1. Save and compare scenarios** (L)
-- [ ] Explain the data model and get approval (SQLAlchemy tables for saved
-      scenarios; results are recomputed, never stored as truth)
-- [ ] Save, list, delete; compare two scenarios side by side
-- [ ] Tests, UI, commit
+- [x] Data model approved: one table `saved_scenarios` (id, unique name, `changes_json`
+      in the scenario format, created/updated in UTC); only changes are stored, never
+      results; validated on write and checked against the CURRENT network on every read
+      (`fits` / `problem`; not loadable if it no longer fits). No owners yet (Day 14)
+- [x] Part 13a backend: `models/scenario.py`, `schemas/saved_scenario.py`,
+      `services/scenario_store.py`, `services/comparison_service.py`, `api/scenarios.py`
+      (list / save 201 / get / put / delete 204; 409 name taken, 422 does not fit, 404),
+      `api/comparisons.py` (both simulated here; journey counts A vs B, top 10 differences,
+      only-in-one first). `simulate` core extracted to `scenario_state` (shared with the
+      comparison): 186 simulations / 5,738 journeys byte-identical to the previous commit
+- [x] Saved data protected: `python -m app.seed` now rebuilds only outdated NETWORK tables
+      and stops (instead of dropping) if `saved_scenarios` is outdated
+- [x] Tests: 20 backend (327) incl. the network changing after saving, an unreadable
+      stored list, comparison times = each scenario's own simulation, seed keeps saves
+- [ ] Part 13b UI: Save next to Copy link, "Saved scenarios" (load, delete, A/B pick,
+      current list as a side), comparison card (Baseline | A | B, better highlighted,
+      largest differences); Vitest + e2e
+- [x] Commit 13a (approved by the user)
+- [ ] Commit 13b
 
 ## Day 14 – Deployment and real data
 
@@ -713,3 +728,4 @@ All former "maybes" are now scheduled as Days 8–14. New ideas go here.
 | 2026-11-13 | 11  | "Add route" tab (click stops in order, loop by clicking the first again), new routes on the map and in the legend; 120 Vitest, 13 e2e; screenshots checked |
 | 2026-11-13 | 12  | AI edits the current change list (remove / replace / add operations, validated full list, Undo, stale guard); 288 backend, 123 Vitest, 16 e2e; live AI checked |
 | 2026-11-13 | 12  | AI summary of results: placeholders filled by the backend, digits/number words rejected, one retry; 307 backend, 18 e2e; live AI checked (5 scenarios) |
+| 2026-11-13 | 13  | Saved scenarios (changes only, checked on read) + comparison API; `scenario_state` extracted (0 diffs); seed keeps saved data; 327 backend |

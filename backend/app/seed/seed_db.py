@@ -10,21 +10,23 @@ from app.models import Connection, Route, Stop
 from app.seed.sample_network import ROUTES, STOPS, route_segments, stop_coordinates
 
 
-def schema_is_current(engine: Engine) -> bool:
-    """False when an existing table's columns differ from the models.
-
-    There are no migrations: the database holds only generated sample data,
-    so an outdated database is simply rebuilt (see app/seed/__main__.py).
-    Missing tables are fine; ``create_all`` adds them.
-    """
+def outdated_tables(engine: Engine) -> list[str]:
+    """Existing tables whose columns differ from the models (missing tables are
+    fine: ``create_all`` adds them). There are no migrations; see
+    app/seed/__main__.py for what is rebuilt."""
     inspector = inspect(engine)
+    outdated = []
     for table in Base.metadata.sorted_tables:
         if not inspector.has_table(table.name):
             continue
         existing = {column["name"] for column in inspector.get_columns(table.name)}
         if existing != {column.name for column in table.columns}:
-            return False
-    return True
+            outdated.append(table.name)
+    return outdated
+
+
+def schema_is_current(engine: Engine) -> bool:
+    return not outdated_tables(engine)
 
 
 def network_is_empty(db: Session) -> bool:
