@@ -6,10 +6,10 @@
 
 ## Current status
 
-- **Last completed:** Day 11, part 3b ("Add route" tab, map drawing, legend; not yet
-  committed); 268 backend + 120 Vitest + 13 Playwright tests pass locally
-- **Next up:** commit 3b when the user approves (Day 11 is then done); then Day 12
-  (AI aware of the change list; AI summary of results)
+- **Last completed:** Day 11 done (add connection, add stop, add route; last commit
+  13d74c3); 268 backend + 120 Vitest + 13 Playwright tests, CI green
+- **Next up:** Day 12, part 1 (AI aware of the current change list); explain the
+  design and wait for approval
 - **How to start:** `./dev.sh` (app on http://localhost:5173); after pulling, it
   rebuilds outdated database tables automatically
 - **Working pattern used so far:** each part = design proposal → approval → build
@@ -19,7 +19,7 @@
 
 ## Timeline
 
-Total: **10 working days done** (MVP in Days 1–5, Days 6–10 added afterwards);
+Total: **11 working days done** (MVP in Days 1–5, Days 6–10 added afterwards);
 Days 8–14 hold all later extensions (≈ 9–10 sessions; Days 10, 11 and 14 run long). A "day" is one
 working session. Every day must end with something working and committed,
 so the project is usable even if a later day is cut short.
@@ -36,7 +36,7 @@ so the project is usable even if a later day is cut short.
 | 8   | Safety nets               | ✅ Done |
 | 9   | Quick product wins        | ✅ Done |
 | 10  | More realistic simulation | ✅ Done |
-| 11  | New scenario types        | 🟡 In progress |
+| 11  | New scenario types        | ✅ Done |
 | 12  | AI features               | ⬜ Todo |
 | 13  | Saving and comparing      | ⬜ Todo |
 | 14  | Deployment and real data  | ⬜ Todo |
@@ -492,7 +492,7 @@ transfer penalty at 0) and checks equivalence before changing defaults.
 
 **Fallback:** parts 2 and 3 are independent of each other; either can move to a later day.
 
-## Day 11 – New scenario types
+## Day 11 – New scenario types ✅
 
 **Outcome:** users can add connections, stops and routes, not only remove or slow them.
 **Size:** ≈ 2 sessions – will overrun.
@@ -574,7 +574,7 @@ transfer penalty at 0) and checks equivalence before changing defaults.
       `draftSelection` takes the network (for the automatic colour)
 - [x] Tests: 9 Vitest (120), Playwright `e2e/add-route.spec.ts` (2 tests, 13 e2e);
       screenshots checked (desktop drawing, loop preview, legend, explorer leg on R5; phone)
-- [ ] Commit 3b
+- [x] Commit 3b (approved by the user; CI green)
 
 **Fallback:** "add a route" (part 3) is the largest; parts 1–2 stand on their own.
 
