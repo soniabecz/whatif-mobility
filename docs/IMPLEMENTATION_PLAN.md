@@ -6,9 +6,10 @@
 
 ## Current status
 
-- **Last completed:** Day 14.2 step B2 (results list the 1,000 largest changes; CSV from
-  the backend); 358 backend + 126 Vitest tests
-- **Next up:** B3 (AI on big networks), B4 (map); full network in backend/gdansk-all.db
+- **Last completed:** Day 14.2 step B3 (AI prompt excerpts for big networks);
+  377 backend + 126 Vitest tests
+- **Next up:** B4 (map and UI at scale);
+  full network in backend/gdansk-all.db
   (`WHATIF_DATABASE=gdansk-all.db python -m app.import_gtfs --modes all`)
 - **Real city:** `WHATIF_DATABASE=gdansk.db python -m app.import_gtfs`, then
   `WHATIF_DATABASE=gdansk.db ./dev.sh` (see README "Real city data")
@@ -723,8 +724,18 @@ transfer penalty at 0) and checks equivalence before changing defaults.
 - [x] e2e guard (`e2e/global-setup.ts`): locally Playwright reuses a running app; if it
       serves another network (WHATIF_DATABASE=gdansk.db) the run stops with one clear message
 - [x] Commit B2 (approved by the user; e2e not run locally: the dev server served Gdańsk)
-- [ ] B3 AI on big networks: pre-select stations (diacritic-insensitive, word stems for
-      Polish endings) and lines named in the request or the change list; short line list
+- [x] B3 AI on big networks: above 12,000 chars of line text the prompt gets an EXCERPT
+      (`services/network_excerpt.py`, also home of the line chains): stations named in the
+      request (no diacritics, "ł" → "l"; word stems: ≥ 4 letters shared, ≤ 3 differing at
+      the end: Bramie/Brama, Dworca/Dworzec; request words like przystanek/stop/linia
+      ignored), lines named by number (not "10 minut"), stops and lines of the change list;
+      lines through those stations ±3 stops ("..." = continues), named lines in full; all
+      routes with headways in one line. Too many matches → AI asks. Full network prompt
+      55k → 6–11k chars; trams prompt byte-identical. 19 tests (377)
+- [x] Live (Groq, full network): "przy Bramie Wyżynnej" → close S1028; "autobus 199 co 10
+      minut" → B199 every 10; "close the stop" → asks which; "3 minutes slower" on a 2/1-min
+      link → two one-way changes 5 and 4 (the step-A limit did not recur here); AI summary OK
+- [x] Commit B3 (approved by the user)
 - [ ] B4 map and UI at scale (measure; canvas only if needed; legend scroll); live check
 
 **Fallback:** both parts are optional; part 1 is only needed if the app goes public, and
@@ -800,3 +811,4 @@ All former "maybes" are now scheduled as Days 8–14. New ideas go here.
 | 2026-11-13 | 14  | GTFS import: Gdańsk trams (122 stations, 10 lines; CC BY + terms; attribution shown); compact AI prompt; 346 backend, 131 Vitest; live app + AI checked |
 | 2026-11-13 | 14  | Fast engine (SciPy all-pairs, vectorised, cached baseline): full Gdańsk 15–18 s → ~1 s, compare 56 s → 2.2 s; 0 differences (598 simulations); 353 backend |
 | 2026-11-13 | 14  | Results list the 1,000 largest changes (5.1 MB → 205 kB), CSV from the backend; e2e guard against a non-sample backend; 358 backend, 126 Vitest |
+| 2026-11-13 | 14  | AI excerpts for big networks (stem matching for Polish names): full Gdańsk prompt 55k → 6–11k chars; 377 backend; live AI checked (4 requests + summary) |

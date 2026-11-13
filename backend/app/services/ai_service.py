@@ -37,6 +37,7 @@ from app.schemas.scenario import (
     Scenario,
     ScenarioChange,
 )
+from app.services.network_excerpt import describe_excerpt, describe_lines
 from app.services.simulation_service import ScenarioError, apply_scenario
 
 logger = logging.getLogger(__name__)
@@ -138,107 +139,25 @@ def get_groq_model(api_key: str, model: str, timeout_seconds: float) -> GroqChat
 
 # --- Prompt -------------------------------------------------------------------
 
-# Above this size the network is described line by line (about half as long):
-# the AI provider's free tier allows 8,000 tokens per minute, and a real city's
-# link list alone exceeds that.
+# The AI provider's free tier allows 8,000 tokens per minute. Above the first
+# size the network is described line by line (about half as long); above the
+# second, only an excerpt for the request is sent (see network_excerpt.py).
 COMPACT_NETWORK_CHARS = 8_000
+EXCERPT_NETWORK_CHARS = 12_000
 
 
-def describe_network(graph: nx.DiGraph) -> str:
+def describe_network(
+    graph: nx.DiGraph, text: str = "", current: Sequence[ScenarioChange] = ()
+) -> str:
     """Plain-text network description for the prompt (deterministic order).
 
-    Small networks list every link; large ones use describe_lines (same facts,
-    each line once as a stop sequence)."""
+    Small networks list every link; larger ones every line as stop sequences
+    (same facts); a whole city only the excerpt ``text`` and ``current`` are about."""
     full = _describe_links(graph)
-    return full if len(full) <= COMPACT_NETWORK_CHARS else describe_lines(graph)
-
-
-def _stop_list(graph: nx.DiGraph) -> list[str]:
-    return ["STOPS (id: name):", *(f"- {s}: {graph.nodes[s]['name']}" for s in sorted(graph.nodes))]
-
-
-def _route_chains(edges: dict[tuple[str, str], float], two_way: bool) -> list[list[str]]:
-    """Split one route's links into chains of stops (each link used once).
-
-    ``two_way``: ``edges`` holds each street once (a < b) and is walked both ways.
-    """
-    neighbours: dict[str, list[str]] = {}
-    for a, b in edges:
-        neighbours.setdefault(a, []).append(b)
-        if two_way:
-            neighbours.setdefault(b, []).append(a)
-    unused = set(edges)
-
-    def key(a: str, b: str) -> tuple[str, str]:
-        return (min(a, b), max(a, b)) if two_way else (a, b)
-
-    def degree(node: str) -> int:
-        return sum(key(node, n) in unused for n in neighbours.get(node, []))
-
-    incoming: dict[str, int] = {}
-    if not two_way:
-        for _, b in edges:
-            incoming[b] = incoming.get(b, 0) + 1
-    chains: list[list[str]] = []
-    while unused:
-        nodes = sorted({n for pair in unused for n in pair})
-        # Start at an end of the line when there is one.
-        ends = [n for n in nodes if (degree(n) % 2 == 1 if two_way else degree(n) > incoming.get(n, 0))]
-        current = (ends or [n for n in nodes if degree(n) > 0])[0]
-        chain = [current]
-        while True:
-            options = sorted(n for n in neighbours.get(current, []) if key(current, n) in unused)
-            if not options:
-                break
-            nxt = options[0]
-            unused.discard(key(current, nxt))
-            if not two_way:
-                incoming[nxt] -= 1
-            chain.append(nxt)
-            current = nxt
-        chains.append(chain)
-    return chains
-
-
-def describe_lines(graph: nx.DiGraph) -> str:
-    """Compact description: each route once, as stop sequences with the minutes
-    between consecutive stops. Covers every link of every route."""
-    headways: dict[str, float] = graph.graph.get("headways", {})
-    names: dict[str, str] = graph.graph.get("route_names", {})
-    per_route: dict[str, dict[tuple[str, str], float]] = {}
-    for u, v, edge in graph.edges(data=True):
-        for route_id, minutes in edge["route_times"].items():
-            per_route.setdefault(route_id, {})[(u, v)] = minutes
-
-    lines = _stop_list(graph)
-    lines += [
-        "",
-        "LINES: each route as stop sequences. \"A -3- B\": the route runs directly between "
-        "A and B in 3 min both ways; \"A -2/3- B\": 2 min from A to B, 3 min back; "
-        "\"A >3> B\": one way only. Stops written next to each other are directly linked.",
-    ]
-    for route_id in sorted(per_route):
-        times = per_route[route_id]
-        # Streets the route runs both ways (times may differ), and one-way links.
-        both = {(min(a, b), max(a, b)): 0.0 for (a, b) in times if (b, a) in times}
-        one_way = {(a, b): t for (a, b), t in times.items() if (min(a, b), max(a, b)) not in both}
-
-        def two_way_link(a: str, b: str) -> str:
-            there, back = times[(a, b)], times[(b, a)]
-            return f"-{there:g}-" if there == back else f"-{there:g}/{back:g}-"
-
-        parts = []
-        for chain in _route_chains(both, two_way=True):
-            parts.append(" ".join(f"{a} {two_way_link(a, b)}" for a, b in zip(chain, chain[1:])) + f" {chain[-1]}")
-        for chain in _route_chains(one_way, two_way=False):
-            parts.append(" ".join(f"{a} >{one_way[(a, b)]:g}>" for a, b in zip(chain, chain[1:])) + f" {chain[-1]}")
-        headway = f", every {headways[route_id]:g} min" if route_id in headways else ""
-        lines.append(f"- {route_id} ({names.get(route_id, route_id)}{headway}): " + "; ".join(parts))
-    lines.append(
-        "LINK times above are per route; where several routes share a link, its current "
-        "travel time is the fastest of them."
-    )
-    return "\n".join(lines)
+    if len(full) <= COMPACT_NETWORK_CHARS:
+        return full
+    lines = describe_lines(graph)
+    return lines if len(lines) <= EXCERPT_NETWORK_CHARS else describe_excerpt(graph, text, current)
 
 
 def _describe_links(graph: nx.DiGraph) -> str:
@@ -357,7 +276,10 @@ def describe_new_route_defaults(graph: nx.DiGraph, current: Sequence[ScenarioCha
     )
 
 
-def build_system_prompt(graph: nx.DiGraph, current: Sequence[ScenarioChange] = ()) -> str:
+def build_system_prompt(
+    graph: nx.DiGraph, current: Sequence[ScenarioChange] = (), text: str = ""
+) -> str:
+    """The system prompt; ``text`` (the request) selects the excerpt of a big network."""
     return f"""You translate a user's description of hypothetical changes to a city bus \
 network into a structured scenario. You only translate; you never estimate or \
 describe the impact of the changes (a separate simulation computes all results).
@@ -431,7 +353,7 @@ changes, and a short message that explains why or asks a clarifying question.
 did (removed, changed, added), using stop names.
 - Write the message in the language of the user's request (not of the stop names).
 
-{describe_network(graph)}
+{describe_network(graph, text, current)}
 
 {describe_new_route_defaults(graph, current)}
 
@@ -467,7 +389,7 @@ def interpret(
     """
     current = list(current or [])
     _check_current(baseline, current)
-    raw = model.complete_json(build_system_prompt(baseline, current), text, _OUTPUT_SCHEMA)
+    raw = model.complete_json(build_system_prompt(baseline, current, text), text, _OUTPUT_SCHEMA)
 
     try:
         interpretation = AIInterpretation.model_validate(json.loads(raw))
