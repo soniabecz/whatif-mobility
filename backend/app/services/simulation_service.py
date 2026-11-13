@@ -20,10 +20,12 @@ Journeys to or from a closed stop are excluded from the figures, unless a
 walking.py) and those journeys are compared like any other.
 """
 
+from collections import OrderedDict
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import networkx as nx
+import numpy as np
 
 from app.schemas.scenario import (
     AddConnection,
@@ -53,9 +55,10 @@ from app.services.route_graph import (
     ride_edges,
     route_ids,
     set_headway,
-    travel_times_from,
+    TimeMatrix,
+    travel_time_matrix,
 )
-from app.services.walking import WalkingModel, best_walk_option
+from app.services.walking import Walk, WalkingModel, best_walk_option, nearby_open_stops
 
 # Two travel times closer than this are equal (guards against float noise).
 _EPSILON = 1e-9
@@ -223,10 +226,18 @@ class ScenarioState:
     graph: nx.DiGraph
     closed: set[str]
     new_stop_ids: list[str]
-    # Fastest times from every open stop (baseline and added) to every reachable open stop.
-    times: dict[str, dict[str, float]]
+    # Fastest times between all open stops (baseline and added).
+    times: TimeMatrix
     places: nx.DiGraph
     walking: WalkingModel | None
+    # Walks from each closed stop to nearby open stops, computed once per stop.
+    _nearby: dict[str, list[Walk]] = field(default_factory=dict, compare=False, repr=False)
+
+    def nearby(self, stop_id: str) -> list[Walk]:
+        if stop_id not in self._nearby:
+            assert self.walking is not None
+            self._nearby[stop_id] = nearby_open_stops(self.places, self.walking, stop_id, self.closed)
+        return self._nearby[stop_id]
 
     def excludes(self, origin: str, destination: str) -> bool:
         """True for a journey to or from a closed stop when walking is off."""
@@ -239,11 +250,11 @@ class ScenarioState:
             if self.walking is None:
                 raise ValueError("journeys to or from a closed stop are excluded without walking")
             option = best_walk_option(
-                self.places, self.walking, origin, destination, self.closed,
-                lambda a, b: self.times[a].get(b),
+                self.places, self.walking, origin, destination, self.closed, self.times.get,
+                self.nearby,
             )
             return option.total_min if option else None
-        return self.times[origin].get(destination)
+        return self.times.get(origin, destination)
 
 
 def scenario_state(
@@ -256,18 +267,76 @@ def scenario_state(
     """Apply the scenario to a copy of the baseline and compute journey times."""
     graph, closed = apply_scenario(baseline, scenario, transfer_penalty_min, include_waiting)
     new_stop_ids = added_stop_ids(graph)
-    times = {
-        s: travel_times_from(graph, s)
-        for s in [*sorted(baseline.nodes), *new_stop_ids] if s not in closed
-    }
+    open_stops = [s for s in [*sorted(baseline.nodes), *new_stop_ids] if s not in closed]
     return ScenarioState(
         graph=graph,
         closed=closed,
         new_stop_ids=new_stop_ids,
-        times=times,
+        times=travel_time_matrix(graph, open_stops),
         places=stop_places(baseline, graph),
         walking=walking,
     )
+
+
+def journey_matrix(state: ScenarioState, stop_ids: Sequence[str]) -> tuple[np.ndarray, np.ndarray]:
+    """(times, excluded) for every pair of ``stop_ids`` after the scenario.
+
+    ``times[i, j]``: fastest time (inf = impossible), walking to/from closed
+    stops when walking is on. ``excluded[i, j]``: a journey to or from a closed
+    stop with walking off (left out of the figures). The diagonal is unused.
+    """
+    n = len(stop_ids)
+    closed = np.array([s in state.closed for s in stop_ids], dtype=bool)
+    open_index = [i for i in range(n) if not closed[i]]
+    times = np.full((n, n), np.inf)
+    if open_index:
+        rows = [state.times.index[stop_ids[i]] for i in open_index]
+        times[np.ix_(open_index, open_index)] = state.times.values[np.ix_(rows, rows)]
+    touches_closed = closed[:, None] | closed[None, :]
+    if state.walking is None:
+        return times, touches_closed
+    # Only journeys touching a closed stop need the (slower) walking search.
+    for i, j in zip(*np.nonzero(touches_closed)):
+        if i != j:
+            time = state.journey_time(stop_ids[i], stop_ids[j])
+            times[i, j] = np.inf if time is None else time
+    return times, np.zeros((n, n), dtype=bool)
+
+
+# Times on today's network, per network and settings: every simulation needs
+# them, and they only change when the network does (e.g. after an import).
+_BASELINE_CACHE: OrderedDict[tuple[object, ...], TimeMatrix] = OrderedDict()
+_BASELINE_CACHE_SIZE = 4
+
+
+def _network_key(baseline: nx.DiGraph, transfer_penalty_min: float, include_waiting: bool) -> tuple[object, ...]:
+    return (
+        transfer_penalty_min,
+        include_waiting,
+        tuple(sorted(baseline.graph.get("headways", {}).items())),
+        tuple(sorted(baseline.nodes)),
+        tuple(sorted((u, v, tuple(sorted(d["route_times"].items()))) for u, v, d in baseline.edges(data=True))),
+    )
+
+
+def baseline_times(baseline: nx.DiGraph, transfer_penalty_min: float, include_waiting: bool) -> TimeMatrix:
+    """Fastest times between all stops of today's network (cached)."""
+    key = _network_key(baseline, transfer_penalty_min, include_waiting)
+    if key in _BASELINE_CACHE:
+        _BASELINE_CACHE.move_to_end(key)
+        return _BASELINE_CACHE[key]
+    graph = build_route_graph(baseline, transfer_penalty_min, include_waiting)
+    times = travel_time_matrix(graph, sorted(baseline.nodes))
+    _BASELINE_CACHE[key] = times
+    if len(_BASELINE_CACHE) > _BASELINE_CACHE_SIZE:
+        _BASELINE_CACHE.popitem(last=False)
+    return times
+
+
+def _ordered_sum(values: np.ndarray) -> float:
+    """Sum added one by one in the given order, exactly like a ``+=`` loop
+    (np.sum and Python 3.12's sum() round differently)."""
+    return float(np.add.accumulate(values)[-1]) if values.size else 0.0
 
 
 # --- Metrics ----------------------------------------------------------------
@@ -285,80 +354,87 @@ def simulate(
     ``include_waiting``: wait half the headway at every boarding.
     ``walking``: walk to/from closed stops (None = such journeys are excluded).
     """
-    before_graph = build_route_graph(baseline, transfer_penalty_min, include_waiting)
     state = scenario_state(baseline, scenario, transfer_penalty_min, include_waiting, walking)
-    closed, new_stop_ids, after = state.closed, state.new_stop_ids, state.times
+    return simulate_state(baseline, scenario, state, transfer_penalty_min, include_waiting)
+
+
+def simulate_state(
+    baseline: nx.DiGraph,
+    scenario: Scenario,
+    state: ScenarioState,
+    transfer_penalty_min: float,
+    include_waiting: bool,
+) -> SimulationResult:
+    """The simulation's figures for an already applied scenario."""
+    closed, new_stop_ids = state.closed, state.new_stop_ids
     stop_ids = sorted(baseline.nodes)
+    n = len(stop_ids)
+    before = baseline_times(baseline, transfer_penalty_min, include_waiting).values
+    after, excluded = journey_matrix(state, stop_ids)
 
-    before = {s: travel_times_from(before_graph, s) for s in stop_ids}
+    # Every ordered pair of distinct stops, in (origin, destination) order:
+    # all figures below are computed over these flattened arrays, and every
+    # sum adds the values in this order (as the per-journey loop it replaces).
+    pairs = ~np.eye(n, dtype=bool)
+    activity = np.array([baseline.nodes[s].get("activity", 1) for s in stop_ids], dtype=np.int64)
+    weight = (activity[:, None] * activity[None, :]).astype(float)[pairs]
+    t_before, t_after, excl = before[pairs], after[pairs], excluded[pairs]
+    closed_mask = np.array([s in closed for s in stop_ids], dtype=bool)
+    walked = (closed_mask[:, None] | closed_mask[None, :])[pairs] & ~excl
+    had, has = np.isfinite(t_before), np.isfinite(t_after)
+    included = ~excl
+    comparable = included & had & has
+    same = comparable.copy()
+    same[comparable] = np.abs(t_after[comparable] - t_before[comparable]) < _EPSILON
+    newly = included & ~had & has
+    unchanged = (included & ~had & ~has) | same
+    slower = comparable & ~same & (t_after > t_before)
+    faster = comparable & ~same & ~(t_after > t_before)
+    impossible = included & had & ~has
 
+    # Demand weights per category, summed in loop order; the categories in the
+    # order the loop first met them (their sum is the total weight).
+    categories = {
+        "closed": excl, "unchanged": unchanged, "newly_possible": newly,
+        "slower": slower, "faster": faster, "impossible": impossible,
+    }
+    first_seen = {name: int(np.argmax(mask)) for name, mask in categories.items() if mask.any()}
+    weight_of = {
+        name: _ordered_sum(weight[categories[name]])
+        for name in sorted(first_seen, key=first_seen.__getitem__)
+    }
+
+    origins, destinations = np.nonzero(pairs)
     changed: list[JourneyChange] = []
-    unchanged = closed_count = walked_count = newly_possible = 0
-    sum_before = sum_after = 0.0
-    comparable = 0
-    # Demand weights: invented activity level of origin x destination.
-    activity = {s: baseline.nodes[s].get("activity", 1) for s in stop_ids}
-    weight_of: dict[str, float] = {}  # category -> summed weight
-    weighted_before = weighted_after = weighted_comparable = 0.0
-
-    def add_weight(category: str, weight: float) -> None:
-        weight_of[category] = weight_of.get(category, 0.0) + weight
     per_stop: dict[str, list[JourneyChange]] = {s: [] for s in stop_ids}
+    for k in np.flatnonzero(slower | faster | impossible):
+        origin, destination = stop_ids[origins[k]], stop_ids[destinations[k]]
+        journey = _journey_change(
+            origin, destination, float(t_before[k]), float(t_after[k]) if has[k] else None
+        )
+        changed.append(journey)
+        per_stop[origin].append(journey)
+        per_stop[destination].append(journey)
 
-    for origin in stop_ids:
-        for destination in stop_ids:
-            if origin == destination:
-                continue
-            weight = float(activity[origin] * activity[destination])
-            time_before = before[origin].get(destination)
-            if state.excludes(origin, destination):
-                closed_count += 1
-                add_weight("closed", weight)
-                continue
-            if origin in closed or destination in closed:
-                walked_count += 1
-            time_after = state.journey_time(origin, destination)
-            if time_before is None:
-                # Impossible already in the baseline. An added connection can
-                # make it possible; there is no "before" time to compare with.
-                if time_after is None:
-                    unchanged += 1
-                    add_weight("unchanged", weight)
-                else:
-                    newly_possible += 1
-                    add_weight("newly_possible", weight)
-                continue
-
-            if time_after is not None:
-                comparable += 1
-                sum_before += time_before
-                sum_after += time_after
-                weighted_comparable += weight
-                weighted_before += weight * time_before
-                weighted_after += weight * time_after
-                if abs(time_after - time_before) < _EPSILON:
-                    unchanged += 1
-                    add_weight("unchanged", weight)
-                    continue
-
-            journey = _journey_change(origin, destination, time_before, time_after)
-            add_weight(journey.status, weight)
-            changed.append(journey)
-            per_stop[origin].append(journey)
-            per_stop[destination].append(journey)
-
+    count = int(comparable.sum())
+    sum_before = _ordered_sum(t_before[comparable])
+    sum_after = _ordered_sum(t_after[comparable])
+    weighted_comparable = _ordered_sum(weight[comparable])
+    weighted_before = _ordered_sum(weight[comparable] * t_before[comparable])
+    weighted_after = _ordered_sum(weight[comparable] * t_after[comparable])
+    after_times = state.times
     stop_impacts = [_stop_impact(s, s in closed, per_stop[s]) for s in stop_ids]
     summary = SimulationSummary(
-        total_journeys=len(stop_ids) * (len(stop_ids) - 1),
-        unchanged=unchanged,
-        slower=sum(j.status == "slower" for j in changed),
-        faster=sum(j.status == "faster" for j in changed),
-        impossible=sum(j.status == "impossible" for j in changed),
-        newly_possible=newly_possible,
-        to_or_from_closed_stop=closed_count,
-        walked_to_or_from_closed_stop=walked_count,
-        average_time_before_min=_round(sum_before / comparable) if comparable else None,
-        average_time_after_min=_round(sum_after / comparable) if comparable else None,
+        total_journeys=n * (n - 1),
+        unchanged=int(unchanged.sum()),
+        slower=int(slower.sum()),
+        faster=int(faster.sum()),
+        impossible=int(impossible.sum()),
+        newly_possible=int(newly.sum()),
+        to_or_from_closed_stop=int(excl.sum()),
+        walked_to_or_from_closed_stop=int(walked.sum()),
+        average_time_before_min=_round(sum_before / count) if count else None,
+        average_time_after_min=_round(sum_after / count) if count else None,
         total_time_change_min=_round(sum_after - sum_before),
         largest_increase=_largest_increase(changed),
         transfer_penalty_min=transfer_penalty_min,
@@ -366,7 +442,7 @@ def simulate(
         demand_weighted=_demand_weighted(
             weight_of, weighted_comparable, weighted_before, weighted_after
         ),
-        new_stops=_new_stops(new_stop_ids, stop_ids, closed, after),
+        new_stops=_new_stops(new_stop_ids, stop_ids, closed, after_times),
     )
     return SimulationResult(
         scenario=scenario,
@@ -395,7 +471,7 @@ def _new_stops(
     new_stop_ids: list[str],
     stop_ids: list[str],
     closed: set[str],
-    after: dict[str, dict[str, float]],
+    after: TimeMatrix,
 ) -> NewStops | None:
     """Journeys between open stops that involve at least one added stop."""
     if not new_stop_ids:
@@ -403,7 +479,7 @@ def _new_stops(
     open_stops = [s for s in [*stop_ids, *new_stop_ids] if s not in closed]
     new = set(new_stop_ids)
     times = [
-        after[o].get(d)
+        after.get(o, d)
         for o in open_stops for d in open_stops
         if o != d and (o in new or d in new)
     ]

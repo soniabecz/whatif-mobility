@@ -91,13 +91,18 @@ def best_walk_option(
     destination: str,
     closed: set[str],
     bus_time: Callable[[str, str], float | None],
+    nearby: Callable[[str], list[Walk]] | None = None,
 ) -> WalkOption | None:
     """Fastest walk + bus (+ walk) for a journey touching a closed stop, or None.
 
     ``bus_time(a, b)``: fastest time between two OPEN stops after the
     scenario (None if unreachable). Ties are broken by stop ids, so the
     simulation and the journey explorer always pick the same option.
+    ``nearby(stop)``: ``nearby_open_stops`` for this network and closure, if the
+    caller keeps them (they depend only on the stop; a city has many journeys).
     """
+    if nearby is None:
+        nearby = lambda stop: nearby_open_stops(network, model, stop, closed)  # noqa: E731
     candidates: list[tuple[float, str, str, WalkOption]] = []
 
     # Walk the whole way (both stops may be closed).
@@ -106,12 +111,12 @@ def best_walk_option(
         candidates.append((direct.minutes, "", "", WalkOption(direct.minutes, direct, None, None, None)))
 
     starts: list[tuple[str, Walk | None]] = (
-        [(w.to_stop_id, w) for w in nearby_open_stops(network, model, origin, closed)]
+        [(w.to_stop_id, w) for w in nearby(origin)]
         if origin in closed
         else [(origin, None)]
     )
     ends: list[tuple[str, Walk | None]] = (
-        [(w.to_stop_id, _reverse(w)) for w in nearby_open_stops(network, model, destination, closed)]
+        [(w.to_stop_id, _reverse(w)) for w in nearby(destination)]
         if destination in closed
         else [(destination, None)]
     )

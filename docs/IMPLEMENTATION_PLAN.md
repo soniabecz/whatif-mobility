@@ -6,10 +6,10 @@
 
 ## Current status
 
-- **Last completed:** Day 14.2 step A (Gdańsk trams from GTFS);
-  346 backend + 131 Vitest + 20 Playwright tests
-- **Next up:** optional: step B (full Gdańsk network performance) or Day 14.1
-  (deployment, skipped for now)
+- **Last completed:** Day 14.2 step B1 (fast engine: SciPy, vectorised, cached;
+  0 differences; full Gdańsk ~1 s per simulation); 353 backend tests
+- **Next up:** B2 (response size), B3 (AI), B4 (map); full network in backend/gdansk-all.db
+  (`WHATIF_DATABASE=gdansk-all.db python -m app.import_gtfs --modes all`)
 - **Real city:** `WHATIF_DATABASE=gdansk.db python -m app.import_gtfs`, then
   `WHATIF_DATABASE=gdansk.db ./dev.sh` (see README "Real city data")
 - **How to start:** `./dev.sh` (app on http://localhost:5173); after pulling, it
@@ -700,8 +700,24 @@ transfer penalty at 0) and checks equivalence before changing defaults.
       still becomes one both-ways time (prompt rule not followed); ~20 % of T2/T3/T8 trips
       use alternative routings that are left out; one AI request per minute on the free tier
 - [x] Commit step A (approved by the user)
-- [ ] Step B (optional): full network (buses): cached baseline times, recompute only
-      affected origins, paged changed journeys, smaller AI prompt; decide and get approval
+- [x] Step B approved (2026-11-13): SciPy dependency; cap returned changed journeys at
+      1,000 with the full list as a backend CSV; AI pre-selects stations/lines for big networks
+- [x] Measured full network (714 stations, 93 lines, 4,141 links, 509,082 journeys):
+      15–18 s per simulation (90 % NetworkX Dijkstra, pure Python), compare 56 s, results
+      5–7 MB (40–53k changed journeys), AI prompt 55k chars
+- [x] B1 engine: `travel_time_matrix` (SciPy compiled Dijkstra, checked identical to
+      NetworkX; zero weights kept); vectorised `simulate_state` with order-preserving sums
+      (`_ordered_sum`, so results are byte-identical, not just close); baseline times cached
+      per network + settings; comparison reuses its states; nearby walks computed once per
+      closed stop. Equivalence vs previous commit: sample 186 simulations, Gdańsk trams 376
+      simulations (220,717 changed journeys), 36 comparisons: all 0 differences.
+      Full network: ~1.0 s per simulation (was 15–18 s), compare 2.2 s (was 56 s).
+      7 tests (353). Committed (approved by the user)
+- [ ] B2 response size: cap `changed_journeys` at 1,000 (impossible first, then largest
+      change) + `changed_journeys_total`; CSV from the backend; sample unchanged
+- [ ] B3 AI on big networks: pre-select stations (diacritic-insensitive, word stems for
+      Polish endings) and lines named in the request or the change list; short line list
+- [ ] B4 map and UI at scale (measure; canvas only if needed; legend scroll); live check
 
 **Fallback:** both parts are optional; part 1 is only needed if the app goes public, and
 part 2 can stop after a small extract of the city works.
@@ -769,3 +785,4 @@ All former "maybes" are now scheduled as Days 8–14. New ideas go here.
 | 2026-11-13 | 13  | Saved scenarios (changes only, checked on read) + comparison API; `scenario_state` extracted (0 diffs); seed keeps saved data; 327 backend |
 | 2026-11-13 | 13  | Save / load / delete UI and comparison card (A vs B, better highlighted, largest differences); 128 Vitest, 20 e2e; screenshots checked |
 | 2026-11-13 | 14  | GTFS import: Gdańsk trams (122 stations, 10 lines; CC BY + terms; attribution shown); compact AI prompt; 346 backend, 131 Vitest; live app + AI checked |
+| 2026-11-13 | 14  | Fast engine (SciPy all-pairs, vectorised, cached baseline): full Gdańsk 15–18 s → ~1 s, compare 56 s → 2.2 s; 0 differences (598 simulations); 353 backend |
