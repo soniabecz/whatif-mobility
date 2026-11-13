@@ -8,9 +8,13 @@
 
 - **Last completed:** Day 14.2 step B3 (AI prompt excerpts for big networks);
   377 backend + 126 Vitest tests
-- **Next up:** B4 (map and UI at scale);
-  full network in backend/gdansk-all.db
-  (`WHATIF_DATABASE=gdansk-all.db python -m app.import_gtfs --modes all`)
+- **Next up:** B4 (map and UI at scale: measure map drawing with 714 stations, canvas
+  only if slow; legend scroll for 93 lines; live check of the whole app). The full
+  network is already imported in backend/gdansk-all.db (re-import:
+  `WHATIF_DATABASE=gdansk-all.db python -m app.import_gtfs --modes all`).
+  After B4: decide on the open issue "walking only to/from closed stops" (a model change)
+- **Local e2e:** Playwright reuses a running app on port 8000; if it serves Gdańsk the run
+  stops with a message: stop that app (or run it on whatif.db) before `npm run test:e2e`
 - **Real city:** `WHATIF_DATABASE=gdansk.db python -m app.import_gtfs`, then
   `WHATIF_DATABASE=gdansk.db ./dev.sh` (see README "Real city data")
 - **How to start:** `./dev.sh` (app on http://localhost:5173); after pulling, it
@@ -812,3 +816,4 @@ All former "maybes" are now scheduled as Days 8–14. New ideas go here.
 | 2026-11-13 | 14  | Fast engine (SciPy all-pairs, vectorised, cached baseline): full Gdańsk 15–18 s → ~1 s, compare 56 s → 2.2 s; 0 differences (598 simulations); 353 backend |
 | 2026-11-13 | 14  | Results list the 1,000 largest changes (5.1 MB → 205 kB), CSV from the backend; e2e guard against a non-sample backend; 358 backend, 126 Vitest |
 | 2026-11-13 | 14  | AI excerpts for big networks (stem matching for Polish names): full Gdańsk prompt 55k → 6–11k chars; 377 backend; live AI checked (4 requests + summary) |
+| 2026-11-13 | 14  | Session end: step B1–B3 committed, CI green; next B4 (map/UI at scale) |
