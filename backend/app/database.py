@@ -1,10 +1,15 @@
 """SQLAlchemy engine, session factory and declarative base.
 
-The SQLite database file lives at ``backend/whatif.db`` (git-ignored).
-It is (re)created from the sample data with:
+The SQLite database file lives in backend/ (git-ignored): ``whatif.db`` by
+default, or the file named by the WHATIF_DATABASE environment variable, so a
+real city can live next to the sample (e.g. WHATIF_DATABASE=gdansk.db).
 
-    python -m app.seed
+    python -m app.seed                                    # sample city
+    WHATIF_DATABASE=gdansk.db python -m app.import_gtfs   # Gdańsk trams
 """
+
+import os
+import re
 
 from collections.abc import Iterator
 from pathlib import Path
@@ -16,7 +21,17 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
-DATABASE_URL = f"sqlite:///{BACKEND_DIR / 'whatif.db'}"
+
+
+def database_file(name: str | None = None) -> Path:
+    """The database file in backend/: a plain file name ending in .db."""
+    name = name or os.environ.get("WHATIF_DATABASE") or "whatif.db"
+    if not re.fullmatch(r"[A-Za-z0-9_-]+\.db", name):
+        raise ValueError(f"WHATIF_DATABASE must be a file name like gdansk.db, not {name!r}")
+    return BACKEND_DIR / name
+
+
+DATABASE_URL = f"sqlite:///{database_file()}"
 
 
 class Base(DeclarativeBase):

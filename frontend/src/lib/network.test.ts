@@ -12,10 +12,12 @@ import {
   withAddedStop,
   currentTravelTime,
   describeChange,
+  exampleRequest,
   linkKey,
   neighbours,
   routeSegments,
   scenarioHighlights,
+  sortedRoutes,
   sortedStops,
   stopLabel,
   stopsById,
@@ -334,5 +336,17 @@ describe('new routes', () => {
       'a loop needs at least 3 stops',
     )
     expect(problem({ travel_times_min: [6, 0] })).toContain('more than 0')
+  })
+})
+
+describe('sortedRoutes and exampleRequest', () => {
+  it('orders line numbers naturally', () => {
+    const lines = { ...network, routes: ['T10', 'T2', 'T1'].map((id) => ({ id, name: id, color: '#000000', headway_min: 10 })) }
+    expect(sortedRoutes(lines).map((route) => route.id)).toEqual(['T1', 'T2', 'T10'])
+  })
+
+  it('builds the AI example from a real link of the network', () => {
+    expect(exampleRequest(network)).toBe('e.g. "Roadworks make Alpine Road – Brook Street twice as slow"')
+    expect(exampleRequest({ ...network, connections: [] })).toBe('e.g. "Close the busiest stop"')
   })
 })

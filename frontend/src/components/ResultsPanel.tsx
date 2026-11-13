@@ -21,7 +21,7 @@ import {
 } from '../lib/impact'
 import { changedJourneysCsv, csvFileName, downloadCsv } from '../lib/exportCsv'
 import { stopLabel } from '../lib/network'
-import type { Stop } from '../types/network'
+import type { NetworkSource, Stop } from '../types/network'
 import type { JourneyChange, JourneyStatus, SimulationResult } from '../types/simulation'
 import { AiSummary } from './AiSummary'
 import { IMPACT_ICONS } from './impactIcons'
@@ -43,6 +43,8 @@ interface ResultsPanelProps {
   onSelectJourney: (selection: JourneySelection) => void
   /** Rendered in the Journey tab. */
   journeyExplorer: ReactNode
+  /** The real network's data source; null for the invented sample city. */
+  source: NetworkSource | null
 }
 
 const TABS = [
@@ -97,6 +99,7 @@ export function ResultsPanel({
   onTabChange,
   onSelectJourney,
   journeyExplorer,
+  source,
 }: ResultsPanelProps) {
   const [expanded, setExpanded] = useState(false)
   const [showAll, setShowAll] = useState(false)
@@ -167,7 +170,7 @@ export function ResultsPanel({
       {tab === 'summary' && (
       <>
       <p className="text-[11px] text-ink-subtle">
-        {describeTimeModel(summary.include_waiting, summary.transfer_penalty_min)}
+        {describeTimeModel(summary.include_waiting, summary.transfer_penalty_min, source !== null)}
       </p>
       <AiSummary result={result} />
       <div className="grid grid-cols-2 gap-2">
@@ -252,9 +255,10 @@ export function ResultsPanel({
             )}
           </dl>
           <p className="-mt-3 text-[11px] text-ink-subtle">
-            Counts are journeys between stops (all {summary.total_journeys} weigh the same).
-            "% of trips" weighs each journey by an invented activity level of its two stops
-            (quiet 1, medium 2, major 3: origin × destination). It is not real passenger data.
+            Counts are journeys between stops (all {summary.total_journeys} weigh the same).{' '}
+            {source
+              ? 'There is no passenger data for this network, so "% of trips" weighs every stop the same: it equals the share of journeys.'
+              : '"% of trips" weighs each journey by an invented activity level of its two stops (quiet 1, medium 2, major 3: origin × destination). It is not real passenger data.'}
           </p>
 
           {result.most_affected_stop_ids.length > 0 && (

@@ -23,7 +23,7 @@ import networkx as nx
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Connection, Route, Stop
+from app.models import Connection, NetworkSource, Route, Stop
 
 
 class UnknownStopError(ValueError):
@@ -54,6 +54,11 @@ def list_routes(db: Session) -> list[Route]:
 
 def list_connections(db: Session) -> list[Connection]:
     return list(db.scalars(select(Connection).order_by(Connection.id)))
+
+
+def get_source(db: Session) -> NetworkSource | None:
+    """The real network's data source, or None for the invented sample."""
+    return db.scalars(select(NetworkSource).limit(1)).first()
 
 
 # --- Graph ------------------------------------------------------------------

@@ -11,13 +11,12 @@ dropped: if their table is outdated, the command stops and says so.
 """
 
 import argparse
-import sys
 
 from sqlalchemy import func, select
 
-from app.database import DATABASE_URL, Base, SessionLocal, engine
-from app.models import NETWORK_TABLES, Connection, Route, Stop
-from app.seed.seed_db import network_is_empty, outdated_tables, seed_database
+from app.database import DATABASE_URL, SessionLocal, engine
+from app.models import Connection, Route, Stop
+from app.seed.seed_db import network_is_empty, prepare_tables, seed_database
 
 
 def main() -> None:
@@ -29,19 +28,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    outdated = outdated_tables(engine)
-    user_tables = [name for name in outdated if name not in NETWORK_TABLES]
-    if user_tables:
-        sys.exit(
-            f"Tables with saved user data are outdated ({', '.join(user_tables)}). "
-            "They are not dropped automatically: back up backend/whatif.db, then update "
-            "or delete those tables by hand."
-        )
-    if outdated:
-        print(f"Network tables are outdated ({', '.join(outdated)}): rebuilding them from the models.")
-        network = [Base.metadata.tables[name] for name in NETWORK_TABLES]
-        Base.metadata.drop_all(engine, tables=network)
-    Base.metadata.create_all(engine)
+    prepare_tables(engine)
     with SessionLocal() as db:
         if args.if_empty and not network_is_empty(db):
             print(f"Database already seeded, left unchanged: {DATABASE_URL}")

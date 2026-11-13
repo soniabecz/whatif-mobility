@@ -9,6 +9,8 @@
 # Then starts the backend (port 8000) and frontend (port 5173) with hot
 # reload. Ctrl+C stops both.
 #
+# Real city: WHATIF_DATABASE=gdansk.db ./dev.sh (after importing it, see README).
+#
 # Works with the bash 3.2 that ships with macOS, and on Linux.
 
 set -euo pipefail

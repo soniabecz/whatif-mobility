@@ -1,6 +1,6 @@
 // Pure helpers over the network data. No React, no API calls.
 
-import type { Network, Stop } from '../types/network'
+import type { Network, Route, Stop } from '../types/network'
 import {
   MAX_HEADWAY_MIN,
   MAX_ROUTE_STOPS,
@@ -22,6 +22,19 @@ export function stopsById(network: Network): Map<string, Stop> {
 
 export function stopLabel(stops: Map<string, Stop>, stopId: string): string {
   return stops.get(stopId)?.name ?? stopId
+}
+
+/** Routes in natural id order (T2 before T10). */
+export function sortedRoutes(network: Network): Route[] {
+  return [...network.routes].sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }))
+}
+
+/** An example request for the AI input, using a real link of this network. */
+export function exampleRequest(network: Network): string {
+  const names = stopsById(network)
+  const link = network.connections.find((c) => names.has(c.from_stop_id) && names.has(c.to_stop_id))
+  if (!link) return 'e.g. "Close the busiest stop"'
+  return `e.g. "Roadworks make ${stopLabel(names, link.from_stop_id)} – ${stopLabel(names, link.to_stop_id)} twice as slow"`
 }
 
 export function sortedStops(network: Network): Stop[] {

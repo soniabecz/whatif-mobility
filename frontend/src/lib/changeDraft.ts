@@ -21,6 +21,7 @@ import {
   currentTravelTime,
   linkKey,
   neighbours,
+  sortedRoutes,
   sortedStops,
 } from './network'
 
@@ -75,7 +76,7 @@ function headwayText(network: Network, routeId: string): string {
 export function initialDraft(network: Network): ChangeDraft {
   const first = sortedStops(network)[0]?.id ?? ''
   const to = neighbours(network, first)[0]?.id ?? ''
-  const route = [...network.routes].sort((a, b) => a.id.localeCompare(b.id))[0]?.id ?? ''
+  const route = sortedRoutes(network)[0]?.id ?? ''
   return {
     type: 'close_stop',
     stopId: first,

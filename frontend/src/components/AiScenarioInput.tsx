@@ -28,6 +28,8 @@ interface AiScenarioInputProps {
   /** Replaces the whole list (the AI's result, or the previous list on Undo). */
   onChangesChange: (changes: ScenarioChange[]) => void
   disabled: boolean
+  /** Example request shown as the placeholder (built from the loaded network). */
+  example: string
 }
 
 type Feedback =
@@ -39,7 +41,6 @@ type Feedback =
   | { kind: 'not-configured'; message: string }
   | { kind: 'error'; message: string }
 
-const PLACEHOLDER = 'e.g. "Roadworks make Riverside – East Gate twice as slow"'
 
 const FEEDBACK_STYLES: Record<
   Exclude<Feedback['kind'], 'none'>,
@@ -52,7 +53,7 @@ const FEEDBACK_STYLES: Record<
   error: { icon: TriangleAlert, className: 'bg-red-50 text-red-800' },
 }
 
-export function AiScenarioInput({ changes, onChangesChange, disabled }: AiScenarioInputProps) {
+export function AiScenarioInput({ changes, onChangesChange, disabled, example }: AiScenarioInputProps) {
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
   const [feedback, setFeedback] = useState<Feedback>({ kind: 'none' })
@@ -135,7 +136,7 @@ export function AiScenarioInput({ changes, onChangesChange, disabled }: AiScenar
           className="block w-full resize-none bg-transparent px-1.5 py-1 text-sm text-ink placeholder:text-ink-subtle focus:outline-none disabled:opacity-50"
           rows={2}
           maxLength={MAX_AI_REQUEST_CHARS}
-          placeholder={PLACEHOLDER}
+          placeholder={example}
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}

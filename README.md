@@ -193,6 +193,39 @@ If the page says the network is empty, run `python -m app.seed` in `backend/`.
 Map tiles come from the public OpenStreetMap tile server, which is fine for
 local development. A public deployment needs its own tile provider.
 
+## Real city data (Gdańsk)
+
+Besides the invented sample city, the app can run on a real network imported from
+a GTFS timetable feed. The default is the trams of **ZTM Gdańsk**
+([open data](https://ckan.multimediagdansk.pl/dataset/tristar)):
+
+```bash
+cd backend && source .venv/bin/activate
+WHATIF_DATABASE=gdansk.db python -m app.import_gtfs            # Gdańsk trams (default)
+cd .. && WHATIF_DATABASE=gdansk.db ./dev.sh                    # start the app on it
+```
+
+- `WHATIF_DATABASE` (a file name in `backend/`, default `whatif.db`) picks the
+  database, so the sample city stays in `whatif.db`; the tests always use the sample.
+  Set it in the shell, not in `backend/.env`.
+- `python -m app.import_gtfs [zip or URL] [--modes tram|bus|all] [--date YYYY-MM-DD]`;
+  other feeds: add `--attribution-url` and `--licence`. Downloads go to
+  `backend/data/gtfs/` (git-ignored). Saved scenarios are kept; those that no longer
+  fit the network are flagged.
+- How the timetable becomes the app's network (stations = stop posts grouped by
+  name; each line's most frequent stop sequence on one weekday; median link times;
+  peak headways; no demand data) is in `backend/app/services/gtfs_import.py` and in
+  the app's legend ("How the network was built").
+- **Terms of the data**: the app names the publisher (Zarząd Transportu Miejskiego w
+  Gdańsku, http://www.ztm.gda.pl/otwarty_ztm) and the data's creation and download
+  dates on the map and in the legend. Keeping the data current is the user's duty:
+  re-run the import now and then (the feed covers about two weeks ahead).
+- Size: trams (122 stations, about 15,000 journeys) simulate in under a second.
+  `--modes all` (about 740 stations, 550,000 journeys) imports, but the app is not
+  yet fast enough for it, and the AI prompt would exceed the free AI tier.
+- On the free Groq tier (8,000 tokens per minute), one AI request on Gdańsk uses
+  most of a minute's allowance: wait about a minute between AI requests.
+
 ## Tests and checks
 
 ```bash

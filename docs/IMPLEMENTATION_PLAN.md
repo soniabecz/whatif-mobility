@@ -6,10 +6,12 @@
 
 ## Current status
 
-- **Last completed:** Day 13 done (save, load, compare scenarios);
-  327 backend + 128 Vitest + 20 Playwright tests
-- **Next up:** Day 14 (deployment and real data): decisions needed first (hosting
-  target; GTFS city and licence)
+- **Last completed:** Day 14.2 step A (Gdańsk trams from GTFS);
+  346 backend + 131 Vitest + 20 Playwright tests
+- **Next up:** optional: step B (full Gdańsk network performance) or Day 14.1
+  (deployment, skipped for now)
+- **Real city:** `WHATIF_DATABASE=gdansk.db python -m app.import_gtfs`, then
+  `WHATIF_DATABASE=gdansk.db ./dev.sh` (see README "Real city data")
 - **How to start:** `./dev.sh` (app on http://localhost:5173); after pulling, it
   rebuilds outdated database tables automatically
 - **Working pattern used so far:** each part = design proposal → approval → build
@@ -39,7 +41,7 @@ so the project is usable even if a later day is cut short.
 | 11  | New scenario types        | ✅ Done |
 | 12  | AI features               | ✅ Done |
 | 13  | Saving and comparing      | ✅ Done |
-| 14  | Deployment and real data  | ⬜ Todo |
+| 14  | Deployment and real data  | 🟡 In progress |
 
 ---
 
@@ -662,16 +664,44 @@ transfer penalty at 0) and checks equivalence before changing defaults.
 **Size:** ≥ 2 sessions – open-ended.
 
 **1. Deployment hardening** (M) – only if the app will be public
-- [ ] Decide the hosting target
+- [ ] Skipped for now (user, 2026-11-13); decide the hosting target when it is needed
 - [ ] Rate-limit the AI endpoint, production map tiles, authentication
 - [ ] Commit
 
 **2. Real city data (GTFS import)** (L, possibly several sessions)
-- [ ] Choose a city and feed; check its licence
-- [ ] Import stops, routes, travel times (and frequencies, if Day 10 part 1 is done)
-- [ ] Performance: all-pairs journeys will not scale to thousands of stops
-      (sampling, caching or limiting journeys); decide and get approval
-- [ ] Tests on a small extract; commit
+- [x] City and feed: ZTM Gdańsk GTFS (ckan.multimediagdansk.pl, republished daily).
+      Licence: Creative Commons Attribution + "Regulamin" (terms): free reuse; name the
+      publisher (Zarząd Transportu Miejskiego w Gdańsku, http://www.ztm.gda.pl/otwarty_ztm)
+      and the creation and download dates; keeping the data current is the user's duty.
+      (Mobility Database lists CC0; the publisher's own statement wins.)
+- [x] Measured: 1,624 stop posts → 760 stations; 93 lines (83 bus, 10 tram). Trams:
+      ~125 stations, 15,000 journeys, 0.4 s per simulation. All: ~740 stations,
+      550,000 journeys, ~16 s+ per simulation (too slow; huge results; AI prompt too big)
+- [x] Approved: step A = trams (importer also supports buses/all); step B (full network
+      performance) later, only if wanted. Stations = posts grouped by name (≥ 500 m apart
+      → separate); equal demand (no invented proxy); separate database file
+      (`WHATIF_DATABASE`, e.g. gdansk.db), the sample stays in whatif.db for tests
+- [x] Step A: `services/gtfs_import.py` + `python -m app.import_gtfs` (download to
+      backend/data/gtfs, git-ignored): reference weekday (next Wednesday), main station
+      sequence per line and direction, median link times (≥ 0.5 min), peak headways,
+      calls without boarding/alighting driven through (depot gates; found on the real
+      feed), distinct line colours; `network_source` table (attribution, dates, method),
+      `GET /api/network` → `source`; seed/rebuild keep saved scenarios
+- [x] UI: credit on the map's attribution line and in the legend (dates, licence, "How
+      the network was built"); texts no longer say "invented" for a real feed; natural
+      line order (T2 before T10); AI example from a real link
+- [x] AI: compact line-by-line network description above 8,000 chars (Gdańsk prompt
+      19k → 11.8k chars; Groq free tier: 8,000 tokens per minute, was HTTP 413); summary
+      facts say "no passenger data" instead of "invented demand" for equal levels
+- [x] Tests: 19 backend (346) on a hand-made feed; 3 Vitest (131); 20 e2e unchanged.
+      Live: import 122 stations / 10 lines / 635 links; closing Politechnika SKM in the
+      app; AI in English and Polish (close stop, tram 8 every 5 min), AI summary
+- [ ] Known limits: a relative change of a link whose directions differ ("A -2/3- B")
+      still becomes one both-ways time (prompt rule not followed); ~20 % of T2/T3/T8 trips
+      use alternative routings that are left out; one AI request per minute on the free tier
+- [x] Commit step A (approved by the user)
+- [ ] Step B (optional): full network (buses): cached baseline times, recompute only
+      affected origins, paged changed journeys, smaller AI prompt; decide and get approval
 
 **Fallback:** both parts are optional; part 1 is only needed if the app goes public, and
 part 2 can stop after a small extract of the city works.
@@ -738,3 +768,4 @@ All former "maybes" are now scheduled as Days 8–14. New ideas go here.
 | 2026-11-13 | 12  | AI summary of results: placeholders filled by the backend, digits/number words rejected, one retry; 307 backend, 18 e2e; live AI checked (5 scenarios) |
 | 2026-11-13 | 13  | Saved scenarios (changes only, checked on read) + comparison API; `scenario_state` extracted (0 diffs); seed keeps saved data; 327 backend |
 | 2026-11-13 | 13  | Save / load / delete UI and comparison card (A vs B, better highlighted, largest differences); 128 Vitest, 20 e2e; screenshots checked |
+| 2026-11-13 | 14  | GTFS import: Gdańsk trams (122 stations, 10 lines; CC BY + terms; attribution shown); compact AI prompt; 346 backend, 131 Vitest; live app + AI checked |

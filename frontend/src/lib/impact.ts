@@ -42,11 +42,17 @@ export function formatMinutes(value: number): string {
   return `${value.toFixed(1)} min`
 }
 
-/** One sentence on what journey times include (the model the backend used). */
-export function describeTimeModel(includeWaiting: boolean, transferPenaltyMin: number): string {
+/** One sentence on what journey times include (the model the backend used).
+ *  `realTimetable`: headways come from a real feed, not the invented sample. */
+export function describeTimeModel(
+  includeWaiting: boolean,
+  transferPenaltyMin: number,
+  realTimetable = false,
+): string {
   const penalty = `${transferPenaltyMin} min per change of bus`
+  const timetable = realTimetable ? 'from the real timetable' : 'an invented timetable'
   return includeWaiting
-    ? `Journey times include waiting (half the time between buses, an invented timetable) at every boarding and ${penalty}.`
+    ? `Journey times include waiting (half the time between buses, ${timetable}) at every boarding and ${penalty}.`
     : `Journey times include ${penalty}; waiting is not modelled.`
 }
 

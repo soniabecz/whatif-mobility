@@ -17,7 +17,7 @@ import type { DraftSelection } from '../lib/changeDraft'
 import { ACTIVITY_LABELS, IMPACT_STYLES, describeImpact, impactLevel } from '../lib/impact'
 import { linkKey, routeSegments, routeStretches, scenarioHighlights } from '../lib/network'
 import type { JourneyComparison, JourneyLeg, WalkLeg } from '../types/journey'
-import type { Network, Route, Stop } from '../types/network'
+import type { Network, NetworkSource, Route, Stop } from '../types/network'
 import type { ScenarioChange } from '../types/scenario'
 import type { SimulationResult, StopImpact } from '../types/simulation'
 
@@ -376,10 +376,15 @@ export function NetworkMap({
           >
             <Tooltip direction="top" offset={[0, -8]}>
               <strong>{stop.name}</strong> <span style={{ color: '#8b95a5' }}>{stop.id}</span>
-              <br />
-              <span style={{ color: '#8b95a5' }}>
-                Activity: {ACTIVITY_LABELS[stop.activity] ?? stop.activity} (invented)
-              </span>
+              {/* The sample city's invented demand levels; real feeds have none. */}
+              {!network.source && (
+                <>
+                  <br />
+                  <span style={{ color: '#8b95a5' }}>
+                    Activity: {ACTIVITY_LABELS[stop.activity] ?? stop.activity} (invented)
+                  </span>
+                </>
+              )}
               {style && (
                 <>
                   <br />
@@ -435,6 +440,7 @@ export function NetworkMap({
       ))}
 
       {mapSelect && <MapClicks onClick={mapSelect.onMapClick} />}
+      {network.source && <DataAttribution source={network.source} />}
 
       {journey && (
         <JourneyOverlay
@@ -570,6 +576,26 @@ function JourneyOverlay({
       )}
     </>
   )
+}
+
+/** The timetable's publisher in the map's attribution line (always visible):
+ *  the data's terms require naming the source. Details are in the legend. */
+function DataAttribution({ source }: { source: NetworkSource }) {
+  const map = useMap()
+  useEffect(() => {
+    const control = map.attributionControl
+    const escape = (text: string) =>
+      text.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] ?? c)
+    const name = escape(source.publisher)
+    const text = source.attribution_url.startsWith('http')
+      ? `Timetable: <a href="${escape(source.attribution_url)}" target="_blank" rel="noreferrer">${name}</a>`
+      : `Timetable: ${name}`
+    control.addAttribution(text)
+    return () => {
+      control.removeAttribution(text)
+    }
+  }, [map, source])
+  return null
 }
 
 /** Reports clicks on the map itself (also clicks that hit a line). */

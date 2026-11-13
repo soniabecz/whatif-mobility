@@ -68,7 +68,7 @@ def test_facts_come_from_the_result(sample: nx.DiGraph) -> None:
     assert facts["stop1_affected"].description.startswith(f"most affected stop no. 1: {sample.nodes[top]['name']}")
     assert facts["walked"].value == str(s.walked_to_or_from_closed_stop)
     assert facts["change2_minutes"].value == "9"  # the user's own input
-    assert "INVENTED demand" in facts["demand_slower_pct"].description
+    assert "INVENTED demand" in facts["demand_slower_pct"].description  # the sample's levels
     assert "newly_possible" not in facts and "new_stop_journeys" not in facts  # only facts that exist
 
 
@@ -172,3 +172,10 @@ def test_api_errors(client: TestClient) -> None:
     app.dependency_overrides.pop(get_chat_model)
     not_configured = client.post("/api/ai/summary", json={"changes": [CLOSE_CEN]})
     assert not_configured.status_code == 503 and "not configured" in not_configured.json()["detail"]
+
+
+def test_equal_demand_is_not_called_invented(sample: nx.DiGraph) -> None:
+    names = {s: sample.nodes[s]["name"] for s in sample.nodes}
+    facts = {f.key: f for f in build_facts(_result(sample, CLOSE_CEN), names, equal_demand=True)}
+    assert "no passenger data" in facts["demand_slower_pct"].description
+    assert "INVENTED" not in facts["demand_slower_pct"].description

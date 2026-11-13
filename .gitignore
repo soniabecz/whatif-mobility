@@ -9,3 +9,5 @@ node_modules/
 dist/
 *.db
 *.sqlite3
+# Downloaded GTFS feeds (large; re-downloaded by app.import_gtfs)
+backend/data/

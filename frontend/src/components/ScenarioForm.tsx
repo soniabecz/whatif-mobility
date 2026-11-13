@@ -16,6 +16,7 @@ import {
 import {
   currentTravelTime,
   neighbours,
+  sortedRoutes,
   sortedStops,
   stopLabel,
   stopsById,
@@ -74,7 +75,7 @@ export function ScenarioForm({
   const toOptions = useMemo(() => neighbours(network, draft.fromId), [network, draft.fromId])
   const currentTime = currentTravelTime(network, draft.fromId, draft.toId)
   const routes = useMemo(
-    () => [...network.routes].sort((a, b) => a.id.localeCompare(b.id)),
+    () => sortedRoutes(network),
     [network],
   )
   const currentRoute = routes.find((route) => route.id === draft.routeId)
@@ -175,7 +176,7 @@ export function ScenarioForm({
               label="A bus every (minutes)"
               hint={
                 currentRoute &&
-                `Currently every ${currentRoute.headway_min} min (invented timetable). Waiting is half of it on average.`
+                `Currently every ${currentRoute.headway_min} min (${network.source ? 'from the timetable, morning peak' : 'invented timetable'}). Waiting is half of it on average.`
               }
             >
               <input

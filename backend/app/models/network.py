@@ -1,6 +1,6 @@
 """SQLAlchemy tables describing the baseline bus network."""
 
-from sqlalchemy import CheckConstraint, Float, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import CheckConstraint, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -55,3 +55,25 @@ class Connection(Base):
     from_stop_id: Mapped[str] = mapped_column(ForeignKey("stops.id"))
     to_stop_id: Mapped[str] = mapped_column(ForeignKey("stops.id"))
     travel_time_min: Mapped[float] = mapped_column(Float)
+
+
+class NetworkSource(Base):
+    """Where a real network comes from (one row; none for the invented sample).
+
+    Shown in the app: the data's terms require naming the publisher and the
+    dates the data was created and downloaded.
+    """
+
+    __tablename__ = "network_source"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(200))  # e.g. "Gdańsk – trams"
+    publisher: Mapped[str] = mapped_column(String(200))
+    attribution_url: Mapped[str] = mapped_column(String(300))
+    licence: Mapped[str] = mapped_column(String(300))
+    feed_url: Mapped[str] = mapped_column(String(500))
+    feed_created: Mapped[str] = mapped_column(String(10))  # ISO date of the feed's files
+    downloaded: Mapped[str] = mapped_column(String(10))  # ISO date
+    reference_date: Mapped[str] = mapped_column(String(10))  # the weekday the network is built from
+    # How the network was derived (shown on request): grouping, times, headways.
+    method: Mapped[str] = mapped_column(Text)

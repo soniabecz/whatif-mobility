@@ -71,9 +71,12 @@ def _direction(value: float, more: str, less: str) -> str:
 
 
 def build_facts(
-    result: SimulationResult, stop_names: dict[str, str]
+    result: SimulationResult, stop_names: dict[str, str], equal_demand: bool = False
 ) -> list[Fact]:
-    """Every number the summary may use, from the result and the change list."""
+    """Every number the summary may use, from the result and the change list.
+
+    ``equal_demand``: every stop has the same activity level (a real network
+    without passenger data), so the "demand-weighted" shares are plain shares."""
     s = result.summary
     facts = [
         Fact("total_journeys", str(s.total_journeys), "journeys compared: every pair of stops, both ways"),
@@ -139,8 +142,11 @@ def build_facts(
         ("demand_faster_pct", d.faster_pct, "faster"),
         ("demand_impossible_pct", d.impossible_pct, "no longer possible"),
     ):
-        facts.append(Fact(key, _minutes(value),
-                          f"percent of trips {what}, weighted by INVENTED demand (say so if used)"))
+        weighting = (
+            "every stop weighs the same (no passenger data)" if equal_demand
+            else "weighted by INVENTED demand (say so if used)"
+        )
+        facts.append(Fact(key, _minutes(value), f"percent of trips {what}; {weighting}"))
     if s.transfer_penalty_min:
         facts.append(Fact("transfer_penalty", _minutes(s.transfer_penalty_min),
                           "minutes counted for every change of bus (a setting)"))
@@ -226,8 +232,8 @@ placeholder; say "none" instead of using a placeholder whose value is 0; do not 
 repeat a figure already given (no "(30 trips)" after "30 journeys"); if a \
 before and after value are equal, say the value once and that it is unchanged; \
 group stops only when their figures are the same. Mention journeys to or from closed or new \
-stops only if those facts exist. If you use demand-weighted shares, say they use \
-invented demand. No advice, no causes or effects beyond the listed changes, \
+stops only if those facts exist. Percentages of trips: follow what their \
+description says about demand. No advice, no causes or effects beyond the listed changes, \
 no headings, no lists. Settings: {settings}.
 
 {describe_current_changes(baseline, list(result.scenario.changes))}
@@ -243,7 +249,8 @@ def summarise(baseline: nx.DiGraph, result: SimulationResult, model: ChatModel) 
     for change in result.scenario.changes:
         if isinstance(change, AddStop):
             stop_names[change.stop_id] = change.name
-    facts = build_facts(result, stop_names)
+    equal_demand = len({baseline.nodes[s].get("activity", 1) for s in baseline.nodes}) <= 1
+    facts = build_facts(result, stop_names, equal_demand)
     prompt = build_summary_prompt(baseline, result, facts)
 
     request = "Summarise these results."

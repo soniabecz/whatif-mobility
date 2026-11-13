@@ -117,6 +117,12 @@ describe('formatShare', () => {
 })
 
 describe('describeTimeModel', () => {
+  it('says whether the timetable is invented or real', () => {
+    expect(describeTimeModel(true, 2)).toContain('an invented timetable')
+    expect(describeTimeModel(true, 2, true)).toContain('from the real timetable')
+    expect(describeTimeModel(true, 2, true)).not.toContain('invented')
+  })
+
   it('mentions waiting only when it is modelled', () => {
     expect(describeTimeModel(true, 2)).toContain('waiting (half the time between buses')
     expect(describeTimeModel(true, 2)).toContain('2 min per change of bus')

@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.database import Base
 
-from app.models import Connection, Route, Stop
+from app.models import Connection, NetworkSource, Route, Stop
 from app.seed.sample_network import ROUTES, STOPS, route_segments, stop_coordinates
 
 
@@ -29,6 +29,28 @@ def schema_is_current(engine: Engine) -> bool:
     return not outdated_tables(engine)
 
 
+def prepare_tables(engine: Engine) -> None:
+    """Create missing tables; rebuild outdated NETWORK tables (generated data).
+
+    Saved scenarios are user data: if their table is outdated, stop (SystemExit)
+    instead of dropping it.
+    """
+    from app.models import NETWORK_TABLES
+
+    outdated = outdated_tables(engine)
+    user_tables = [name for name in outdated if name not in NETWORK_TABLES]
+    if user_tables:
+        raise SystemExit(
+            f"Tables with saved user data are outdated ({', '.join(user_tables)}). "
+            "They are not dropped automatically: back up the database file, then update "
+            "or delete those tables by hand."
+        )
+    if outdated:
+        print(f"Network tables are outdated ({', '.join(outdated)}): rebuilding them from the models.")
+        Base.metadata.drop_all(engine, tables=[Base.metadata.tables[name] for name in NETWORK_TABLES])
+    Base.metadata.create_all(engine)
+
+
 def network_is_empty(db: Session) -> bool:
     """True when no stops are stored yet (fresh or never-seeded database)."""
     return db.scalar(select(Stop.id).limit(1)) is None
@@ -43,6 +65,7 @@ def seed_database(db: Session) -> None:
         db.execute(delete(Connection))
         db.execute(delete(Route))
         db.execute(delete(Stop))
+        db.execute(delete(NetworkSource))  # the sample is invented: no data source
 
         for s in STOPS:
             lat, lon = stop_coordinates(s)

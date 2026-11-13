@@ -44,7 +44,7 @@ import {
   placeStop,
   type ChangeDraft,
 } from './lib/changeDraft'
-import { applyAddedChanges, stopsById } from './lib/network'
+import { applyAddedChanges, exampleRequest, stopsById } from './lib/network'
 import { decodeChanges, readShareParam, sharePath } from './lib/shareLink'
 import type { Network } from './types/network'
 import type { ComparisonResult, SavedScenarioInfo } from './types/saved'
@@ -352,6 +352,7 @@ function App() {
       tab={resultsTab}
       onTabChange={setResultsTab}
       onSelectJourney={selectJourney}
+      source={network.source ?? null}
       journeyExplorer={
         <JourneyExplorer
           key={journeySelection ? `${journeySelection.originId}-${journeySelection.destinationId}` : 'none'}
@@ -367,7 +368,12 @@ function App() {
 
   const scenarioSections = (
     <>
-      <AiScenarioInput changes={changes} onChangesChange={handleChangesChange} disabled={running} />
+      <AiScenarioInput
+        changes={changes}
+        onChangesChange={handleChangesChange}
+        disabled={running}
+        example={exampleRequest(network)}
+      />
       <ChangeList
         network={scenarioNetwork}
         changes={changes}
@@ -439,6 +445,7 @@ function App() {
         showScenario={changes.length > 0}
         showJourney={shownJourney !== null}
         defaultOpen={isDesktop}
+        source={network.source ?? null}
         className="absolute top-3 left-3 z-[1100] lg:top-4 lg:left-[436px]"
       />
 

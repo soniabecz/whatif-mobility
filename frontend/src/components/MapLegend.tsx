@@ -3,7 +3,7 @@ import { ChevronDown, ChevronUp, Layers } from 'lucide-react'
 
 import { IMPACT_ORDER, IMPACT_STYLES, type ImpactLevel } from '../lib/impact'
 import { scenarioHighlights } from '../lib/network'
-import type { Route } from '../types/network'
+import type { NetworkSource, Route } from '../types/network'
 import type { ScenarioChange } from '../types/scenario'
 import { IMPACT_ICONS } from './impactIcons'
 import { Card } from './ui/Card'
@@ -22,6 +22,13 @@ interface MapLegendProps {
   showJourney: boolean
   defaultOpen: boolean
   className?: string
+  /** The real network's data source (credited as its terms require); null for the sample. */
+  source: NetworkSource | null
+}
+
+function weekday(isoDate: string): string {
+  const day = new Date(`${isoDate}T12:00:00Z`)
+  return Number.isNaN(day.getTime()) ? '' : day.toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'UTC' })
 }
 
 export function MapLegend({
@@ -32,6 +39,7 @@ export function MapLegend({
   showJourney,
   defaultOpen,
   className,
+  source,
 }: MapLegendProps) {
   const [open, setOpen] = useState(defaultOpen)
   const highlights = scenarioHighlights(changes)
@@ -57,7 +65,7 @@ export function MapLegend({
       {open && (
         <div className="space-y-3 border-t border-line px-3 pt-2.5 pb-3 text-ink-muted">
           <ul className="space-y-1.5">
-            {routes.map((route) => (
+            {[...routes].sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true })).map((route) => (
               <li key={route.id} className="flex items-center gap-2 whitespace-nowrap">
                 {newRouteIds.has(route.id) ? (
                   <span className="w-6 shrink-0 border-t-[3px] border-dashed" style={{ borderColor: route.color }} />
@@ -141,6 +149,32 @@ export function MapLegend({
                 </li>
               </ul>
             </>
+          )}
+
+          {source ? (
+            <div className="space-y-1 border-t border-line pt-2.5 text-[11px] leading-relaxed">
+              <p>
+                <span className="font-semibold text-ink">Timetable:</span>{' '}
+                {source.attribution_url.startsWith('http') ? (
+                  <a href={source.attribution_url} target="_blank" rel="noreferrer" className="text-accent underline">
+                    {source.publisher}
+                  </a>
+                ) : (
+                  source.publisher
+                )}
+              </p>
+              <p>
+                Data of {source.feed_created}, downloaded {source.downloaded}; network of{' '}
+                {weekday(source.reference_date)} {source.reference_date}.
+              </p>
+              {source.licence && <p>{source.licence}</p>}
+              <details>
+                <summary className="cursor-pointer text-ink">How the network was built</summary>
+                <p className="mt-1">{source.method}</p>
+              </details>
+            </div>
+          ) : (
+            <p className="border-t border-line pt-2.5 text-[11px]">Invented sample city (not real data).</p>
           )}
         </div>
       )}

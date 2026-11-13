@@ -27,6 +27,8 @@ export default defineConfig({
     {
       command: `${python} -m uvicorn app.main:app --port 8000`,
       cwd: '../backend',
+      // The tests expect the sample city, even if WHATIF_DATABASE points elsewhere.
+      env: { WHATIF_DATABASE: 'whatif.db' },
       url: 'http://localhost:8000/api/health',
       reuseExistingServer: !isCI,
       timeout: 60_000,

@@ -29,7 +29,8 @@ def test_get_network(client: TestClient) -> None:
 
     assert response.status_code == 200
     body = response.json()
-    assert set(body) == {"stops", "routes", "connections"}
+    assert set(body) == {"stops", "routes", "connections", "source"}
+    assert body["source"] is None  # the sample city is invented: no data source
     assert len(body["stops"]) == len(STOPS)
     assert len(body["routes"]) == len(ROUTES)
     assert {

@@ -579,6 +579,8 @@ export interface components {
         /**
          * NetworkOut
          * @description The whole baseline network in one response (used by the map).
+         *
+         *     ``source`` is None for the invented sample city.
          */
         NetworkOut: {
             /** Stops */
@@ -587,6 +589,31 @@ export interface components {
             routes: components["schemas"]["RouteOut"][];
             /** Connections */
             connections: components["schemas"]["ConnectionOut"][];
+            source?: components["schemas"]["NetworkSourceOut"] | null;
+        };
+        /**
+         * NetworkSourceOut
+         * @description Where a real network's data comes from (attribution and dates).
+         */
+        NetworkSourceOut: {
+            /** Name */
+            name: string;
+            /** Publisher */
+            publisher: string;
+            /** Attribution Url */
+            attribution_url: string;
+            /** Licence */
+            licence: string;
+            /** Feed Url */
+            feed_url: string;
+            /** Feed Created */
+            feed_created: string;
+            /** Downloaded */
+            downloaded: string;
+            /** Reference Date */
+            reference_date: string;
+            /** Method */
+            method: string;
         };
         /**
          * NewStops

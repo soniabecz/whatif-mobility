@@ -197,6 +197,7 @@ function ComparisonView({
         {describeTimeModel(
           ((after ?? before)?.wait_min ?? 0) > 0,
           (after ?? before)?.transfer_penalty_min ?? 0,
+          Boolean(network.source),
         )}
       </p>
 

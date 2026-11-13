@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.schemas.network import ConnectionOut, NetworkOut, RouteOut, StopOut
+from app.schemas.network import ConnectionOut, NetworkOut, NetworkSourceOut, RouteOut, StopOut
 from app.services import network_service
 
 router = APIRouter(prefix="/api", tags=["network"])
@@ -26,7 +26,9 @@ def get_routes(db: DbSession) -> list[RouteOut]:
 
 @router.get("/network", response_model=NetworkOut)
 def get_network(db: DbSession) -> NetworkOut:
+    source = network_service.get_source(db)
     return NetworkOut(
+        source=NetworkSourceOut.model_validate(source) if source else None,
         stops=[StopOut.model_validate(s) for s in network_service.list_stops(db)],
         routes=[RouteOut.model_validate(r) for r in network_service.list_routes(db)],
         connections=[

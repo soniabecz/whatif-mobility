@@ -1613,6 +1613,16 @@
             },
             "type": "array",
             "title": "Connections"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NetworkSourceOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -1622,7 +1632,61 @@
           "connections"
         ],
         "title": "NetworkOut",
-        "description": "The whole baseline network in one response (used by the map)."
+        "description": "The whole baseline network in one response (used by the map).\n\n``source`` is None for the invented sample city."
+      },
+      "NetworkSourceOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "publisher": {
+            "type": "string",
+            "title": "Publisher"
+          },
+          "attribution_url": {
+            "type": "string",
+            "title": "Attribution Url"
+          },
+          "licence": {
+            "type": "string",
+            "title": "Licence"
+          },
+          "feed_url": {
+            "type": "string",
+            "title": "Feed Url"
+          },
+          "feed_created": {
+            "type": "string",
+            "title": "Feed Created"
+          },
+          "downloaded": {
+            "type": "string",
+            "title": "Downloaded"
+          },
+          "reference_date": {
+            "type": "string",
+            "title": "Reference Date"
+          },
+          "method": {
+            "type": "string",
+            "title": "Method"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "publisher",
+          "attribution_url",
+          "licence",
+          "feed_url",
+          "feed_created",
+          "downloaded",
+          "reference_date",
+          "method"
+        ],
+        "title": "NetworkSourceOut",
+        "description": "Where a real network's data comes from (attribution and dates)."
       },
       "NewStops": {
         "properties": {
