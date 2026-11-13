@@ -1,4 +1,4 @@
-import type { InterpretRequest, InterpretResponse } from '../types/ai'
+import type { InterpretRequest, InterpretResponse, SummaryResponse } from '../types/ai'
 import type { ScenarioChange } from '../types/scenario'
 import { apiClient } from './client'
 
@@ -14,5 +14,15 @@ export async function interpretText(
   const response = await apiClient.post<InterpretResponse>('/api/ai/interpret', body, {
     timeout: AI_TIMEOUT_MS,
   })
+  return response.data
+}
+
+/** The backend simulates `changes` itself, then lets the AI describe the computed figures. */
+export async function summariseResults(changes: ScenarioChange[]): Promise<SummaryResponse> {
+  const response = await apiClient.post<SummaryResponse>(
+    '/api/ai/summary',
+    { changes },
+    { timeout: AI_TIMEOUT_MS },
+  )
   return response.data
 }

@@ -112,6 +112,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/ai/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Summarise Results
+         * @description Simulate the scenario here (never trusting results sent by the browser),
+         *     then let the AI describe the computed figures.
+         */
+        post: operations["summarise_results_api_ai_summary_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/journeys": {
         parameters: {
             query?: never;
@@ -584,6 +605,23 @@ export interface components {
             /** Activity */
             activity: number;
         };
+        /**
+         * SummaryResponse
+         * @description ``ok``: ``summary`` is the AI's text with every number inserted by the
+         *     backend from the computed results. ``withheld``: the AI did not keep to the
+         *     rules (twice); ``summary`` is None and ``message`` says why.
+         */
+        SummaryResponse: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "withheld";
+            /** Summary */
+            summary: string | null;
+            /** Message */
+            message: string;
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -753,6 +791,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InterpretResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    summarise_results_api_ai_summary_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Scenario"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SummaryResponse"];
                 };
             };
             /** @description Validation Error */

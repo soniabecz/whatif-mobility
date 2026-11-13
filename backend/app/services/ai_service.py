@@ -41,7 +41,7 @@ from app.services.simulation_service import ScenarioError, apply_scenario
 
 logger = logging.getLogger(__name__)
 
-_SCHEMA_NAME = "scenario_interpretation"
+_SCHEMA_NAME = "structured_answer"  # a label only; the schema itself is passed per call
 _OUTPUT_SCHEMA = strict_json_schema(AIInterpretation)
 # Generous: gpt-oss reasoning tokens count towards this limit too.
 _MAX_COMPLETION_TOKENS = 8192

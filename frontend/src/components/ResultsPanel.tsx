@@ -23,6 +23,7 @@ import { changedJourneysCsv, csvFileName, downloadCsv } from '../lib/exportCsv'
 import { stopLabel } from '../lib/network'
 import type { Stop } from '../types/network'
 import type { JourneyChange, JourneyStatus, SimulationResult } from '../types/simulation'
+import { AiSummary } from './AiSummary'
 import { IMPACT_ICONS } from './impactIcons'
 import type { JourneySelection } from './JourneyExplorer'
 import { ResultsChart } from './ResultsChart'
@@ -168,6 +169,7 @@ export function ResultsPanel({
       <p className="text-[11px] text-ink-subtle">
         {describeTimeModel(summary.include_waiting, summary.transfer_penalty_min)}
       </p>
+      <AiSummary result={result} />
       <div className="grid grid-cols-2 gap-2">
         <Kpi
           icon={IMPACT_ICONS.slower}

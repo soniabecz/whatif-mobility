@@ -144,3 +144,21 @@ def strict_json_schema(model: type[BaseModel]) -> dict[str, Any]:
         return node
 
     return clean(model.model_json_schema())
+
+
+# --- AI summary of results (Day 12, part 2) ----------------------------------
+
+class SummaryResponse(BaseModel):
+    """``ok``: ``summary`` is the AI's text with every number inserted by the
+    backend from the computed results. ``withheld``: the AI did not keep to the
+    rules (twice); ``summary`` is None and ``message`` says why."""
+
+    status: Literal["ok", "withheld"]
+    summary: str | None
+    message: str
+
+
+class AISummary(_AIModel):
+    """What the language model returns: text with {placeholders}, no digits."""
+
+    summary: str

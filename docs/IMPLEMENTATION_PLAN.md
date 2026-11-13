@@ -6,10 +6,10 @@
 
 ## Current status
 
-- **Last completed:** Day 12, part 1 (AI edits the current change list);
-  288 backend + 123 Vitest + 16 Playwright tests
-- **Next up:** Day 12, part 2 (AI summary of results): explain the safeguard and
-  wait for approval
+- **Last completed:** Day 12 done (AI edits the change list; AI summary of results);
+  307 backend + 123 Vitest + 18 Playwright tests
+- **Next up:** Day 13 (save and compare scenarios): explain the data model and wait
+  for approval
 - **How to start:** `./dev.sh` (app on http://localhost:5173); after pulling, it
   rebuilds outdated database tables automatically
 - **Working pattern used so far:** each part = design proposal → approval → build
@@ -19,7 +19,7 @@
 
 ## Timeline
 
-Total: **11 working days done** (MVP in Days 1–5, Days 6–10 added afterwards);
+Total: **12 working days done** (MVP in Days 1–5, Days 6–10 added afterwards);
 Days 8–14 hold all later extensions (≈ 9–10 sessions; Days 10, 11 and 14 run long). A "day" is one
 working session. Every day must end with something working and committed,
 so the project is usable even if a later day is cut short.
@@ -37,7 +37,7 @@ so the project is usable even if a later day is cut short.
 | 9   | Quick product wins        | ✅ Done |
 | 10  | More realistic simulation | ✅ Done |
 | 11  | New scenario types        | ✅ Done |
-| 12  | AI features               | 🟡 In progress |
+| 12  | AI features               | ✅ Done |
 | 13  | Saving and comparing      | ⬜ Todo |
 | 14  | Deployment and real data  | ⬜ Todo |
 
@@ -578,7 +578,7 @@ transfer penalty at 0) and checks equivalence before changing defaults.
 
 **Fallback:** "add a route" (part 3) is the largest; parts 1–2 stand on their own.
 
-## Day 12 – AI features
+## Day 12 – AI features ✅
 
 **Outcome:** the AI knows the current changes and can summarise results without inventing numbers.
 **Size:** ≈ 1 session.
@@ -603,10 +603,24 @@ transfer penalty at 0) and checks equivalence before changing defaults.
 - [x] Commit (approved by the user)
 
 **2. AI summary of results** (M)
-- [ ] Explain the safeguard and get approval: the AI may only rephrase
-      computed numbers; every number in its text is checked against the
-      results, otherwise the summary is rejected
-- [ ] Endpoint, tests (including a fake model that invents a number), UI, commit
+- [x] Safeguard approved (stronger than first planned): the AI never writes a number.
+      It gets a fact sheet (computed values with placeholder names) and writes
+      "{slower} journeys get slower"; the backend rejects any digit (outside ids like
+      R5/N1), unknown placeholder, number word ("two") or ratio word ("twice", "half"),
+      retries once with the problems named, then withholds the summary; accepted text
+      gets the values inserted by the backend. Limit (shown in the UI caption): it
+      proves every number comes from the results, not that each is used correctly
+- [x] `POST /api/ai/summary {changes}`: the backend simulates itself (never trusts
+      browser results); `services/summary_service.py` (facts, prompt, check, fill);
+      on-demand "Summarise with AI" in the Summary tab; a summary belongs to one result
+- [x] Tests: 19 backend (307) incl. fake models that invent a number / use "twice",
+      retry then ok, withheld after two; e2e `ai-summary.spec.ts` (18 e2e)
+- [x] Live AI check (Groq), 5 scenarios: all accepted on the first attempt; every
+      stop figure verified against the result. Prompt tightened after the first run
+      (no "about" before exact values, no bracketed repeats, at most 3 stops). Remaining:
+      wording can still link figures loosely ("which means"); one transient provider
+      error in a burst of calls (not reproduced; the UI offers "Try again")
+- [x] Commit (approved by the user)
 
 ## Day 13 – Saving and comparing
 
@@ -698,3 +712,4 @@ All former "maybes" are now scheduled as Days 8–14. New ideas go here.
 | 2026-11-13 | 11  | Scenario type `add_route` (engine, AI, share link, display support); 0 diffs (5,738 journeys); 268 backend, 111 Vitest; live AI checked |
 | 2026-11-13 | 11  | "Add route" tab (click stops in order, loop by clicking the first again), new routes on the map and in the legend; 120 Vitest, 13 e2e; screenshots checked |
 | 2026-11-13 | 12  | AI edits the current change list (remove / replace / add operations, validated full list, Undo, stale guard); 288 backend, 123 Vitest, 16 e2e; live AI checked |
+| 2026-11-13 | 12  | AI summary of results: placeholders filled by the backend, digits/number words rejected, one retry; 307 backend, 18 e2e; live AI checked (5 scenarios) |

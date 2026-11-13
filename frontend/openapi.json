@@ -178,6 +178,48 @@
         }
       }
     },
+    "/api/ai/summary": {
+      "post": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Summarise Results",
+        "description": "Simulate the scenario here (never trusting results sent by the browser),\nthen let the AI describe the computed figures.",
+        "operationId": "summarise_results_api_ai_summary_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Scenario"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SummaryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/journeys": {
       "post": {
         "tags": [
@@ -1509,6 +1551,41 @@
           "activity"
         ],
         "title": "StopOut"
+      },
+      "SummaryResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "withheld"
+            ],
+            "title": "Status"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "summary",
+          "message"
+        ],
+        "title": "SummaryResponse",
+        "description": "``ok``: ``summary`` is the AI's text with every number inserted by the\nbackend from the computed results. ``withheld``: the AI did not keep to the\nrules (twice); ``summary`` is None and ``message`` says why."
       },
       "ValidationError": {
         "properties": {

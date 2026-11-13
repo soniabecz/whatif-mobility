@@ -12,3 +12,6 @@ export type InterpretRequest = Schemas['InterpretRequest']
 
 /** 'ok': `changes` is the complete new list (valid for the network). 'unclear': nothing changes; see message. */
 export type InterpretResponse = Schemas['InterpretResponse']
+
+/** 'ok': the AI's text with every number inserted from the computed results. 'withheld': see message. */
+export type SummaryResponse = Schemas['SummaryResponse']
