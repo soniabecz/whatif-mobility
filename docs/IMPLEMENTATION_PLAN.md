@@ -7,9 +7,9 @@
 ## Current status
 
 - **Last completed:** Day 11, part 3a ("add route": backend, AI, share link, display
-  support; not yet committed); 268 backend + 111 Vitest + 11 Playwright tests pass locally
-- **Next up:** commit 3a when the user approves; then Day 11, part 3b (the "Add route"
-  form tab and map drawing; see the checklist under part 3)
+  support; commit 14020d7); 268 backend + 111 Vitest + 11 Playwright tests, CI green
+- **Next up:** Day 11, part 3b (the "Add route" form tab and map drawing; see the
+  checklist under part 3)
 - **How to start:** `./dev.sh` (app on http://localhost:5173); after pulling, it
   rebuilds outdated database tables automatically
 - **Working pattern used so far:** each part = design proposal → approval → build
@@ -561,12 +561,13 @@ transfer penalty at 0) and checks equivalence before changing defaults.
 - [x] Live AI check (Groq): route built from an English and a Polish (loop) request;
       a request without times is refused (its message still asks for a name, which the
       AI could choose itself: harmless)
+- [x] Commit 3a (approved by the user; CI green)
 - [ ] Part 3b: "Add route" tab (click stops in order, a time per stretch with the distance
       hint, remove last stop, palette, headway, loop/both-ways switches); dashed preview in
       the chosen colour; new routes drawn on the map (the map still gets the baseline
       network: draw from `highlights.addedRoutes`), journey legs on a new route coloured,
       legend entry; e2e `add-route.spec.ts`
-- [ ] Commit
+- [ ] Commit 3b
 
 **Fallback:** "add a route" (part 3) is the largest; parts 1–2 stand on their own.
 
