@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { Suspense, lazy, useMemo, useState, type ReactNode } from 'react'
 import {
   ChartColumn,
   ChevronDown,
@@ -29,13 +29,17 @@ import { MAX_LISTED_JOURNEYS, type JourneyChange, type JourneyStatus, type Simul
 import { AiSummary } from './AiSummary'
 import { IMPACT_ICONS } from './impactIcons'
 import type { JourneySelection } from './JourneyExplorer'
-import { ResultsChart } from './ResultsChart'
 import { Button } from './ui/Button'
 import { SectionTitle } from './ui/SectionTitle'
 import { SegmentedControl } from './ui/SegmentedControl'
 import { cx } from './ui/cx'
 
 export type ResultsTab = 'summary' | 'journey'
+
+
+// The chart library (Recharts) is about half of the app's code and only this
+// chart, under "Details", uses it: it is loaded when the chart is first shown.
+const ResultsChart = lazy(() => import('./ResultsChart').then((module) => ({ default: module.ResultsChart })))
 
 interface ResultsPanelProps {
   result: SimulationResult
@@ -305,7 +309,11 @@ export function ResultsPanel({
             </div>
           )}
 
-          <ResultsChart journeys={result.changed_journeys} stops={stops} />
+          <Suspense
+            fallback={<p className="rounded-xl border border-line bg-white p-3 text-xs text-ink-subtle">Loading the chart…</p>}
+          >
+            <ResultsChart journeys={result.changed_journeys} stops={stops} />
+          </Suspense>
 
           <div>
             <h3 className="text-xs font-semibold text-ink-muted">

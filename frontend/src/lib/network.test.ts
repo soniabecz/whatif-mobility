@@ -10,6 +10,8 @@ import {
   compactStops,
   stopMarkerSize,
   filterRoutes,
+  linesOnStreet,
+  streetIndex,
   applyAddedChanges,
   withAddedRoute,
   withAddedStop,
@@ -400,5 +402,36 @@ describe('stopMarkerSize', () => {
       expect(stopMarkerSize(level, true)).toEqual({ radius: 5, weight: 1.5 })
     }
     expect(stopMarkerSize('closed', true)).toEqual({ radius: 9, weight: 3 })
+  })
+})
+
+describe('streetIndex and linesOnStreet', () => {
+  let id = 0
+  const connection = (route_id: string, from_stop_id: string, to_stop_id: string, travel_time_min: number) => ({
+    id: ++id, route_id, from_stop_id, to_stop_id, travel_time_min,
+  })
+  const streets = streetIndex({
+    ...network,
+    connections: [
+      connection('B10', 'A', 'B', 2),
+      connection('B10', 'B', 'A', 3),
+      connection('B2', 'A', 'B', 2.5),
+      connection('T9', 'B', 'A', 4), // runs the other way only
+      connection('B2', 'B', 'C', 1),
+    ],
+  })
+
+  it('lists every line on the street in natural order, with the time in the asked direction', () => {
+    expect(linesOnStreet(streets, 'A', 'B')).toEqual([
+      { routeId: 'B2', minutes: 2.5 },
+      { routeId: 'B10', minutes: 2 },
+      { routeId: 'T9', minutes: 4 },
+    ])
+    expect(linesOnStreet(streets, 'B', 'A').find((l) => l.routeId === 'B10')?.minutes).toBe(3)
+  })
+
+  it('knows streets by their two stops, whatever the order, and none for an unknown one', () => {
+    expect(linesOnStreet(streets, 'C', 'B')).toEqual([{ routeId: 'B2', minutes: 1 }])
+    expect(linesOnStreet(streets, 'A', 'C')).toEqual([])
   })
 })

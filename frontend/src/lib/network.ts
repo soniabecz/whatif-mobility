@@ -123,6 +123,39 @@ export function routeSegments(network: Network): Segment[] {
   return segments
 }
 
+/** A line running on a street, with its time in the direction asked for. */
+export interface StreetLine {
+  routeId: string
+  minutes: number
+}
+
+/** For every street (linkKey): line -> minutes per direction ("from>to"). */
+export type StreetIndex = Map<string, Map<string, Map<string, number>>>
+
+/** Which lines run on each street, in either direction (built once per network). */
+export function streetIndex(network: Network): StreetIndex {
+  const index: StreetIndex = new Map()
+  for (const c of network.connections) {
+    const key = linkKey(c.from_stop_id, c.to_stop_id)
+    const lines = index.get(key) ?? new Map<string, Map<string, number>>()
+    const times = lines.get(c.route_id) ?? new Map<string, number>()
+    times.set(`${c.from_stop_id}>${c.to_stop_id}`, c.travel_time_min)
+    lines.set(c.route_id, times)
+    index.set(key, lines)
+  }
+  return index
+}
+
+/** Every line on the street from - to (lines sharing a street are drawn on top
+ *  of each other), in natural order; minutes from -> to, or the other way for a
+ *  line that only runs back. */
+export function linesOnStreet(index: StreetIndex, from: string, to: string): StreetLine[] {
+  const lines = index.get(linkKey(from, to)) ?? new Map<string, Map<string, number>>()
+  return [...lines.entries()]
+    .map(([routeId, times]) => ({ routeId, minutes: times.get(`${from}>${to}`) ?? times.get(`${to}>${from}`) ?? 0 }))
+    .sort((a, b) => a.routeId.localeCompare(b.routeId, undefined, { numeric: true }))
+}
+
 /** Streets and stops touched by the scenario, for highlighting on the map. */
 export interface ScenarioHighlights {
   closedStopIds: Set<string>

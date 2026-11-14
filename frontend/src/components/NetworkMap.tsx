@@ -15,7 +15,17 @@ import { divIcon, type LatLngBoundsExpression, type LatLngTuple, type PointTuple
 
 import type { DraftSelection } from '../lib/changeDraft'
 import { IMPACT_STYLES, describeImpact, impactLevel } from '../lib/impact'
-import { compactStops, linkKey, stopMarkerSize, routeSegments, routeStretches, scenarioHighlights } from '../lib/network'
+import {
+  compactStops,
+  linesOnStreet,
+  linkKey,
+  routeSegments,
+  routeStretches,
+  scenarioHighlights,
+  stopMarkerSize,
+  streetIndex,
+  type StreetLine,
+} from '../lib/network'
 import { journeyStopIds } from '../lib/journeyPlan'
 import type { JourneyComparison } from '../types/journey'
 import type { Network, NetworkSource, Route, Stop } from '../types/network'
@@ -66,6 +76,7 @@ export function NetworkMap({
   mapSelect,
 }: NetworkMapProps) {
   const segments = useMemo(() => routeSegments(network), [network])
+  const streets = useMemo(() => streetIndex(network), [network])
   // Big networks: plain stops are small when zoomed out (set by CompactStopsWatcher).
   const [compact, setCompact] = useState(false)
 
@@ -341,12 +352,21 @@ export function NetworkMap({
             }}
           >
             <Tooltip sticky>
-              <strong>{route?.name ?? segment.routeId}</strong>
-              <br />
-              {segment.from.name} – {segment.to.name}: {segment.travelTimeMin} min
+              <StreetTooltip
+                from={segment.from.name}
+                to={segment.to.name}
+                lines={linesOnStreet(streets, segment.from.id, segment.to.id)}
+                underCursor={segment.routeId}
+                routes={routes}
+              />
               {removed && <><br />Removed in this scenario</>}
               {retimed && <><br />Travel time changed in this scenario</>}
-              {clickHint}
+              {mapSelect && (
+                <>
+                  <br />
+                  <em style={{ color: '#8b95a5' }}>Click to select {route?.name ?? segment.routeId}</em>
+                </>
+              )}
             </Tooltip>
           </Polyline>
         )
@@ -468,6 +488,47 @@ function positions(stops: Map<string, Stop>, ids: string[]): LatLngTuple[] {
     const stop = stops.get(id)
     return stop ? [[stop.lat, stop.lon] as LatLngTuple] : []
   })
+}
+
+/** Lines on a street are drawn on top of each other, so the tooltip lists them
+ *  all (up to 10, then "+N more"), the line under the cursor first and in bold. */
+const STREET_TOOLTIP_LINES = 10
+
+function StreetTooltip({
+  from,
+  to,
+  lines,
+  underCursor,
+  routes,
+}: {
+  from: string
+  to: string
+  lines: StreetLine[]
+  underCursor: string
+  routes: Map<string, Route>
+}) {
+  // The line under the cursor first (a click selects it), then the others in order.
+  const ordered = [...lines.filter((l) => l.routeId === underCursor), ...lines.filter((l) => l.routeId !== underCursor)]
+  const shown = ordered.slice(0, STREET_TOOLTIP_LINES)
+  return (
+    <>
+      <strong>{from} – {to}</strong>
+      {shown.map((line) => (
+        <Fragment key={line.routeId}>
+          <br />
+          <span style={{ fontWeight: line.routeId === underCursor ? 700 : 400 }}>
+            {routes.get(line.routeId)?.name ?? line.routeId} · {line.minutes} min
+          </span>
+        </Fragment>
+      ))}
+      {lines.length > shown.length && (
+        <>
+          <br />
+          <span style={{ color: '#8b95a5' }}>+{lines.length - shown.length} more lines</span>
+        </>
+      )}
+    </>
+  )
 }
 
 function JourneyOverlay({

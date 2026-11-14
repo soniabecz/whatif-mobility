@@ -6,7 +6,8 @@
 
 ## Current status
 
-- **Last completed:** Day 14.6 Gdańsk only (committed): the app runs only on
+- **Last completed:** open issues cleared (committed): httpx2, bundle split,
+  street tooltips; 410 backend + 137 Vitest + 20 e2e. Before that, Day 14.6 Gdańsk only: the app runs only on
   the ZTM Gdańsk network (trams and buses, backend/gdansk.db); the invented sample city
   is test data only (backend tests in memory, e2e in backend/e2e-sample.db).
   410 backend + 135 Vitest + 20 e2e tests. Today also: map at scale (14.2 B4), walking
@@ -888,20 +889,26 @@ part 2 can stop after a small extract of the city works, parts 3 and 4 can stop 
 
 ## Open issues
 
-- [ ] Walking only to/from CLOSED stops: on a real city two open stops 300 m apart can
-      need a 36-min bus detour, so closing one makes nearby journeys "faster" (walk 3 min).
-      → being solved in Day 14 part 3 (walking between stops)
-
-- [ ] Starlette deprecation warning in tests: `httpx` → `httpx2`
-      (verify `httpx2` is the official successor before switching)
-- [ ] Production bundle is ~836 kB (Leaflet + Recharts); Vite warns at 500 kB.
-      Fine for the MVP; code-split the chart if it matters later
-- [ ] Routes sharing a street (R1/R4 on MKT–CEN) draw on top of each other;
-      the tooltip names the route under the cursor only
+- [x] Walking only to/from CLOSED stops: solved by Day 14 part 3 (walking between
+      stops): closing a stop no longer makes nearby journeys "faster"
+- [x] Starlette deprecation warning in tests: `httpx2==2.16.0` added (Starlette's own
+      TestClient prefers it; by Tom Christie, the httpx author, under the Pydantic
+      organisation; released 2026-10-21). `httpx` stays: the Groq SDK needs it. 0 warnings
+- [x] Production bundle (was 931 kB in one file): the results chart (Recharts, 385 kB)
+      loads on demand (`React.lazy`, "Loading the chart…"); React and Leaflet in a
+      `vendor` file (374 kB, stays cached across app updates); app code 173 kB. No file
+      over 500 kB; checked in the built app: the chart file loads only after "Details"
+- [x] Lines sharing a street draw on top of each other (on Gdańsk 590 of 997 streets,
+      up to 31 lines): the tooltip lists every line on the street with its time
+      (`streetIndex`, `linesOnStreet`), the line under the cursor first and in bold,
+      up to 10 then "+N more"; the click hint names the line a click selects
 - [x] Pushing workflow files needs the `workflow` scope on the GitHub token
       (fixed once with `gh auth refresh -h github.com -s workflow`)
-- [ ] `fsevents` install script not approved by npm (optional; only needed
-      if hot reload stops working: `npm install-scripts approve fsevents`)
+- [x] `fsevents` install script not approved by npm: closed, not needed (hot reload
+      works). Should it ever stop working: `npm install-scripts approve fsevents`
+- [ ] Note (harmless): in the production build the map's shapes lack their custom class
+      names (`stop-marker`, `route-line`, ...); only the e2e tests use them, and they run
+      against the dev server. Same before and after the bundle change
 
 ## Possible future improvements
 
@@ -962,3 +969,4 @@ All former "maybes" are now scheduled as Days 8–14. New ideas go here.
 | 2026-11-14 | 14  | Route patterns, step B: stay on only to the next stop of a pattern; every difference explained (0 faster; trams 9,210, full 299,589 changed journeys, all through impossible continuations); 400 backend |
 | 2026-11-14 | 14  | Speed: figures from arrays, smaller walking graph, scenario-state cache; 0 differences (215 outputs); full network run 2.4 → 1.4 s, compare after runs 4.2 → 0.75 s; 406 backend |
 | 2026-11-14 | 14  | Gdańsk only: default gdansk.db (trams + buses), dev.sh imports it, sample city kept as test data (e2e-sample.db); UI and README without the sample; 410 backend, 20 e2e |
+| 2026-11-14 | 14  | Open issues: httpx2 (no test warning), chart loaded on demand + vendor file (931 kB → 173 + 374 kB, chart 385 kB later), street tooltips list every line; 137 Vitest |
