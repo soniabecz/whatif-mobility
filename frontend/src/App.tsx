@@ -357,6 +357,7 @@ function App() {
         <JourneyExplorer
           key={journeySelection ? `${journeySelection.originId}-${journeySelection.destinationId}` : 'none'}
           network={resultNetwork}
+          summary={result.summary}
           selection={journeySelection}
           state={journeyState}
           onSelect={selectJourney}

@@ -9,8 +9,12 @@
 - **Last completed:** Day 14.2 step B4 (map and UI at scale: legend scroll + filter,
   small stops when zoomed out; no canvas needed); 377 backend + 131 Vitest + 20 e2e tests.
   Step B (full network) is complete and committed
-- **In progress:** Day 14.3 walking between stops. Step A (walking layer in the route
-  graph, Day 10 rules) committed; next step B (switch on, explorer walk legs, UI texts). The full network is in backend/gdansk-all.db
+- **Last completed:** Day 14.3 walking between stops (steps A and B committed): walking
+  is part of the route graph and on between open stops by default; 386 backend +
+  135 Vitest + 20 e2e tests
+- **Next up:** open choices: direction-aware platforms (fixes the known limit of a bus
+  turning round without a change), simulation speed on the full network (2 s), or
+  Day 14.1 deployment The full network is in backend/gdansk-all.db
   (re-import: `WHATIF_DATABASE=gdansk-all.db python -m app.import_gtfs --modes all`)
 - **Local e2e:** Playwright reuses a running app on port 8000; if it serves Gdańsk the run
   stops with a message: stop that app (or run it on whatif.db) before `npm run test:e2e`
@@ -777,8 +781,25 @@ transfer penalty at 0) and checks equivalence before changing defaults.
       walking between open stops 39 of 509,082 (0.008 %) on the full network. Proper fix
       later: direction-aware platforms (a turn-round = a change of bus)
 - [x] Commit step A (approved by the user)
-- [ ] Step B: switch on (`walk_between_open_stops`, `max_transfer_walk_m` settings), walk
-      legs between buses in the explorer API and UI, texts ("Walking"), tests; live check
+- [x] Step B: settings `WALK_BETWEEN_OPEN_STOPS` (default true) and `MAX_TRANSFER_WALK_M`
+      (500); `JourneyPlan.walks` (ordered, `before_leg`) replaces `walk_start`/`walk_end`;
+      `SimulationSummary.walking` (the settings used). UI: explorer shows walks between
+      buses in order (`lib/journeyPlan.ts`), the time-model text names the walking rule
+      (results and explorer, which now uses the result's settings instead of guessing),
+      legend "Walking", map draws every walk. README and .env.example updated
+- [x] Effect (baseline): journeys faster with walking: sample 44 % (avg 21.6 → 20.4 min),
+      trams 33 % (34.5 → 32.4; 829 newly possible), full network 70.8 % (74.6 → 66.2; 713
+      newly possible). Closing a stop no longer makes journeys "faster": CEN 6 → 0,
+      Politechnika SKM (trams) 68 → 0, Brama Wyżynna (full) 301 → 0
+- [x] Tests: 6 new step-B tests (open-stop walk, walk between buses = a change, the 500 m
+      limit, never two walks in a row, baseline and scenario walk alike, a new stop as a
+      place to walk to); tests about the Day 10 rule now say `between_open_stops=False`;
+      4 Vitest (135); e2e walking test reads `walks`. 386 backend, 20 e2e
+- [x] Live (full network): close Brama Wyżynna → 71,235 slower, 0 faster; explorer
+      Pruszcz Gdański Nałkowskiej → Urząd Miejski: B507, walk 330 m, change, BM32, walk
+      990 m; no console errors. Warm API: simulation 1.1 → 2.0 s (bigger graph, and 71k
+      instead of 39k changed journeys to list), compare 2.2 → 3.4 s, journey 0.7 s
+- [x] Commit step B (approved by the user)
 
 **Fallback:** all parts are optional; part 1 is only needed if the app goes public,
 part 2 can stop after a small extract of the city works, and part 3 can stop after step A.
@@ -856,3 +877,4 @@ All former "maybes" are now scheduled as Days 8–14. New ideas go here.
 | 2026-11-13 | 14  | Session end: step B1–B3 committed, CI green; next B4 (map/UI at scale) |
 | 2026-11-14 | 14  | B4: measured (no canvas needed); legend scroll + line filter; small stops when zoomed out on big networks; live check of the full app; 131 Vitest, 20 e2e |
 | 2026-11-14 | 14  | Walking between stops, step A: walking layer in the route graph (Day 10 rules); trams + full network 0 differences, sample 1 pair (known limit); 380 backend |
+| 2026-11-14 | 14  | Walking between stops, step B: on by default (start/end ≤ 1 km, between buses ≤ 500 m); explorer walks list; closing a stop no longer makes journeys faster; 386 backend, 135 Vitest, 20 e2e |

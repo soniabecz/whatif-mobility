@@ -192,11 +192,22 @@ OLD_MARKET = {"type": "add_stop", "stop_id": "N1", "name": "Old Market", "lat": 
 
 
 def test_sample_new_stop(sample: nx.DiGraph) -> None:
-    summary = simulate(sample, _scenario(OLD_MARKET), 2.0, True, WalkingModel(5, 1000)).summary
+    closed_only = WalkingModel(5, 1000, between_open_stops=False)  # no walking between open stops
+    summary = simulate(sample, _scenario(OLD_MARKET), 2.0, True, closed_only).summary
     assert summary.total_journeys == 240
     assert summary.new_stops is not None
     assert (summary.new_stops.journeys, summary.new_stops.possible) == (32, 32)
     assert summary.slower > 0 and summary.faster == 0  # 1.5 + 2 > MKT-UNI's 3 min
+
+
+def test_a_new_stop_is_a_new_place_to_walk_to(sample: nx.DiGraph) -> None:
+    # Library is 11.3 min on foot from Old Market (10.0 to Central): walking to the
+    # new stop and taking R1 beats walking to Central for some journeys.
+    result = simulate(sample, _scenario(OLD_MARKET), 2.0, True, WalkingModel(5, 1000))
+    times = {(j.origin_id, j.destination_id): (j.time_before_min, j.time_after_min, j.status)
+             for j in result.changed_journeys}
+    assert times[("LIB", "MKT")] == (18.0, 17.8, "faster")
+    assert times[("MKT", "LIB")] == (18.0, 17.8, "faster")
 
 
 def test_api(client: TestClient) -> None:

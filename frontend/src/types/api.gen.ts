@@ -578,8 +578,8 @@ export interface components {
             wait_min: number;
             /** Walk Min */
             walk_min: number;
-            walk_start: components["schemas"]["WalkLeg"] | null;
-            walk_end: components["schemas"]["WalkLeg"] | null;
+            /** Walks */
+            walks: components["schemas"]["WalkLeg"][];
             /** Transfers */
             transfers: number;
             /** Transfer Penalty Min */
@@ -793,6 +793,7 @@ export interface components {
             transfer_penalty_min: number;
             /** Include Waiting */
             include_waiting: boolean;
+            walking: components["schemas"]["WalkingSettings"] | null;
             demand_weighted: components["schemas"]["DemandWeighted"];
             new_stops: components["schemas"]["NewStops"] | null;
         };
@@ -857,7 +858,7 @@ export interface components {
         };
         /**
          * WalkLeg
-         * @description Walking to or from a closed stop (straight line x detour factor).
+         * @description A walk between two stops (straight line x detour factor).
          */
         WalkLeg: {
             /** From Stop Id */
@@ -868,6 +869,22 @@ export interface components {
             distance_m: number;
             /** Minutes */
             minutes: number;
+            /** Before Leg */
+            before_leg: number;
+        };
+        /**
+         * WalkingSettings
+         * @description How passengers walk in this simulation (invented assumptions).
+         */
+        WalkingSettings: {
+            /** Speed Kmh */
+            speed_kmh: number;
+            /** Max Walk M */
+            max_walk_m: number;
+            /** Max Transfer Walk M */
+            max_transfer_walk_m: number;
+            /** Between Open Stops */
+            between_open_stops: boolean;
         };
     };
     responses: never;

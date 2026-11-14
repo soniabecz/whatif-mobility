@@ -57,7 +57,7 @@ class WalkingModel:
     speed_kmh: float  # e.g. 5 km/h
     max_walk_m: float  # longest walk at the start or end of a journey
     max_transfer_walk_m: float = 500.0  # longest walk between two buses
-    between_open_stops: bool = False  # False: walk only from/to a closed stop
+    between_open_stops: bool = True  # False: walk only from/to a closed stop (Day 10)
 
     def minutes(self, distance_m: float) -> float:
         return distance_m / (self.speed_kmh * 1000 / 60)

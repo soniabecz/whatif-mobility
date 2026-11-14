@@ -11,7 +11,8 @@ test('a journey from a closed stop walks to a nearby stop', async ({ page, reque
     data: { origin_id: 'CEN', destination_id: 'AIR', changes: CHANGES },
   })
   const { after } = await response.json()
-  expect(after.walk_start).not.toBeNull() // needs walking on (the default)
+  const [walkStart] = after.walks
+  expect(walkStart?.before_leg).toBe(0) // needs walking on (the default)
 
   await page.goto('/?s=close:CEN')
   await page.getByRole('button', { name: 'Run simulation (1 change)' }).click()
@@ -20,7 +21,7 @@ test('a journey from a closed stop walks to a nearby stop', async ({ page, reque
   await card.locator('label').filter({ hasText: /^From/ }).locator('select').selectOption('CEN')
   await card.locator('label').filter({ hasText: /^To/ }).locator('select').selectOption('AIR')
 
-  await expect(card.getByText(`Walk about ${Math.round(after.walk_start.distance_m)} m from Central Station`)).toBeVisible()
+  await expect(card.getByText(`Walk about ${Math.round(walkStart.distance_m)} m from Central Station`)).toBeVisible()
   await expect(card.getByText(`${after.walk_min.toFixed(1)} min walking +`)).toBeVisible()
   await expect(
     card.locator('h3').filter({ hasText: 'After the change' }),

@@ -45,6 +45,15 @@ class DemandWeighted(BaseModel):
     average_time_after_min: float | None
 
 
+class WalkingSettings(BaseModel):
+    """How passengers walk in this simulation (invented assumptions)."""
+
+    speed_kmh: float
+    max_walk_m: float  # at the start or end of a journey
+    max_transfer_walk_m: float  # between two buses
+    between_open_stops: bool  # False: only from or to a closed stop
+
+
 class SimulationSummary(BaseModel):
     total_journeys: int  # every ordered pair of distinct stops
     unchanged: int
@@ -65,6 +74,7 @@ class SimulationSummary(BaseModel):
     largest_increase: JourneyChange | None
     transfer_penalty_min: float  # minutes counted per change of bus
     include_waiting: bool  # True: half the headway is waited at every boarding
+    walking: WalkingSettings | None  # None: nobody walks
     demand_weighted: DemandWeighted
     new_stops: NewStops | None  # None when the scenario adds no stop
 

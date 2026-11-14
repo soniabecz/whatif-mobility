@@ -131,7 +131,7 @@ export function MapLegend({
                 <span className="w-6 border-t-[3px] border-dotted border-slate-600" /> Journey before
               </li>
               <li className="flex items-center gap-2">
-                <span className="w-6 border-t-[3px] border-dashed border-slate-900" /> Walking (closed stop)
+                <span className="w-6 border-t-[3px] border-dashed border-slate-900" /> Walking
               </li>
               <li className="flex items-center gap-2">
                 <span className="journey-pin scale-75">A</span>

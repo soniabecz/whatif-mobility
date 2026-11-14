@@ -35,12 +35,15 @@ class JourneyLeg(BaseModel):
 
 
 class WalkLeg(BaseModel):
-    """Walking to or from a closed stop (straight line x detour factor)."""
+    """A walk between two stops (straight line x detour factor)."""
 
     from_stop_id: str
     to_stop_id: str
     distance_m: float
     minutes: float
+    # Index of the bus leg this walk comes before; = the number of legs for a
+    # walk at the end (and 0 for a journey walked the whole way).
+    before_leg: int
 
 
 class JourneyPlan(BaseModel):
@@ -48,9 +51,8 @@ class JourneyPlan(BaseModel):
     travel_time_min: float
     in_vehicle_min: float
     wait_min: float  # waiting at every boarding (0 when waiting is not modelled)
-    walk_min: float  # walking to/from a closed stop (0 for ordinary journeys)
-    walk_start: WalkLeg | None  # walk from a closed origin (or the whole way)
-    walk_end: WalkLeg | None  # walk to a closed destination
+    walk_min: float  # all walks together
+    walks: list[WalkLeg]  # in journey order: at the start, between buses, at the end
     transfers: int  # changes of bus (legs - 1)
     transfer_penalty_min: float
     legs: list[JourneyLeg]

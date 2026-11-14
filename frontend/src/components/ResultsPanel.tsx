@@ -22,6 +22,7 @@ import {
 import { describeApiError } from '../api/errors'
 import { fetchChangedJourneysCsv } from '../api/simulations'
 import { csvFileName, downloadCsv } from '../lib/exportCsv'
+import { describeWalking } from '../lib/journeyPlan'
 import { stopLabel } from '../lib/network'
 import type { NetworkSource, Stop } from '../types/network'
 import { MAX_LISTED_JOURNEYS, type JourneyChange, type JourneyStatus, type SimulationResult } from '../types/simulation'
@@ -187,7 +188,8 @@ export function ResultsPanel({
       {tab === 'summary' && (
       <>
       <p className="text-[11px] text-ink-subtle">
-        {describeTimeModel(summary.include_waiting, summary.transfer_penalty_min, source !== null)}
+        {describeTimeModel(summary.include_waiting, summary.transfer_penalty_min, source !== null)}{' '}
+        {describeWalking(summary.walking)}
       </p>
       <AiSummary result={result} />
       <div className="grid grid-cols-2 gap-2">

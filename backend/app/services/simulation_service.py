@@ -44,6 +44,7 @@ from app.schemas.simulation import (
     SimulationResult,
     SimulationSummary,
     StopImpact,
+    WalkingSettings,
 )
 from app.services.route_graph import (
     Platform,
@@ -429,6 +430,7 @@ def simulate_state(
         largest_increase=_largest_increase(changed),
         transfer_penalty_min=transfer_penalty_min,
         include_waiting=include_waiting,
+        walking=_walking_settings(state.walking),
         demand_weighted=_demand_weighted(
             weight_of, weighted_comparable, weighted_before, weighted_after
         ),
@@ -446,6 +448,17 @@ def simulate_state(
 
 def _round(value: float) -> float:
     return round(value, 1) + 0.0  # "+ 0.0" turns -0.0 into 0.0
+
+
+def _walking_settings(model: WalkingModel | None) -> WalkingSettings | None:
+    if model is None:
+        return None
+    return WalkingSettings(
+        speed_kmh=model.speed_kmh,
+        max_walk_m=model.max_walk_m,
+        max_transfer_walk_m=model.max_transfer_walk_m,
+        between_open_stops=model.between_open_stops,
+    )
 
 
 def stop_places(baseline: nx.DiGraph, after_graph: nx.DiGraph) -> nx.DiGraph:

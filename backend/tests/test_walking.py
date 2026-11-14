@@ -1,9 +1,10 @@
-"""Walking to or from a closed stop (Day 10, part 3).
+"""Walking (Day 10 part 3; Day 14 part 3: walking between stops).
 
-Only journeys touching a CLOSED stop walk: to a nearby open stop (straight
-line x 1.3, within the maximum), then by bus; or the whole way. Walking off
-reproduces the earlier engine (checked in full against it; the other test
-files run with walking off).
+Passengers walk (straight line x 1.3) at the start (<= max_walk_m), between
+two buses (<= max_transfer_walk_m, a change of bus) and at the end, or the
+whole way; never twice in a row. ``between_open_stops=False`` is the Day 10
+rule: walking only from or to a CLOSED stop. Walking off reproduces the
+earlier engine (the other test files mostly run with walking off).
 """
 
 import copy
@@ -21,7 +22,7 @@ from app.main import app
 from app.models import Connection, Route, Stop
 from app.schemas.journey import JourneyRequest
 from app.schemas.scenario import Scenario
-from app.services.journey_service import compare_journey
+from app.services.journey_service import compare_journey, plan_journey
 from app.services.network_service import build_graph, build_graph_from_db
 from app.services.simulation_service import simulate
 from app.services.route_graph import build_route_graph, travel_time_matrix
@@ -38,6 +39,7 @@ METRES_PER_DEGREE_LAT = 6_371_000 * 3.141592653589793 / 180  # ~111,195 m
 
 # 6 km/h = 100 m per minute, so minutes = walking metres / 100.
 WALK = WalkingModel(speed_kmh=6, max_walk_m=1000)
+CLOSED_ONLY = WalkingModel(speed_kmh=6, max_walk_m=1000, between_open_stops=False)
 
 
 def _line_north(spacing_m: float, minutes: float, stop_ids: list[str]) -> nx.DiGraph:
@@ -115,10 +117,10 @@ def test_explorer_shows_the_walking_legs() -> None:
     request = JourneyRequest(origin_id="P", destination_id="R", changes=CLOSE_P.changes)
     comparison = compare_journey(LINE, request, walking=WALK)
     after = comparison.after
-    assert after is not None and after.walk_start is not None
-    assert (after.walk_start.from_stop_id, after.walk_start.to_stop_id) == ("P", "Q")
-    assert (after.walk_start.distance_m, after.walk_start.minutes) == (650, 6.5)
-    assert after.walk_end is None
+    assert after is not None and len(after.walks) == 1
+    walk = after.walks[0]
+    assert (walk.from_stop_id, walk.to_stop_id, walk.before_leg) == ("P", "Q", 0)
+    assert (walk.distance_m, walk.minutes) == (650, 6.5)
     assert [leg.route_id for leg in after.legs] == ["R1"]
     assert (after.travel_time_min, after.walk_min, after.in_vehicle_min) == (11.5, 6.5, 5.0)
     assert (comparison.status, comparison.change_min) == ("slower", 1.5)
@@ -140,11 +142,75 @@ def test_explorer_walk_only_and_unreachable() -> None:
     assert too_far.reason is not None and "within 600 m" in too_far.reason
 
 
-def test_walking_never_affects_journeys_between_open_stops() -> None:
+def test_closed_stops_only_never_affects_journeys_between_open_stops() -> None:
     scenario = Scenario.model_validate(
         {"changes": [{"type": "remove_connection", "from_stop_id": "Q", "to_stop_id": "R"}]}
     )
-    assert simulate(LINE, scenario, walking=WALK) == simulate(LINE, scenario)
+    with_walking = simulate(LINE, scenario, walking=CLOSED_ONLY)
+    assert with_walking.model_copy(update={"summary": with_walking.summary.model_copy(
+        update={"walking": None})}) == simulate(LINE, scenario)
+
+
+# --- Walking between open stops (Day 14 part 3) ------------------------------------------
+
+def _network(stops: dict[str, float], routes: dict[str, list[tuple[str, str, float]]]) -> nx.DiGraph:
+    """Stops at the given metres due north; each route runs its (from, to, minutes)
+    stretches in both directions, a bus every 10 min."""
+    stop_rows = [Stop(id=s, name=s, lat=m / METRES_PER_DEGREE_LAT, lon=0.0, activity=1) for s, m in stops.items()]
+    connections = [
+        Connection(route_id=route_id, from_stop_id=u, to_stop_id=v, travel_time_min=minutes)
+        for route_id, stretches in routes.items()
+        for a, b, minutes in stretches
+        for u, v in ((a, b), (b, a))
+    ]
+    route_rows = [Route(id=r, name=r, color="#000000", headway_min=10) for r in routes]
+    return build_graph(stop_rows, connections, route_rows)
+
+
+def test_walking_beats_a_slow_bus_between_open_stops() -> None:
+    # A and B are 400 m apart (520 m on foot = 5.2 min); the bus takes 30 min.
+    network = _network({"A": 0, "B": 400}, {"R1": [("A", "B", 30)]})
+    plan = plan_journey(network, "A", "B", walking=WALK)
+    assert plan is not None and (plan.travel_time_min, plan.legs, plan.walk_min) == (5.2, [], 5.2)
+    assert plan_journey(network, "A", "B", walking=CLOSED_ONLY).travel_time_min == 30.0  # type: ignore[union-attr]
+
+
+def test_walking_between_two_buses_is_a_change_of_bus() -> None:
+    # R1 A-B, R2 C-D; B and C 300 m apart (390 m on foot = 3.9 min).
+    network = _network(
+        {"A": 0, "B": 2000, "C": 2300, "D": 4300}, {"R1": [("A", "B", 5)], "R2": [("C", "D", 5)]}
+    )
+    plan = plan_journey(network, "A", "D", transfer_penalty_min=2, walking=WALK)
+    assert plan is not None
+    assert [(leg.route_id, leg.stop_ids) for leg in plan.legs] == [("R1", ["A", "B"]), ("R2", ["C", "D"])]
+    assert [(w.from_stop_id, w.to_stop_id, w.minutes, w.before_leg) for w in plan.walks] == [("B", "C", 3.9, 1)]
+    assert (plan.travel_time_min, plan.transfers) == (15.9, 1)  # 5 + 3.9 + 2 + 5
+
+
+def test_walks_between_buses_are_limited_to_the_transfer_maximum() -> None:
+    # B and C 450 m apart = 585 m on foot: more than 500 m between buses.
+    network = _network(
+        {"A": 0, "B": 2000, "C": 2450, "D": 4450}, {"R1": [("A", "B", 5)], "R2": [("C", "D", 5)]}
+    )
+    assert plan_journey(network, "A", "D", walking=WALK) is None
+    longer = WalkingModel(speed_kmh=6, max_walk_m=1000, max_transfer_walk_m=600)
+    assert plan_journey(network, "A", "D", walking=longer) is not None
+
+
+def test_never_two_walks_in_a_row() -> None:
+    # X, Y, Z 700 m apart (910 m on foot each; X-Z 1,820 m is too far), bus 30 min a stretch.
+    network = _network({"X": 0, "Y": 700, "Z": 1400}, {"R1": [("X", "Y", 30), ("Y", "Z", 30)]})
+    plan = plan_journey(network, "X", "Z", walking=WALK)
+    assert plan is not None and plan.travel_time_min == 39.1  # walk 9.1 + bus 30, not 18.2 on foot
+    assert len(plan.walks) == 1 and len(plan.legs) == 1
+
+
+def test_baseline_and_scenario_walk_alike() -> None:
+    # Removing the slow bus changes nothing: walking was already faster before.
+    network = _network({"A": 0, "B": 400}, {"R1": [("A", "B", 30)]})
+    scenario = Scenario.model_validate({"changes": [{"type": "remove_connection", "from_stop_id": "A", "to_stop_id": "B"}]})
+    summary = simulate(network, scenario, walking=WALK).summary
+    assert (summary.unchanged, summary.slower, summary.average_time_before_min) == (2, 0, 5.2)
 
 
 # --- Sample network ------------------------------------------------------------------------
@@ -209,15 +275,18 @@ def test_no_two_walks_in_a_row_by_boarding_and_getting_off_at_once(sample: nx.Di
     # CEN and UNI closed: walking CEN -> LIB, boarding and leaving the bus at LIB at
     # once, then walking LIB -> UNI would be 25.8 min. A walk after a bus needs a
     # real ride: walk to LIB, R3 to OLD, walk to UNI.
+    # (Day 10 rule, as checked against the engine before step A.)
+    model = WalkingModel(5, 1000, between_open_stops=False)
     changes = [{"type": "close_stop", "stop_id": "CEN"}, {"type": "close_stop", "stop_id": "UNI"}]
-    simulation = simulate(sample, Scenario.model_validate({"changes": changes}), 2.0, True, SAMPLE_WALK)
+    simulation = simulate(sample, Scenario.model_validate({"changes": changes}), 2.0, True, model)
     assert _times(simulation)[("CEN", "UNI")] == (11.0, 30.5, "slower")
     after = compare_journey(
-        sample, JourneyRequest(origin_id="CEN", destination_id="UNI", changes=changes), 2.0, True, SAMPLE_WALK,
+        sample, JourneyRequest(origin_id="CEN", destination_id="UNI", changes=changes), 2.0, True, model,
     ).after
-    assert after is not None and after.walk_start is not None and after.walk_end is not None
+    assert after is not None
     assert [(leg.route_id, leg.stop_ids) for leg in after.legs] == [("R3", ["LIB", "OLD"])]
-    assert (after.walk_start.to_stop_id, after.walk_end.from_stop_id) == ("LIB", "OLD")
+    assert [(w.from_stop_id, w.to_stop_id, w.before_leg) for w in after.walks] == [
+        ("CEN", "LIB", 0), ("OLD", "UNI", 1)]
 
 
 def test_walking_the_whole_way_has_no_transfer_penalty() -> None:
@@ -234,7 +303,7 @@ def test_journey_matrix_without_walking_equals_the_route_graph_matrix(sample: nx
     stops = sorted(sample.nodes)
     plain = build_route_graph(sample, 2.0, True)
     expected = travel_time_matrix(plain, stops)
-    for model in (None, SAMPLE_WALK):  # Day 10 walking: none between open stops
+    for model in (None, WalkingModel(5, 1000, between_open_stops=False)):  # none between open stops
         layered = build_route_graph(sample, 2.0, True)
         add_walking_layer(layered, sample, model, closed=())
         assert np.array_equal(journey_time_matrix(layered, stops).values, expected.values)  # exact
@@ -265,5 +334,8 @@ def test_api_uses_walking(client: TestClient) -> None:
     assert simulation.status_code == journey.status_code == 200
     summary = simulation.json()["summary"]
     assert (summary["walked_to_or_from_closed_stop"], summary["to_or_from_closed_stop"]) == (30, 0)
-    walk_start = journey.json()["after"]["walk_start"]
+    walk_start = journey.json()["after"]["walks"][0]
     assert walk_start["from_stop_id"] == "CEN" and walk_start["distance_m"] > 800
+    assert summary["walking"] == {
+        "speed_kmh": 5.0, "max_walk_m": 1000.0, "max_transfer_walk_m": 500.0, "between_open_stops": True,
+    }

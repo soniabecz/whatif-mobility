@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 
 import { IMPACT_STYLES, describeTimeModel, formatChange, formatMinutes } from '../lib/impact'
+import { describeWalking, journeySteps } from '../lib/journeyPlan'
 import { sortedStops, stopLabel, stopsById } from '../lib/network'
 import type {
   JourneyComparison,
@@ -20,6 +21,7 @@ import type {
   WalkLeg,
 } from '../types/journey'
 import type { Network, Route } from '../types/network'
+import type { SimulationSummary } from '../types/simulation'
 import { IMPACT_ICONS } from './impactIcons'
 import { Button } from './ui/Button'
 import { Field, inputClass } from './ui/Field'
@@ -39,6 +41,8 @@ export type JourneyState =
 
 interface JourneyExplorerProps {
   network: Network
+  /** The simulation's summary: the time model and walking settings it used. */
+  summary: SimulationSummary
   selection: JourneySelection | null
   state: JourneyState
   onSelect: (selection: JourneySelection) => void
@@ -48,6 +52,7 @@ interface JourneyExplorerProps {
 /** Parent remounts this (via `key`) when the selection changes from outside. */
 export function JourneyExplorer({
   network,
+  summary,
   selection,
   state,
   onSelect,
@@ -120,7 +125,7 @@ export function JourneyExplorer({
         </p>
       )}
       {state.kind === 'success' && (
-        <ComparisonView network={network} comparison={state.comparison} onClear={onClear} />
+        <ComparisonView network={network} summary={summary} comparison={state.comparison} onClear={onClear} />
       )}
     </div>
   )
@@ -137,10 +142,12 @@ const STATUS_CHIP: Record<JourneyComparisonStatus, { label: string; className: s
 
 function ComparisonView({
   network,
+  summary,
   comparison,
   onClear,
 }: {
   network: Network
+  summary: SimulationSummary
   comparison: JourneyComparison
   onClear: () => void
 }) {
@@ -193,12 +200,8 @@ function ComparisonView({
       )}
 
       <p className="text-[11px] leading-relaxed text-ink-subtle">
-        {/* Every journey boards at least once, so waiting shows up in wait_min. */}
-        {describeTimeModel(
-          ((after ?? before)?.wait_min ?? 0) > 0,
-          (after ?? before)?.transfer_penalty_min ?? 0,
-          Boolean(network.source),
-        )}
+        {describeTimeModel(summary.include_waiting, summary.transfer_penalty_min, Boolean(network.source))}{' '}
+        {describeWalking(summary.walking)}
       </p>
 
       <Button variant="ghost" size="sm" icon={X} onClick={onClear}>
@@ -235,9 +238,17 @@ function Timeline({
         {plan.transfers > 0 &&
           ` + ${plan.transfers} ${plan.transfers === 1 ? 'change' : 'changes'} × ${plan.transfer_penalty_min} min`}
       </p>
-      {plan.walk_start && <WalkRow walk={plan.walk_start} name={name} />}
       <ol className="mt-2">
-        {plan.legs.map((leg, index) => {
+        {journeySteps(plan).map((step) => {
+          if (step.kind === 'walk') {
+            const { walk } = step
+            return (
+              <li key={`walk-${walk.before_leg}-${walk.from_stop_id}`}>
+                <WalkRow walk={walk} name={name} />
+              </li>
+            )
+          }
+          const { leg, index } = step
           const route = routes.get(leg.route_id)
           const color = route?.color ?? '#71717a'
           const first = leg.stop_ids[0]
@@ -301,15 +312,14 @@ function Timeline({
           )
         })}
       </ol>
-      {plan.walk_end && <WalkRow walk={plan.walk_end} name={name} />}
     </section>
   )
 }
 
-/** Walking to or from a closed stop (distance is an estimate: straight line x 1.3). */
+/** A walk between two stops (distance is an estimate: straight line x 1.3). */
 function WalkRow({ walk, name }: { walk: WalkLeg; name: (id: string) => string }) {
   return (
-    <p className="mt-2 flex items-center gap-2 rounded-lg bg-surface-muted px-2 py-1.5 text-[11px] text-ink-muted">
+    <p className="my-2 flex items-center gap-2 rounded-lg bg-surface-muted px-2 py-1.5 text-[11px] text-ink-muted">
       <Footprints size={13} className="shrink-0" aria-hidden />
       <span>
         Walk about {Math.round(walk.distance_m)} m from {name(walk.from_stop_id)} to{' '}

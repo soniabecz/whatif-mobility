@@ -16,7 +16,8 @@ import { divIcon, type LatLngBoundsExpression, type LatLngTuple, type PointTuple
 import type { DraftSelection } from '../lib/changeDraft'
 import { ACTIVITY_LABELS, IMPACT_STYLES, describeImpact, impactLevel } from '../lib/impact'
 import { compactStops, linkKey, stopMarkerSize, routeSegments, routeStretches, scenarioHighlights } from '../lib/network'
-import type { JourneyComparison, JourneyLeg, WalkLeg } from '../types/journey'
+import { journeyStopIds } from '../lib/journeyPlan'
+import type { JourneyComparison } from '../types/journey'
 import type { Network, NetworkSource, Route, Stop } from '../types/network'
 import type { ScenarioChange } from '../types/scenario'
 import type { SimulationResult, StopImpact } from '../types/simulation'
@@ -478,11 +479,6 @@ function positions(stops: Map<string, Stop>, ids: string[]): LatLngTuple[] {
   })
 }
 
-/** All stops of a journey in order (legs share their transfer stop). */
-function pathOf(legs: JourneyLeg[] | undefined): string[] {
-  return (legs ?? []).flatMap((leg, index) => (index === 0 ? leg.stop_ids : leg.stop_ids.slice(1)))
-}
-
 function JourneyOverlay({
   journey,
   stops,
@@ -495,24 +491,16 @@ function JourneyOverlay({
   padding: MapPadding
 }) {
   const map = useMap()
-  const beforePath = positions(stops, pathOf(journey.before?.legs))
-  const walks = [journey.after?.walk_start, journey.after?.walk_end].filter(
-    (walk): walk is WalkLeg => walk != null,
-  )
+  // "Before" is one dotted line through all its stops, walks included.
+  const beforePath = positions(stops, journeyStopIds(journey.before))
+  const walks = journey.after?.walks ?? []
   const origin = stops.get(journey.origin_id)
   const destination = stops.get(journey.destination_id)
 
   // Zoom smoothly to the journey when it (or the free map area) changes.
   // The parent passes a stable padding object, so this does not run on every render.
   useEffect(() => {
-    const walked = [journey.after?.walk_start, journey.after?.walk_end].flatMap((walk) =>
-      walk ? [walk.from_stop_id, walk.to_stop_id] : [],
-    )
-    const points = positions(stops, [
-      ...pathOf(journey.before?.legs),
-      ...pathOf(journey.after?.legs),
-      ...walked,
-    ])
+    const points = positions(stops, [...journeyStopIds(journey.before), ...journeyStopIds(journey.after)])
     if (points.length > 0) {
       map.flyToBounds(points, {
         paddingTopLeft: padding.topLeft,
@@ -532,10 +520,10 @@ function JourneyOverlay({
           pathOptions={{ color: BEFORE_COLOR, weight: 4, dashArray: '1 9', lineCap: 'round' }}
         />
       )}
-      {/* Walking to/from a closed stop: a dashed dark line (straight, like the estimate). */}
+      {/* Walks: a dashed dark line (straight, like the estimate). */}
       {walks.map((walk) => (
         <Polyline
-          key={`walk-${walk.from_stop_id}-${walk.to_stop_id}`}
+          key={`walk-${walk.before_leg}-${walk.from_stop_id}-${walk.to_stop_id}`}
           positions={positions(stops, [walk.from_stop_id, walk.to_stop_id])}
           pathOptions={{ color: INK, weight: 4, dashArray: '8 7', lineCap: 'butt' }}
         >

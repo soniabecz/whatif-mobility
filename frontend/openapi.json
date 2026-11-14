@@ -1514,25 +1514,12 @@
             "type": "number",
             "title": "Walk Min"
           },
-          "walk_start": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/WalkLeg"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "walk_end": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/WalkLeg"
-              },
-              {
-                "type": "null"
-              }
-            ]
+          "walks": {
+            "items": {
+              "$ref": "#/components/schemas/WalkLeg"
+            },
+            "type": "array",
+            "title": "Walks"
           },
           "transfers": {
             "type": "integer",
@@ -1556,8 +1543,7 @@
           "in_vehicle_min",
           "wait_min",
           "walk_min",
-          "walk_start",
-          "walk_end",
+          "walks",
           "transfers",
           "transfer_penalty_min",
           "legs"
@@ -2213,6 +2199,16 @@
             "type": "boolean",
             "title": "Include Waiting"
           },
+          "walking": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WalkingSettings"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "demand_weighted": {
             "$ref": "#/components/schemas/DemandWeighted"
           },
@@ -2243,6 +2239,7 @@
           "largest_increase",
           "transfer_penalty_min",
           "include_waiting",
+          "walking",
           "demand_weighted",
           "new_stops"
         ],
@@ -2414,6 +2411,10 @@
           "minutes": {
             "type": "number",
             "title": "Minutes"
+          },
+          "before_leg": {
+            "type": "integer",
+            "title": "Before Leg"
           }
         },
         "type": "object",
@@ -2421,10 +2422,40 @@
           "from_stop_id",
           "to_stop_id",
           "distance_m",
-          "minutes"
+          "minutes",
+          "before_leg"
         ],
         "title": "WalkLeg",
-        "description": "Walking to or from a closed stop (straight line x detour factor)."
+        "description": "A walk between two stops (straight line x detour factor)."
+      },
+      "WalkingSettings": {
+        "properties": {
+          "speed_kmh": {
+            "type": "number",
+            "title": "Speed Kmh"
+          },
+          "max_walk_m": {
+            "type": "number",
+            "title": "Max Walk M"
+          },
+          "max_transfer_walk_m": {
+            "type": "number",
+            "title": "Max Transfer Walk M"
+          },
+          "between_open_stops": {
+            "type": "boolean",
+            "title": "Between Open Stops"
+          }
+        },
+        "type": "object",
+        "required": [
+          "speed_kmh",
+          "max_walk_m",
+          "max_transfer_walk_m",
+          "between_open_stops"
+        ],
+        "title": "WalkingSettings",
+        "description": "How passengers walk in this simulation (invented assumptions)."
       }
     }
   }

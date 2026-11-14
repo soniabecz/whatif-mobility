@@ -137,14 +137,14 @@ def _plan(
         return None
 
     legs: list[JourneyLeg] = []
-    walks: list[tuple[WalkLeg, bool]] = []  # (walk, before any bus)
+    walks: list[WalkLeg] = []
     in_vehicle = wait = walk_minutes = 0.0
     previous = None
     for index, node in enumerate(path.nodes):
         edge = graph.edges[path.nodes[index - 1], node] if index else None
         if edge is not None and edge["kind"] == "walk":
             walk_minutes += edge["minutes"]
-            walks.append((_walk_leg(path.nodes[index - 1], node, edge), not legs))
+            walks.append(_walk_leg(path.nodes[index - 1], node, edge, before_leg=len(legs)))
         if isinstance(node, WalkNode) and node.kind == "off":  # rode here, then walks
             assert previous is not None and edge is not None
             legs[-1].stop_ids.append(node.stop_id)
@@ -187,8 +187,7 @@ def _plan(
         in_vehicle_min=_round(in_vehicle),
         wait_min=_round(wait),
         walk_min=_round(walk_minutes),
-        walk_start=next((w for w, at_start in walks if at_start), None),
-        walk_end=next((w for w, at_start in walks if not at_start), None),
+        walks=walks,
         transfers=max(len(legs) - 1, 0),
         transfer_penalty_min=penalty,
         legs=legs,
@@ -200,12 +199,13 @@ def _stop_of(node: object) -> str:
     return node.stop_id if isinstance(node, WalkNode) else str(node)
 
 
-def _walk_leg(from_node: object, to_node: object, edge: dict[str, float]) -> WalkLeg:
+def _walk_leg(from_node: object, to_node: object, edge: dict[str, float], before_leg: int) -> WalkLeg:
     return WalkLeg(
         from_stop_id=_stop_of(from_node),
         to_stop_id=_stop_of(to_node),
         distance_m=round(edge["distance_m"], -1),  # to 10 m: it is an estimate
         minutes=_round(edge["minutes"]),
+        before_leg=before_leg,
     )
 
 
