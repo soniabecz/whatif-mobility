@@ -2,384 +2,707 @@
 
 [![CI](https://github.com/soniabecz/whatif-mobility/actions/workflows/ci.yml/badge.svg)](https://github.com/soniabecz/whatif-mobility/actions/workflows/ci.yml)
 
-An AI-powered urban public transport simulator for **Gdańsk**. Users describe
-hypothetical changes to the city's tram and bus network in natural language
-("close stop X", "add a route between A and B"), and the system simulates their
-impact on passenger journeys.
+**Ask "what if?" about Gdańsk's public transport and see the answer on the map.**
+Describe a change to the tram and bus network in plain language, or build it with a
+form, and WhatIf Mobility simulates how every journey in the city changes.
 
-> **Status:** the app runs on the real ZTM Gdańsk network (trams and buses,
-> 714 stations, 93 lines, imported from the public GTFS timetable) and simulates
-> scenarios (close a stop, remove a connection, change a travel time, change how
-> often a route runs, add a link, a stop or a whole route) with deterministic
-> before/after metrics. The web UI shows the network on a map, builds scenarios
-> with a form or from plain language (AI via Groq), and displays the results.
-> A small invented sample city exists only as test data.
+---
 
-## Tech stack
+## Contents
 
-| Part     | Technologies                                                        |
-| -------- | ------------------------------------------------------------------- |
-| Backend  | Python, FastAPI, SQLAlchemy, Pydantic, SQLite, NetworkX, Pytest     |
-| Frontend | React, TypeScript, Vite, Tailwind CSS, Axios, React Leaflet, Recharts |
+1. [Project Overview](#1-project-overview)
+2. [Features](#2-features)
+3. [Technology Stack](#3-technology-stack)
+4. [Architecture](#4-architecture)
+5. [Local Setup and Installation](#5-local-setup-and-installation)
+6. [API Documentation](#6-api-documentation)
+7. [AI Integration](#7-ai-integration)
+8. [AI-Assisted Development](#8-ai-assisted-development)
+9. [Testing](#9-testing)
+10. [Project Structure](#10-project-structure)
+11. [Future Improvements](#11-future-improvements)
+12. [Author](#12-author)
 
-## Prerequisites
+---
 
-- **Python** 3.11 or newer
-- **Node.js** 20 or newer (developed with Node 24)
-- **Git**
+## 1. Project Overview
 
-## Project structure
+**WhatIf Mobility** is a web application for exploring hypothetical changes to a city's
+public transport network. It runs on the real network of **ZTM Gdańsk**: trams and
+buses, about 714 stations and 93 lines, imported from the operator's public GTFS
+timetable.
 
+**The problem.** Before a stop is closed for roadworks, a line is rerouted or a
+service runs more often, it is hard to see who is affected and by how much. A change
+on one street ripples through transfers and detours across the whole network.
+
+**Purpose and users.** The app makes these effects visible and measurable for
+transport planners, students, researchers and interested citizens. It is a
+simulation and exploration tool, not a journey planner for live travel.
+
+**Core What-if functionality.** A user types a request such as *"close the stop at
+Brama Wyżynna"* or *"bus 199 every 10 minutes"*. An AI model (via Groq) **only
+translates** the text into a structured list of changes, which the user checks. A
+**deterministic simulation engine** then applies the changes to a copy of the network
+and recomputes the fastest journey between every pair of stations (about 510,000
+journeys). The engine computes every number shown; the AI never produces simulation
+results.
+
+## 2. Features
+
+### Implemented
+
+**Network visualisation**
+- Full-screen Leaflet map of the Gdańsk network: every line in its own colour, stations
+  as circles (drawn small when zoomed out so the lines stay visible).
+- Legend with all 93 lines, their headways ("a bus every N min") and a filter box.
+- Tooltips on a street list **every** line running on it (on Gdańsk 590 of 997 streets
+  are shared, by up to 31 lines).
+- The data source is credited on the map and in the legend, as the data's licence
+  requires.
+
+**Building scenarios** (up to 20 changes, applied in order)
+
+| Change | What it does |
+| --- | --- |
+| Close stop | Nobody can board, alight or change there; vehicles drive through |
+| Remove link | A link between two stops is removed (one or both directions) |
+| Travel time | Sets a link's travel time |
+| Frequency | Sets how often a line runs (a vehicle every 1–120 min) |
+| Add link | An existing line also runs between two stops (extension or shortcut) |
+| Add stop | Inserts a new stop into a line, placed by clicking the map |
+| Add route | A new line through existing stops (up to 30), one way, both ways or as a loop |
+
+Changes can be built with a **form** (stops and lines can be picked by clicking the
+map) or from **plain language with the AI** (English or Polish). The AI can also edit
+the current list ("remove the second change"), with an Undo button.
+
+**Simulation results**
+- Summary tiles: journeys slower, faster or impossible, and the average journey time
+  before and after.
+- Details: unchanged and newly possible journeys, total time change, largest
+  increase, most affected stops, a chart of the biggest changes, and a table of the
+  1,000 largest changed journeys.
+- The map colours each station by impact (slower, faster, impossible, closed).
+- **CSV export** of all changed journeys (computed by the backend).
+- **AI summary** of the results in a few sentences. The backend inserts every number
+  and rejects any text in which the AI wrote a number itself.
+
+**Exploring and sharing**
+- **Journey explorer**: one journey before and after, leg by leg, with lines, waiting,
+  changes of bus and walks, drawn on the map.
+- **Shareable link**: the address bar always encodes the current change list.
+- **Saved scenarios** (stored in the database) and a **side-by-side comparison** of
+  two scenarios.
+
+### How a simulation works (summary)
+
+1. The changes are validated and applied to a **copy** of the baseline network; the
+   baseline is never modified.
+2. For every ordered pair of stations the fastest journey is computed, both on
+   today's network and after the changes. A journey's time is:
+   time on board + waiting (half the headway, at every boarding) + 2 min per change of
+   bus + walking.
+3. Passengers may walk up to 1,000 m at the start or end, up to 500 m between two
+   vehicles, or the whole way (5 km/h, straight-line distance × 1.3).
+4. Passengers stay on a vehicle only along the line's real stop sequence (per
+   direction). Turning round at a terminus is a change.
+5. Before and after are compared journey by journey. The results are deterministic:
+   the same scenario always gives the same numbers.
+
+Details and assumptions are in [Architecture](#4-architecture).
+
+### Not implemented (planned or out of scope)
+
+- **No public deployment**: the app runs locally. Hosting, a request limit on the AI
+  endpoint, a production map-tile provider and user accounts are planned (see
+  [Future Improvements](#11-future-improvements)).
+- **No passenger data**: every journey counts equally. Real demand is not modelled.
+- **Frequency-based, not schedule-based**: waiting is half the headway taken from the
+  morning peak, not exact departure times.
+- **Simplified timetable**: each line uses its most frequent stop sequence per
+  direction. Trips that leave it (e.g. some depot or branch runs) are left out, and
+  the importer reports them.
+
+## 3. Technology Stack
+
+| Area | Technology | Purpose |
+| --- | --- | --- |
+| Frontend | **React 19**, **TypeScript 7**, **Vite 8** | UI, type safety, dev server and build |
+| Styling | **Tailwind CSS 4**, lucide-react icons, Inter font | Layout and design tokens |
+| HTTP client | **Axios** | One shared API client (`src/api/client.ts`) |
+| Map | **Leaflet** + **React Leaflet**, OpenStreetMap tiles | Network and results on the map |
+| Charts | **Recharts** | Chart of the biggest changes (loaded on demand) |
+| Backend | **Python 3.11+**, **FastAPI**, **Uvicorn** | REST API |
+| Validation | **Pydantic 2**, pydantic-settings | Request/response schemas, settings from `.env` |
+| Database | **SQLite** + **SQLAlchemy 2** | Network, line patterns, saved scenarios |
+| Graphs | **NetworkX**, **SciPy**, **NumPy** | Network graph; compiled all-pairs shortest paths; vectorised figures |
+| AI | **Groq** API (`groq` SDK), model `openai/gpt-oss-120b` | Text → scenario changes; result summaries |
+| Real data | **GTFS** feed of ZTM Gdańsk (own importer) | Stations, lines, travel times, headways |
+| Backend tests | **pytest** (+ httpx/httpx2 for FastAPI's TestClient) | Unit and API tests |
+| Frontend tests | **Vitest**, **Playwright** | Unit tests; end-to-end tests in Chromium |
+| Quality | **oxlint**, `tsc`, GitHub Actions | Lint, type check, CI |
+
+**Technical decisions worth noting**
+- **The AI translates, the engine computes.** The AI's output is a scenario in the same
+  format the form produces. It is validated and dry-run before the user sees it.
+- **Route-aware graph.** Stations alone cannot tell whether a passenger changes
+  vehicle. The graph therefore has a node for "on line L at stop S", so waiting and
+  change penalties are counted exactly.
+- **SciPy's compiled Dijkstra.** It computes 714 shortest-path searches at once in
+  under a second; pure NetworkX took 15–18 s per simulation on the full city.
+  Optimisations were checked against the previous version for byte-identical results.
+- **Generated API types.** The frontend's TypeScript types are generated from the
+  backend's OpenAPI schema (`openapi-typescript`), and CI fails if they are out of
+  date.
+
+## 4. Architecture
+
+### Frontend / backend separation
+
+The project has two independent applications that talk over a **REST API (JSON)**:
+
+- `frontend/`: React single-page app on `http://localhost:5173`. All network calls go
+  through one Axios instance whose base URL comes from `VITE_API_BASE_URL` (default
+  `http://localhost:8000`).
+- `backend/`: FastAPI on `http://localhost:8000`. CORS allows only the frontend's
+  origin (`localhost:5173` / `127.0.0.1:5173`).
+
+```mermaid
+flowchart LR
+    U[User] --> FE["React + Leaflet frontend<br/>(Vite, port 5173)"]
+    FE -- "REST / JSON (Axios)" --> API["FastAPI routers<br/>backend/app/api"]
+    API --> SIM["Simulation engine<br/>route_graph · walking · simulation_service"]
+    API --> AI["AI service<br/>ai_service · summary_service"]
+    AI -- "text → scenario JSON<br/>(strict schema)" --> GROQ[(Groq API)]
+    AI -- "dry run (no metrics)" --> SIM
+    SIM --> DB[("SQLite<br/>gdansk.db")]
+    API --> DB
+    IMP["GTFS importer<br/>python -m app.import_gtfs"] --> DB
+    FEED[("ZTM Gdańsk<br/>GTFS feed")] --> IMP
 ```
-whatif-mobility/
-├── backend/           FastAPI REST API (port 8000)
-│   ├── app/           application code
-│   ├── tests/         pytest tests
-│   └── requirements.txt
-├── frontend/          React single-page app (port 5173)
-│   └── src/
-│       ├── api/         HTTP calls to the backend and error messages
-│       ├── components/  map, legend, scenario form, results, chart
-│       ├── lib/         pure helpers (network lookups, impact colours)
-│       └── types/       TypeScript types generated from the backend's OpenAPI schema
-├── dev.sh             one-command start (setup + both servers)
-└── CLAUDE.md          project rules and conventions
-```
 
-## Quick start
+### Backend modules
+
+Route handlers in `app/api/` stay thin; the business logic lives in `app/services/`.
+
+| Module | Responsibility |
+| --- | --- |
+| `api/` | FastAPI routers: network, simulations (+ CSV), journeys, AI, saved scenarios, comparisons |
+| `schemas/` | Pydantic models for every request and response (scenario changes, results, journeys, AI) |
+| `models/` | SQLAlchemy tables: `stops`, `routes`, `connections`, `route_patterns`, `pattern_stops`, `network_source`, `saved_scenarios` |
+| `services/network_service.py` | Loads the network from the database into a NetworkX graph |
+| `services/route_graph.py` | Route-aware graph: stop nodes, platform nodes, board/alight/ride edges, compiled all-pairs search |
+| `services/walking.py` | Walking layer added to the graph (walks at the start, between vehicles, at the end) |
+| `services/simulation_service.py` | Applies a scenario to a copy, computes all journey times, compares, builds the figures (cached per network and settings) |
+| `services/journey_service.py` | Journey explorer: one journey before/after, split into legs and walks |
+| `services/comparison_service.py` | Compares two scenarios journey by journey |
+| `services/ai_service.py`, `network_excerpt.py` | Text → scenario via Groq; for a big network the prompt contains only the relevant part |
+| `services/summary_service.py` | AI summary with placeholders, numbers inserted by the backend |
+| `services/gtfs_import.py` | GTFS feed → stations, lines, links, line patterns, headways |
+| `services/export_service.py`, `scenario_store.py` | CSV export; saved scenarios |
+| `seed/` | The small invented sample city, **used only as test data** |
+
+### How the transport network is represented
+
+- **In the database:** stations (`stops`), lines with headways (`routes`), directed
+  links with a travel time per line (`connections`), and each line's stop sequences
+  per direction (`route_patterns` + `pattern_stops`). Stations are GTFS stop posts
+  grouped by name; posts more than 500 m apart are kept separate.
+- **Network graph (NetworkX `DiGraph`):** stations are nodes, links are directed edges,
+  and the edge weight is the travel time (`route_times` per line on each edge).
+- **Route-aware graph (one per simulation):**
+  - **Nodes:** stations, and platforms meaning "on line L at stop S, at position i of
+    one of its stop sequences".
+  - **Edges:** *board* (weight = half the headway + change penalty), *alight* (0) and
+    *ride* (the line's travel time, only to the next position of the same sequence).
+  - **Walking layer:** a few extra nodes per station, so walks are part of the same
+    shortest-path search.
+
+### Simulation engine
+
+1. Build the route-aware graph from a **copy** of the baseline; the baseline is never
+   modified.
+2. Apply the changes in order: closing a stop removes the station node but keeps the
+   platforms, so vehicles drive through. Links are removed or retimed, headways
+   changed, and links, stops or lines added. Invalid changes fail with a clear message.
+3. Compute the fastest time from every station to every other with SciPy's compiled
+   Dijkstra. Today's network is computed once and cached, and recent scenarios are
+   cached too.
+4. Compare before and after journey by journey: slower, faster, impossible, newly
+   possible, unchanged. Then compute averages, per-station impact, the most affected
+   stations and the largest changes. All figures are deterministic.
+
+On the full network a simulation takes about 1.5 s on a laptop. Comparing two
+scenarios that were just run takes under 1 s.
+
+## 5. Local Setup and Installation
+
+These steps were run on macOS (Python 3.11.5, Node.js 24, npm 11) on a fresh clone of
+the repository.
+
+### Prerequisites
+
+| Tool | Version | Check |
+| --- | --- | --- |
+| Python | **3.11 or newer** | `python3 --version` |
+| Node.js | **22.12 or newer** (CI uses 24) | `node --version` |
+| npm | comes with Node.js | `npm --version` |
+| Git | any recent version | `git --version` |
+
+On macOS, the `python3` that comes with Apple's command line tools can be older than
+3.11: install a current Python (from python.org or Homebrew) and check that
+`python3 --version` shows 3.11 or newer. Node.js 22.12+ is needed for the unit tests (Vitest 5). The app alone runs on
+20.19+ (Vite 8). An internet connection is needed for the first setup: Python and npm
+packages, and the Gdańsk timetable feed (about 25 MB). A Groq API key is **optional**: without it,
+everything except the AI features works.
+
+### Quick start (one command)
 
 ```bash
+git clone https://github.com/soniabecz/whatif-mobility.git
+cd whatif-mobility
 ./dev.sh
 ```
 
-One command does everything (macOS and Linux; on Windows use WSL): on the first
-run it creates `backend/.venv`, installs the backend and frontend packages,
-creates `backend/.env` from the example and imports the Gdańsk network into
-`backend/gdansk.db` (a one-time download of about 25 MB, see
-[The network: Gdańsk](#the-network-gdańsk)). Later runs only reinstall what
-changed and **never touch the network**. Then it starts
-both servers with hot reload and prints the address,
-http://localhost:5173. **Ctrl+C** stops both.
+`dev.sh` does everything below automatically:
+- checks Python 3.11+ and Node.js (it accepts Node 20+; see the versions above);
+- creates `backend/.venv` and installs the packages (only when `requirements.txt` changed);
+- creates `backend/.env` from the example;
+- **imports the Gdańsk network on the first run**;
+- installs the frontend packages and starts both servers.
 
-To enable the AI input, put your Groq API key in `backend/.env` (see
-[Configuration](#configuration)) and restart.
+Open **http://localhost:5173**. Press **Ctrl+C** to stop both servers.
 
-The sections below do the same steps by hand.
+### Manual setup, step by step
 
-## Setup (first time only)
+**Backend** (terminal 1)
 
-### Backend
+1. Clone the repository and go to the backend:
+   ```bash
+   git clone https://github.com/soniabecz/whatif-mobility.git
+   cd whatif-mobility/backend
+   ```
+2. Create and activate a virtual environment (macOS/Linux):
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate        # the prompt now shows (.venv)
+   ```
+3. Install the dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+4. Configure environment variables:
+   ```bash
+   cp .env.example .env
+   ```
+   Optionally put your Groq key in `backend/.env` (`GROQ_API_KEY=...`, from
+   https://console.groq.com/keys). `backend/.env` is git-ignored; never commit it.
+5. Initialise the database by importing the Gdańsk network:
+   ```bash
+   python -m app.import_gtfs
+   ```
+   This downloads the feed to `backend/data/gtfs/` and creates `backend/gdansk.db`
+   (about 45 s in total with the package install). Re-run it later to refresh the
+   timetable; saved scenarios are kept.
+6. Start the FastAPI server:
+   ```bash
+   uvicorn app.main:app --reload
+   ```
+   It listens on http://localhost:8000.
+
+**Frontend** (terminal 2)
+
+7. Go to the frontend and install the npm dependencies:
+   ```bash
+   cd whatif-mobility/frontend
+   npm install
+   ```
+8. (Optional) Configure the API URL. The default `http://localhost:8000` works for
+   local development. To change it, copy `.env.example` to `.env.local` and edit
+   `VITE_API_BASE_URL`. Never put secrets in frontend env files: they end up in the
+   browser.
+9. Start the development server:
+   ```bash
+   npm run dev
+   ```
+
+### Local URLs
+
+| What | URL |
+| --- | --- |
+| Web app | http://localhost:5173 |
+| API | http://localhost:8000 |
+| Swagger UI (interactive API docs) | http://localhost:8000/docs |
+| ReDoc | http://localhost:8000/redoc |
+| OpenAPI schema | http://localhost:8000/openapi.json |
+
+When everything works, the header shows **● Live** and the network appears on the map.
+Try: Stop → *Brama Wyżynna* → **Add to scenario** → **Run simulation**.
+
+### Stopping the servers
+
+- **Manual setup:** press **Ctrl+C** in each terminal; `deactivate` leaves the virtual
+  environment.
+- **`./dev.sh`:** **Ctrl+C** stops both.
+- If a port stays busy, find the process with `lsof -iTCP:8000 -sTCP:LISTEN` (or
+  `5173`) and stop it. The frontend port is fixed, because it is the only origin the
+  backend allows.
+
+### Configuration
+
+Settings are read from `backend/.env` (see `backend/.env.example`). Restart the backend
+after a change.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `GROQ_API_KEY` | *(none)* | Enables the AI features |
+| `AI_MODEL` | `openai/gpt-oss-120b` | Groq model |
+| `AI_TIMEOUT_SECONDS` | `30` | Timeout for AI calls |
+| `TRANSFER_PENALTY_MIN` | `2` | Minutes added per change of vehicle (0–60) |
+| `INCLUDE_WAITING` | `true` | Wait half the headway at every boarding |
+| `WALKING_ENABLED` | `true` | Passengers may walk |
+| `WALK_SPEED_KMH` | `5` | Walking speed (1–10) |
+| `MAX_WALK_M` | `1000` | Longest walk at the start or end (100–3000) |
+| `MAX_TRANSFER_WALK_M` | `500` | Longest walk between two vehicles (at most `MAX_WALK_M`) |
+| `WALK_BETWEEN_OPEN_STOPS` | `true` | `false`: walk only from or to a closed stop |
+| `WHATIF_DATABASE` *(shell variable)* | `gdansk.db` | Database file in `backend/` |
+
+## 6. API Documentation
+
+Interactive documentation, generated by FastAPI from the Pydantic schemas:
+**http://localhost:8000/docs**.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| GET | `/api/health` | Health check |
+| GET | `/api/stops` | All stations (id, name, lat, lon, activity) |
+| GET | `/api/routes` | All lines (id, name, colour, headway) |
+| GET | `/api/network` | Stations, lines, directed connections and the data source |
+| POST | `/api/simulations` | Simulate a scenario: figures, per-station impact, the 1,000 largest changed journeys |
+| POST | `/api/simulations/csv` | Every changed journey as CSV |
+| POST | `/api/journeys` | One journey before and after a scenario, split into legs and walks |
+| POST | `/api/comparisons` | Compare two scenarios journey by journey |
+| POST | `/api/ai/interpret` | Plain-language text → scenario changes, for review (needs `GROQ_API_KEY`) |
+| POST | `/api/ai/summary` | AI summary of a scenario's results; numbers inserted by the backend (needs `GROQ_API_KEY`) |
+| GET | `/api/scenarios` | Saved scenarios (with a flag if one no longer fits the network) |
+| POST | `/api/scenarios` | Save a scenario |
+| GET / PUT / DELETE | `/api/scenarios/{scenario_id}` | Read, overwrite or delete a saved scenario |
+
+Nothing in a simulation is stored. Results are always recomputed from the current
+network.
+
+The examples below are real responses from a local run (timetable of 14 Nov 2026,
+shortened with `…`). Station ids such as `S1028` come from `GET /api/network`.
+
+**`POST /api/simulations`**: close Brama Wyżynna
 
 ```bash
-cd backend
-python3 -m venv .venv            # create an isolated Python environment
-source .venv/bin/activate        # activate it (prompt shows "(.venv)")
-pip install -r requirements.txt
-python -m app.import_gtfs        # import Gdańsk (trams and buses) into backend/gdansk.db
-cp .env.example .env             # then add your Groq API key (optional, see below)
+curl -X POST http://localhost:8000/api/simulations \
+  -H "Content-Type: application/json" \
+  -d '{"changes": [{"type": "close_stop", "stop_id": "S1028"}]}'
 ```
-
-Re-run `python -m app.import_gtfs` to refresh the network from the latest
-timetable (saved scenarios are kept). The database file is git-ignored.
-
-### Frontend
-
-```bash
-cd frontend
-npm install
-```
-
-## Running the app
-
-The backend and frontend run as two separate processes, so use two terminals.
-
-**Terminal 1 – backend**
-
-```bash
-cd backend
-source .venv/bin/activate
-uvicorn app.main:app --reload
-```
-
-- API: http://localhost:8000
-- Interactive API docs: http://localhost:8000/docs
-
-| Endpoint            | Returns                                      |
-| ------------------- | -------------------------------------------- |
-| `GET /api/health`   | `{"status": "ok"}`                           |
-| `GET /api/stops`    | all stops (id, name, lat, lon)               |
-| `GET /api/routes`   | all routes (id, name, color)                 |
-| `GET /api/network`  | stops, routes and directed connections       |
-| `POST /api/simulations` | before/after metrics for a scenario (nothing is stored) |
-| `POST /api/journeys` | one journey before/after a scenario, split into legs (journey explorer) |
-| `POST /api/ai/interpret` | plain-language text → scenario changes for review (needs `GROQ_API_KEY`) |
-
-Example scenario (changes are applied in order; `both_directions` defaults to `true`):
 
 ```json
 {
-  "changes": [
-    { "type": "close_stop", "stop_id": "S1028" },
-    { "type": "remove_connection", "from_stop_id": "S1025", "to_stop_id": "S1013" },
-    { "type": "change_travel_time", "from_stop_id": "S1025", "to_stop_id": "S1832",
-      "travel_time_min": 6, "both_directions": false },
-    { "type": "change_frequency", "route_id": "B199", "headway_min": 10 }
-  ]
+  "scenario": { "changes": [{ "type": "close_stop", "stop_id": "S1028" }] },
+  "summary": {
+    "total_journeys": 509082,
+    "unchanged": 433604,
+    "slower": 75478,
+    "faster": 0,
+    "impossible": 0,
+    "average_time_before_min": 67.1,
+    "average_time_after_min": 67.5,
+    "…": "…"
+  },
+  "changed_journeys": [
+    { "origin_id": "S1028", "destination_id": "S1011", "time_before_min": 22.2,
+      "time_after_min": 28.9, "change_min": 6.7, "status": "slower" },
+    "…"
+  ],
+  "changed_journeys_total": 75478,
+  "stop_impacts": [
+    { "stop_id": "S100", "closed": false, "affected_journeys": 165,
+      "impossible_journeys": 0, "average_change_min": 3.0 },
+    "…"
+  ],
+  "most_affected_stop_ids": ["S1028", "S1832", "S1835", "S1834", "S1025"]
 }
 ```
 
-(Brama Wyżynna closed; Hucisko – Dworzec Główny removed; Hucisko → Targ Drzewny
-takes 6 minutes; bus 199 every 10 minutes. Station ids and names are in
-`GET /api/network`.)
+All seven change types (changes are applied in order; `both_directions` defaults to
+`true`):
 
-`add_connection` lets an existing route also run directly between two stops
-(an extension or a shortcut). At least one of the stops must already be on the
-route, and the route must not already run between them; the travel time is
-always given by the user. A stop that no route reached before can become
-reachable; such journeys are counted as `newly_possible`.
+```json
+{ "type": "close_stop", "stop_id": "S1028" }
+{ "type": "remove_connection", "from_stop_id": "S1025", "to_stop_id": "S1013" }
+{ "type": "change_travel_time", "from_stop_id": "S1025", "to_stop_id": "S1832", "travel_time_min": 6, "both_directions": false }
+{ "type": "change_frequency", "route_id": "B199", "headway_min": 10 }
+{ "type": "add_connection", "route_id": "…", "from_stop_id": "…", "to_stop_id": "…", "travel_time_min": 5 }
+{ "type": "add_stop", "stop_id": "N1", "name": "…", "lat": 54.35, "lon": 18.65, "route_id": "…", "from_stop_id": "…", "to_stop_id": "…", "time_from_min": 1.5, "time_to_min": 2 }
+{ "type": "add_route", "route_id": "R5", "name": "…", "color": "#123456", "headway_min": 8, "stop_ids": ["…", "…"], "travel_times_min": [4], "is_loop": false, "both_directions": true }
+```
 
-`add_stop` inserts a new stop into one route between two consecutive stops:
-the route's buses then run from → new stop → to (and back, if the route runs
-both ways); other routes on that street are unchanged. The user gives both
-travel times. Journeys to or from new stops have no "before", so they are
-reported separately (`summary.new_stops`: how many, how many possible, average
-time) and kept out of every other figure. The AI does not add stops (it would
-have to invent coordinates); it points to the form instead.
-
-`change_frequency` sets a route's headway (a bus every 1–120 minutes). It only
-changes waiting times, so it has no effect when `INCLUDE_WAITING=false`.
-
-**Terminal 2 – frontend**
+**`POST /api/journeys`**: one journey, before and after
 
 ```bash
-cd frontend
-npm run dev
+curl -X POST http://localhost:8000/api/journeys \
+  -H "Content-Type: application/json" \
+  -d '{"origin_id": "S1835", "destination_id": "S15002",
+       "changes": [{"type": "close_stop", "stop_id": "S1028"}]}'
 ```
 
-Open http://localhost:5173. The header shows **● Live** and the bus
-network appears on the map. Build a scenario in the sidebar, click
-**Run simulation**, and the results appear below the form and on the map.
-
-Instead of the dropdowns you can click the map: a stop (to close it), a line
-(to select that link, or on the **Frequency** and **Add link** tabs its route),
-or two stops one after the other (From, then To; on **Add link** any two
-stops, otherwise neighbours). The current selection
-is ringed in indigo on the map; changed frequencies appear in the legend. On
-the **Add stop** tab, a click on the map places the new stop; a click on a
-line places it there and also chooses that route and link.
-
-**Sharing a scenario:** the address bar always holds a link to the current list
-of changes (**Copy link** next to *Clear* copies it). Opening the link restores
-the changes; the recipient presses *Run* and gets the same results, because
-the simulation is deterministic. The format is readable and can be edited by hand:
-
-```
-http://localhost:5173/?s=close:S1028~remove:S1025-S1013~time:S1025-S1832:6:oneway
-```
-
-Changes are separated by `~`; `:oneway` limits a link change to one direction;
-`freq:B199:10` sets bus 199 to a bus every 10 minutes; `add:<route>:<from>-<to>:<minutes>`
-adds a link to a route.
-A link with any invalid change (unknown stop, no such link, time out of range,
-more than 20 changes) loads nothing and says why.
-
-**CSV export:** the **CSV** button in the results header downloads all changed
-journeys (`origin_id, origin_name, destination_id, destination_name, status,
-time_before_min, time_after_min, change_min`), exactly as the backend computed
-them; times are empty for impossible journeys. The file is comma-separated
-UTF-8 with `.` as the decimal point; in Excel with a locale that uses `;`,
-open it via *Data → From Text/CSV*.
-
-If the page says the network is empty, run `python -m app.import_gtfs` in `backend/`
-(or `./dev.sh`).
-
-Map tiles come from the public OpenStreetMap tile server, which is fine for
-local development. A public deployment needs its own tile provider.
-
-## The network: Gdańsk
-
-The app runs on the real network of **ZTM Gdańsk**, trams and buses, imported from
-its GTFS timetable feed ([open data](https://ckan.multimediagdansk.pl/dataset/tristar)).
-`./dev.sh` imports it on the first run; to refresh it by hand:
-
-```bash
-cd backend && source .venv/bin/activate
-python -m app.import_gtfs            # trams and buses into backend/gdansk.db
+```json
+{
+  "origin_id": "S1835",
+  "destination_id": "S15002",
+  "status": "slower",
+  "change_min": 10.9,
+  "before": { "travel_time_min": 47.9, "…": "…" },
+  "after": {
+    "travel_time_min": 58.8, "in_vehicle_min": 16.0, "wait_min": 24.1,
+    "walk_min": 16.6, "transfers": 1, "transfer_penalty_min": 2.0,
+    "legs": [
+      { "route_id": "T9", "stop_ids": ["S1037", "S2103"], "travel_time_min": 2.0, "wait_min": 5.25, "…": "…" },
+      { "route_id": "BN1", "stop_ids": ["S1004", "S1200", "…"], "travel_time_min": 14.0, "wait_min": 18.9, "…": "…" }
+    ],
+    "walks": [
+      { "from_stop_id": "S1835", "to_stop_id": "S1037", "distance_m": 780.0, "minutes": 9.3, "before_leg": 0 },
+      { "from_stop_id": "S2103", "to_stop_id": "S1004", "distance_m": 360.0, "minutes": 4.4, "before_leg": 1 },
+      { "from_stop_id": "S1789", "to_stop_id": "S15002", "distance_m": 240.0, "minutes": 2.9, "before_leg": 2 }
+    ]
+  },
+  "reason": null
+}
 ```
 
-- The database is `backend/gdansk.db`; `WHATIF_DATABASE` (a file name in `backend/`)
-  picks another one. Set it in the shell, not in `backend/.env`. A database holding
-  the invented sample city is refused: the sample is test data only (see
-  [Tests and checks](#tests-and-checks)).
-- `python -m app.import_gtfs [zip or URL] [--modes tram|bus|all] [--date YYYY-MM-DD] [--if-empty]`
-  (default: all modes; `--if-empty` does nothing when a network is already imported);
-  other feeds: add `--attribution-url` and `--licence`. Downloads go to
-  `backend/data/gtfs/` (git-ignored). Saved scenarios are kept; those that no longer
-  fit the network are flagged.
-- How the timetable becomes the app's network (stations = stop posts grouped by
-  name; each line's most frequent stop sequence on one weekday; median link times;
-  peak headways; no demand data) is in `backend/app/services/gtfs_import.py` and in
-  the app's legend ("How the network was built").
-- **Terms of the data**: the app names the publisher (Zarząd Transportu Miejskiego w
-  Gdańsku, http://www.ztm.gda.pl/otwarty_ztm) and the data's creation and download
-  dates on the map and in the legend. Keeping the data current is the user's duty:
-  re-run the import now and then (the feed covers about two weeks ahead).
-- Size: 714 stations, about 510,000 journeys; a simulation takes about 1.5 seconds,
-  and the AI gets only the part of the network a request is about.
-- Each line's stop sequences ("patterns", one per direction) are stored too:
-  passengers stay on a vehicle only where a trip really goes (on the full network
-  this corrects 20 % of journeys, e.g. staying on through a terminus). A database
-  imported before they existed (Day 14 part 4) keeps the earlier, more optimistic
-  rule; re-run the import to add them.
-- On the free Groq tier (8,000 tokens per minute), one AI request on Gdańsk uses
-  most of a minute's allowance: wait about a minute between AI requests.
+**`POST /api/simulations/csv`**: same body as `/api/simulations`
 
-## Tests and checks
-
-```bash
-# Backend (with .venv activated)
-cd backend
-pytest -v
-
-# Frontend
-cd frontend
-npm run lint     # static code checks (oxlint)
-npm test         # unit tests for the pure helpers in src/lib (Vitest)
-npm run test:e2e # end-to-end test in a real browser (Playwright, see below)
-npm run build    # type-check with TypeScript and build for production
+```csv
+origin_id,origin_name,destination_id,destination_name,status,time_before_min,time_after_min,change_min
+S1835,Żuraw,S15002,Huenefelda,slower,47.9,58.8,10.9
 ```
 
-### End-to-end test
+**`POST /api/ai/interpret`**
 
-`npm run test:e2e` opens the app in Chromium and runs two tests: close a stop
-with the form, run the simulation and check that the results show exactly the
-numbers the backend computes; fill in the form by clicking stops and lines on
-the map; open, update and copy shareable links (including an invalid one); and
-download the CSV export and compare every row with the backend; and make a
-route run more often with the Frequency tab; add a link with the Add link tab
-(and see the form refuse one the route cannot get); add whole and decimal
-minutes on the Travel time tab; and place a new stop by clicking the map, run
-it and check the new-stop figures and an explorer journey from it. It uses the real backend on the
-**invented sample city**, test data with stable, hand-checkable numbers: Playwright seeds it into
-its own test database, `backend/e2e-sample.db`, on every run (`python -m app.seed` writes only
-into databases named `e2e-*.db`, never into the app's `gdansk.db`). The backend tests use the
-same sample in memory.
-
-Playwright starts the backend (from `backend/.venv`) and the Vite dev server
-itself, or reuses them if they are already running. Download the browser once:
-
-```bash
-cd frontend
-npx playwright install chromium
+```json
+{ "text": "close Brama Wyżynna", "current_changes": [] }
 ```
 
-## Continuous integration
+With a key, the response has `status` (`"ok"` or `"unclear"`), the new `changes` list
+and a `message`. Without `GROQ_API_KEY` the endpoint answers **503**:
 
-Every push to `main` and every pull request runs
+```json
+{ "detail": "The AI is not configured. Add GROQ_API_KEY to backend/.env and restart the backend. The scenario form still works." }
+```
+
+**`POST /api/comparisons`**: body `{"a": [changes…], "b": [changes…]}`. The response
+contains both scenarios' summaries (`a`, `b`), the number of journeys `same`,
+`a_faster` / `b_faster`, `only_possible_in_a` / `only_possible_in_b`,
+`impossible_in_both` and the `largest_differences`.
+
+## 7. AI Integration
+
+**Implemented**, with Groq (`groq` Python SDK) and the model `openai/gpt-oss-120b`
+(configurable with `AI_MODEL`).
+
+### Natural language → scenario (`POST /api/ai/interpret`)
+
+1. The backend builds a system prompt describing the network: stations, lines and
+   links. For the full city, the prompt includes only the stations and lines the request
+   mentions (matching Polish word forms, e.g. *Bramie → Brama*), to stay within the
+   model's limits.
+2. The model must answer in a **strict JSON schema** (Groq structured outputs): a list of
+   operations on the current change list (add, remove or replace changes).
+3. The backend checks the answer three times:
+   - the schema;
+   - the same Pydantic validation as the form;
+   - a **dry run** that applies the changes to a copy of the network without computing
+     any metrics.
+
+   Unknown stops or missing links are caught here.
+4. If the request is unclear, the AI asks a question instead of guessing (`status:
+   "unclear"`).
+5. The proposed changes appear in the normal change list. **The user reviews them and
+   presses Run.**
+
+The AI does **not** add new stops, because it would have to invent coordinates. It
+points the user to the form instead.
+
+### AI summary of results (`POST /api/ai/summary`)
+
+The backend runs the simulation itself; it never trusts results sent by the browser.
+It gives the model a fact sheet of computed values, each with a placeholder name. The
+model writes text with placeholders (e.g. `{slower} journeys get slower`), and the
+backend inserts the numbers. A text containing digits or number words is rejected;
+after one retry the summary is withheld.
+
+### What is AI and what is deterministic
+
+| Done by the AI | Done by deterministic code |
+| --- | --- |
+| Understanding the user's request (EN/PL) | Validating and applying every change |
+| Proposing changes in the scenario format | All shortest paths, times and figures |
+| Wording a short summary | Every number in the summary, the CSV and the UI |
+
+### API key security
+
+- The key is read from `backend/.env` (`GROQ_API_KEY`), which is **git-ignored**; only
+  `backend/.env.example` with an empty value is committed.
+- In the settings the key is a Pydantic `SecretStr`, so it is never printed in logs or
+  error messages.
+- The key never reaches the browser: the frontend only calls the backend.
+- Without a key the app works fully; only the AI features answer with 503.
+- Note: on Groq's free tier, one request about the full city uses most of a minute's
+  token allowance, so wait about a minute between AI requests.
+
+## 8. AI-Assisted Development
+
+AI tools were used openly throughout development:
+
+- **Claude Code** (Anthropic): architecture proposals, the implementation plan
+  (`docs/IMPLEMENTATION_PLAN.md`), backend and frontend implementation, tests,
+  debugging, performance measurements and code explanations. Commits made with its help
+  are marked `Co-Authored-By: Claude` (nearly all of them, see `git log`).
+- **Cursor**: development environment for navigating the code, editing and reviewing
+  changes.
+
+**How the work was controlled.** The rules are in `CLAUDE.md`: inspect the code, explain
+a plan, and wait for approval before substantial changes. Each step followed the same
+cycle: design proposal → approval → implementation with tests → review of the result →
+commit only on explicit approval.
+
+All changes to the simulation model were checked against the previous version:
+- byte-identical results for refactorings and speed-ups;
+- every difference explained for intended model changes.
+
+Generated code was reviewed, tested (unit, API and end-to-end tests, CI on every push)
+and adapted during development.
+
+## 9. Testing
+
+| Suite | Command | Count |
+| --- | --- | --- |
+| Backend (pytest) | `cd backend && source .venv/bin/activate && pytest` | 410 tests |
+| Frontend unit (Vitest) | `cd frontend && npm test` | 137 tests |
+| End-to-end (Playwright, Chromium) | `cd frontend && npm run test:e2e` | 20 tests in 13 files |
+| Lint / type check / build | `cd frontend && npm run lint && npm run build` | n/a |
+
+Before the first end-to-end run, download the browser once:
+`cd frontend && npx playwright install chromium`. Playwright starts its own backend and
+frontend. **Stop the app first** if it is running (both use ports 8000 and 5173); the
+tests stop with a clear message otherwise.
+
+**What is covered**
+- **Backend:**
+  - simulation rules and metrics: every change type, waiting, change penalties, walking,
+    line patterns, demand weighting;
+  - the graph and the compiled shortest paths (checked against NetworkX);
+  - the journey explorer, which must agree with the simulation;
+  - saved scenarios, comparisons and the CSV;
+  - the GTFS importer (on a hand-made feed);
+  - the AI layer with a fake model (prompt, validation, edits, summaries that may not
+    contain numbers);
+  - the API endpoints, settings and database setup.
+- **Frontend unit:** pure helpers in `src/lib` (scenario drafts, share links, map
+  helpers, impact texts, journey plans, comparisons).
+- **End-to-end:** the main flows in a real browser against the real backend: closing
+  a stop (checking the tiles against the backend's numbers), map selection, share links,
+  CSV, each form tab, adding stops and routes, walking, AI editing and summary (the
+  tests answer the AI endpoints themselves, since CI has no key), saved scenarios and
+  comparison.
+
+**Test data.** The tests use a small **invented sample city** (16 stops, 4 lines) with
+stable, hand-checkable numbers, not the Gdańsk feed, which changes daily. Backend tests
+seed it into an in-memory database; Playwright seeds it into `backend/e2e-sample.db`.
+`python -m app.seed` refuses to write anywhere else.
+
+**Continuous integration.** Every push to `main` runs
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) on GitHub Actions:
-backend `pytest`; frontend `npm ci`, lint, unit tests, type check and build; a check
-that the generated API types are up to date; and the end-to-end test. No secrets are needed: the tests
-use a fake AI model and an in-memory database.
+- the backend tests;
+- frontend lint, unit tests, type check and build;
+- a check that the generated API types are up to date;
+- the end-to-end tests.
 
-## API types
+No secrets are needed in CI.
 
-The frontend's TypeScript types are generated from the backend's Pydantic
-schemas, so the two cannot drift apart. After changing anything in
-`backend/app/schemas/` (or an endpoint's request/response model), run:
+**API types.** After changing a backend schema, regenerate the frontend types:
+`cd backend && python -m app.export_openapi`, then
+`cd ../frontend && npm ci --prefix tools/openapi && npm run gen:types`. The generator
+lives in `frontend/tools/openapi/` because it needs TypeScript 5.
 
-```bash
-cd backend && python -m app.export_openapi   # writes frontend/openapi.json
-cd ../frontend && npm run gen:types          # writes src/types/api.gen.ts
-```
-
-and commit both files; CI fails otherwise. The files in `src/types/*.ts` give
-the generated types short names (`Scenario`, `Stop`, …); never edit
-`api.gen.ts` by hand.
-
-The generator ([openapi-typescript](https://openapi-ts.dev)) lives in its own
-small package, `frontend/tools/openapi/`, because it needs the TypeScript 5
-compiler API, which TypeScript 7 (used by the app) no longer ships. Install it
-once with `npm ci --prefix tools/openapi` (from `frontend/`).
-
-## Configuration
-
-Configuration is read from environment variables. Real values go in local
-`.env` files, which are **git-ignored and must never be committed**. Each
-`.env.example` file documents the available variables.
-
-| Variable            | Where                 | Default                 | Purpose                    |
-| ------------------- | --------------------- | ----------------------- | -------------------------- |
-| `VITE_API_BASE_URL` | `frontend/.env.local` | `http://localhost:8000` | Address of the backend API |
-| `GROQ_API_KEY`      | `backend/.env`        | *(none)*                | Enables the AI input; without it the form still works |
-| `AI_MODEL`          | `backend/.env`        | `openai/gpt-oss-120b`   | Groq model used by the AI input |
-| `AI_TIMEOUT_SECONDS`| `backend/.env`        | `30`                    | How long to wait for the AI |
-| `TRANSFER_PENALTY_MIN` | `backend/.env`     | `2`                     | Minutes added per change of bus, on top of waiting (0–60) |
-| `INCLUDE_WAITING`   | `backend/.env`        | `true`                  | Wait half the route's headway at every boarding |
-| `WALKING_ENABLED`   | `backend/.env`        | `true`                  | Passengers may walk (off: journeys to/from closed stops are left out) |
-| `WALK_SPEED_KMH`    | `backend/.env`        | `5`                     | Walking speed (1–10) |
-| `MAX_WALK_M`        | `backend/.env`        | `1000`                  | Longest walk at the start or end, in metres (100–3000) |
-| `MAX_TRANSFER_WALK_M` | `backend/.env`      | `500`                   | Longest walk between two buses, in metres (0–3000, at most `MAX_WALK_M`) |
-| `WALK_BETWEEN_OPEN_STOPS` | `backend/.env`  | `true`                  | `false`: walk only from or to a closed stop (the model before Day 14 part 3) |
-
-Restart the backend after changing `backend/.env`.
-
-## How journeys are calculated
-
-The simulation uses a route-aware graph: for every stop it knows which bus you
-are on. A journey's time is
+## 10. Project Structure
 
 ```
-time on the bus + waiting at every boarding + 2 min per change of bus
+whatif-mobility/
+├── backend/
+│   ├── app/
+│   │   ├── api/            # FastAPI routers (thin: call the services)
+│   │   ├── models/         # SQLAlchemy tables
+│   │   ├── schemas/        # Pydantic request/response models
+│   │   ├── services/       # Business logic: graph, walking, simulation, journeys,
+│   │   │                   #   comparison, AI, GTFS import, CSV, saved scenarios
+│   │   ├── seed/           # Invented sample city (test data only)
+│   │   ├── config.py       # Settings from environment / backend/.env
+│   │   ├── database.py     # SQLite engine (backend/gdansk.db by default)
+│   │   ├── import_gtfs.py  # `python -m app.import_gtfs`: import Gdańsk
+│   │   ├── export_openapi.py
+│   │   └── main.py         # FastAPI app, CORS, routers
+│   ├── tests/              # pytest suite
+│   ├── requirements.txt    # Pinned Python dependencies
+│   └── .env.example        # Documented settings (copy to .env)
+├── frontend/
+│   ├── src/
+│   │   ├── api/            # Axios client and API calls
+│   │   ├── components/     # Map, legend, scenario form, results, explorer, AI input, …
+│   │   ├── lib/            # Pure helpers (with Vitest tests)
+│   │   ├── types/          # Type aliases over the generated api.gen.ts
+│   │   └── App.tsx         # Layout and app state
+│   ├── e2e/                # Playwright end-to-end tests
+│   ├── tools/openapi/      # OpenAPI → TypeScript type generator
+│   ├── openapi.json        # Backend schema snapshot (for the types)
+│   ├── package.json
+│   └── vite.config.ts
+├── docs/
+│   └── IMPLEMENTATION_PLAN.md  # Plan, decisions, status and session log
+├── .github/workflows/ci.yml
+├── CLAUDE.md               # Project rules for AI-assisted development
+├── dev.sh                  # One-command setup and start
+└── README.md
 ```
 
-- **Waiting:** every route has a headway (a bus every N minutes), taken from the
-  timetable's morning peak. Passengers arrive at random, so they wait half
-  the headway on average, at the first boarding too (`INCLUDE_WAITING`).
-- **Changing bus** adds `TRANSFER_PENALTY_MIN` (2 min) for the inconvenience
-  of changing, on top of the wait for the next bus.
-- `INCLUDE_WAITING=false` with `TRANSFER_PENALTY_MIN=5` reproduces the model
-  used before waiting was added (checked over 3,374 results, 0 differences).
-- Known simplification: where two routes share a street, a real passenger
-  takes whichever bus comes first; the model waits for one specific route.
+Not in Git: `backend/.env`, `backend/*.db`, `backend/data/gtfs/` (the downloaded feed)
+and `node_modules/`.
 
-Journeys are all ordered pairs of stations (about 510,000). The counts (slower,
-faster, impossible) weigh every journey the same. There is no passenger data, so
-**"% of trips"** weighs every station the same too: it equals the share of
-journeys. (The engine can weigh stations by an activity level; only the test
-sample city uses that, with invented levels.)
+## 11. Future Improvements
 
-A closed stop is driven through by buses, but nobody can board, alight or
-change bus there. **Walking** is part of the route graph, so one search finds
-the fastest journey: passengers may walk at the start and at the end (at most
-1,000 m), between two buses (at most 500 m; it counts as a change of bus), or
-the whole way, but never twice in a row. A closed stop is left or reached on
-foot. Walking distance = straight line × 1.3, at 5 km/h (invented assumptions).
-Today's network and the scenario walk alike.
-With `WALK_BETWEEN_OPEN_STOPS=false` passengers walk only from or to a closed
-stop (Day 10 to Day 14 part 3 step A); with `WALKING_ENABLED=false` journeys to
-or from a closed stop are excluded, as before Day 10 part 3.
+- **Public deployment:** choose a hosting target, add a request limit on the AI
+  endpoint, use a production map-tile provider (the public OpenStreetMap tile server is
+  only suitable for development) and add user accounts.
+- **Speed:**
+  - write the CSV directly from the computed arrays (about 1.6 s now);
+  - run the shortest-path search in worker processes (needs more than one CPU on the
+    host).
+- **Real demand:** weigh journeys by passenger data (the engine already supports
+  per-station weights), if such data becomes available.
+- **Timetable fidelity:** keep trips that leave a line's main stop sequence (branches,
+  depot runs), and use exact departure times instead of average waiting.
+- **AI:** handle relative changes on links whose two directions have different travel
+  times, which the model does not always follow.
+- **Visualisation:** draw lines sharing a street side by side instead of on top of each
+  other.
+- **Scheduled data refresh:** re-import the timetable automatically, since the feed is
+  republished daily.
 
-**Staying on the vehicle:** each line's stop sequences ("patterns": the
-timetable's main sequence per direction) decide where passengers may stay on:
-only to the next stop of the same sequence. Turning round, switching direction at a terminus or between
-directions that use different stops, or skipping a loop the vehicle drives is
-a change of bus (wait + penalty). A link added by a scenario joins its line at
-both ends; a line without stored patterns (an older imported database) keeps
-the earlier rule (stay on along any of the line's links).
+## 12. Author
 
-After pulling a change that adds database columns, `./dev.sh` rebuilds the
-network tables and imports Gdańsk again (saved scenarios are kept).
+**[Your Name Surname]**: *add your name, and optionally a contact or LinkedIn profile.*
 
-## How the AI is used
+### Data and licences
 
-The AI (a Groq-hosted model) only **translates** text such as *"roadworks make
-Hucisko – Targ Drzewny twice as slow"* into the scenario format. Its answer is
-forced into a strict JSON schema, validated with the same rules as the form, and
-dry-run against the network before it is shown. The changes then appear in the
-normal list, where the user checks them before running the simulation. The AI
-never sees or produces simulation results: every number comes from the
-deterministic simulation engine. Requests it cannot map (ambiguous, unsupported
-such as new routes, or unrelated) come back as "unclear" with an explanation.
-
-The frontend dev server must run on port 5173. That address is in the backend's
-CORS allow-list (`ALLOWED_ORIGINS` in `backend/app/main.py`).
+Timetable data: **Zarząd Transportu Miejskiego w Gdańsku**
+([open data](https://ckan.multimediagdansk.pl/dataset/tristar),
+http://www.ztm.gda.pl/otwarty_ztm), Creative Commons Attribution and the terms of use
+of "Otwarte dane ZTM w Gdańsku". The app shows the publisher and the data's creation
+and download dates, as the terms require. Map tiles © OpenStreetMap contributors.
