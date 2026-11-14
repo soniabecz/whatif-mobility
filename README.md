@@ -563,8 +563,7 @@ AI tools were used openly throughout development:
 
 - **Claude Code** (Anthropic): architecture proposals, the implementation plan
   (`docs/IMPLEMENTATION_PLAN.md`), backend and frontend implementation, tests,
-  debugging, performance measurements and code explanations. Commits made with its help
-  are marked `Co-Authored-By: Claude` (nearly all of them, see `git log`).
+  debugging, performance measurements and code explanations.
 - **Cursor**: development environment for navigating the code, editing and reviewing
   changes.
 
@@ -697,7 +696,7 @@ and `node_modules/`.
 
 ## 12. Author
 
-**[Your Name Surname]**: *add your name, and optionally a contact or LinkedIn profile.*
+**Sonia Becz**: *(https://www.linkedin.com/in/sonia-becz/)*
 
 ### Data and licences
 
