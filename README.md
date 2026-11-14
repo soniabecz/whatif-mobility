@@ -6,6 +6,10 @@
 Describe a change to the tram and bus network in plain language, or build it with a
 form, and WhatIf Mobility simulates how every journey in the city changes.
 
+**Demo:** [watch a 2-minute run through the app](demo/WhatIf-Mobility-demo.mp4) (with
+subtitles): the AI input, a change built by hand, the simulation on the whole Gdańsk
+network, the AI summary, comparing one journey before and after, and saving a scenario.
+
 ---
 
 ## Contents
@@ -651,6 +655,8 @@ whatif-mobility/
 │   ├── tests/              # pytest suite
 │   ├── requirements.txt    # Pinned Python dependencies
 │   └── .env.example        # Documented settings (copy to .env)
+├── demo/
+│   └── WhatIf-Mobility-demo.mp4  # Subtitled demo video
 ├── frontend/
 │   ├── src/
 │   │   ├── api/            # Axios client and API calls
