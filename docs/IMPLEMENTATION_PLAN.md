@@ -14,8 +14,10 @@
   135 Vitest + 20 e2e tests
 - **Last completed:** Day 14.4 route patterns (steps A and B committed): passengers stay
   on a vehicle only along a line's real stop sequences; 400 backend + 135 Vitest + 20 e2e
-- **Next up:** open choices: speed on the full network (simulation 2 s, compare 4 s),
-  or Day 14.1 deployment The full network is in backend/gdansk-all.db
+- **Last completed:** Day 14.5 speed on the full network (committed): run 1.4 s, compare
+  of just-run scenarios 0.75 s, results unchanged; 406 backend + 135 Vitest + 20 e2e
+- **Next up:** open choices: CSV written from arrays (1.6 s now), Dijkstra in worker
+  processes, or Day 14.1 deployment The full network is in backend/gdansk-all.db
   (re-import: `WHATIF_DATABASE=gdansk-all.db python -m app.import_gtfs --modes all`)
 - **Local e2e:** Playwright reuses a running app on port 8000; if it serves Gdańsk the run
   stops with a message: stop that app (or run it on whatif.db) before `npm run test:e2e`
@@ -839,6 +841,31 @@ transfer penalty at 0) and checks equivalence before changing defaults.
       no console errors; e2e 20; API schema unchanged
 - [x] Commit step B (approved by the user)
 
+**5. Speed on the full network** (M, ≈ half a session)
+- [x] Measured (close Brama Wyżynna): shortest paths 0.92 s, figures and rows 1.11 s
+      (75,454 row objects built, ~1,000 returned), walking layer 0.20 s. SciPy's Dijkstra
+      holds the GIL: 2/4/8 threads give no speed-up (worker processes: not now)
+- [x] Design approved (2026-11-14): rows only for listed journeys; smaller walking
+      graph; cache of recent scenario states. Requirement: 0 differences
+- [x] Figures from arrays (`_ChangedJourneys`): stop impacts, largest increase and the
+      listed rows from numpy arrays, same rounding / order of addition / tie-breaking;
+      rows built only for the listed journeys (all of them for the CSV): 1.11 → 0.12 s
+- [x] Smaller walking graph: start(s) enters stop s (free edge) instead of copying its
+      board edges; a walk between buses ends at stop u (no transfer node). Edges 39,657 →
+      31,698; Dijkstra 0.92 → 0.75 s. Needs MAX_TRANSFER_WALK_M ≤ MAX_WALK_M (now checked
+      by WalkingModel and the settings; README / .env.example say so)
+- [x] Scenario-state cache (8 entries, thread-safe LRU, also used by the baseline cache):
+      keyed by network, settings and change list; holds only times (no graph); errors not
+      cached. State is immutable (frozenset, tuple, read-only matrix)
+- [x] Equivalence vs the previous commit: 215 outputs (simulations, full lists, CSV,
+      comparisons, explorer journeys; walking on / closed-only / off) on all three
+      networks: 0 differences after each change. 6 new tests (406); e2e 20
+- [x] API on the full network (old → new): run 2.38 → 1.43 s, CSV after a run 2.87 →
+      1.58 s, compare two scenarios just run 4.18 → 0.75 s, compare two new 2.81 → 2.55 s
+- [x] Commit (approved by the user)
+- [ ] Possible later: the CSV still builds all 75k rows (1.6 s); Dijkstra in worker
+      processes (3–4×, needs >1 CPU on the host)
+
 **Fallback:** all parts are optional; part 1 is only needed if the app goes public,
 part 2 can stop after a small extract of the city works, parts 3 and 4 can stop after step A.
 
@@ -918,3 +945,4 @@ All former "maybes" are now scheduled as Days 8–14. New ideas go here.
 | 2026-11-14 | 14  | Walking between stops, step B: on by default (start/end ≤ 1 km, between buses ≤ 500 m); explorer walks list; closing a stop no longer makes journeys faster; 386 backend, 135 Vitest, 20 e2e |
 | 2026-11-14 | 14  | Route patterns, step A: measured 20 % of full-network journeys staying on through impossible continuations; patterns stored (seed, importer, Gdańsk re-imported identically); 393 backend |
 | 2026-11-14 | 14  | Route patterns, step B: stay on only to the next stop of a pattern; every difference explained (0 faster; trams 9,210, full 299,589 changed journeys, all through impossible continuations); 400 backend |
+| 2026-11-14 | 14  | Speed: figures from arrays, smaller walking graph, scenario-state cache; 0 differences (215 outputs); full network run 2.4 → 1.4 s, compare after runs 4.2 → 0.75 s; 406 backend |

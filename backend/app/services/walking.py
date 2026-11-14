@@ -4,18 +4,23 @@ The route graph (route_graph.py) knows only buses. ``add_walking_layer`` adds a
 few nodes per stop for the passenger's situation, so ONE shortest-path search
 finds journeys that walk at the start, between two buses or at the end:
 
-  start(s)    the journey begins at s, nothing boarded yet. Boards at s WITHOUT
-              counting it as a change of bus, or walks once (to walked(t)).
+  start(s)    the journey begins at s, nothing boarded yet. Enters stop s
+              (free) to board there, or walks once (to walked(t)).
   walked(t)   walked from the start to t. Boards at t; cannot walk again. It is
               also how a journey walks the whole way.
-  stop t      (the route graph's own node) got off a bus at t. Boards again
-              (a change of bus).
-  off(t)      the same, reached only by RIDING to t (every ride edge into t has
-              a copy ending here). Walks once: to end(u) or transfer(u). Walks
-              start here, not at stop t, because stop t can also be reached by
-              boarding and getting off at once, which would chain two walks.
+  stop t      (the route graph's own node) boards there; reached from start(t),
+              by getting off a bus at t, or by walking to t between two buses.
+              Cannot walk.
+  off(t)      got off at t, reached only by RIDING to t (every ride edge into t
+              has a copy ending here). Walks once: to end(u), or between two
+              buses to stop u. Walks start here, not at stop t, because stop t
+              can also be reached without riding, which would chain two walks.
   end(u)      walked to u after the last bus. The journey ends here.
-  transfer(u) walked to u between two buses. Boards at u (a change of bus).
+
+Every boarding is counted as a change of bus (the penalty); the first one is
+subtracted at the end. A walk between buses is never longer than a walk at the
+end (``WalkingModel`` checks it), so arriving at stop u after such a walk takes
+exactly as long as arriving at end(u).
 
 So there is at most one walk in a row: at the start, between buses and at the
 end, never two walks chained into a longer one. Journey time from s to d =
@@ -49,7 +54,7 @@ WALK_DETOUR = 1.3  # walking distance / straight-line distance
 
 _EPSILON = 1e-9  # two times closer than this are equal (as in the simulation)
 
-WalkKind = Literal["start", "walked", "off", "end", "transfer"]
+WalkKind = Literal["start", "walked", "off", "end"]
 
 
 @dataclass(frozen=True)
@@ -58,6 +63,10 @@ class WalkingModel:
     max_walk_m: float  # longest walk at the start or end of a journey
     max_transfer_walk_m: float = 500.0  # longest walk between two buses
     between_open_stops: bool = True  # False: walk only from/to a closed stop (Day 10)
+
+    def __post_init__(self) -> None:
+        if self.max_transfer_walk_m > self.max_walk_m:
+            raise ValueError("a walk between buses cannot be longer than a walk at the start or end")
 
     def minutes(self, distance_m: float) -> float:
         return distance_m / (self.speed_kmh * 1000 / 60)
@@ -123,7 +132,7 @@ def add_walking_layer(
     model: WalkingModel | None,
     closed: Iterable[str],
 ) -> None:
-    """Add the start/walked/end/transfer nodes and walks to a route graph (in place).
+    """Add the start/walked/off/end nodes and walks to a route graph (in place).
 
     ``places``: every stop with coordinates, closed ones included (baseline
     stops plus stops added by the scenario). ``model`` None: no walking at all
@@ -145,7 +154,10 @@ def add_walking_layer(
             graph.add_edge(node, platform, **data)
 
     for s in stop_ids:
-        add_boarding(WalkNode("start", s), s)
+        start = WalkNode("start", s)
+        graph.add_node(start, kind="start", stop_id=s)
+        if s in boards:  # open: board at the stop itself
+            graph.add_edge(start, s, kind="enter", weight=0.0)
     if model is None:
         return
     rides = [(u, v, data) for u, v, data in graph.edges(data=True) if data["kind"] == "ride"]
@@ -155,10 +167,8 @@ def add_walking_layer(
     for s in stop_ids:
         add_boarding(WalkNode("walked", s), s)
         graph.add_node(WalkNode("end", s), kind="end", stop_id=s)
-        if model.between_open_stops:
-            add_boarding(WalkNode("transfer", s), s)
 
-    def add_walk(from_node: object, to_node: WalkNode, walk: Walk) -> None:
+    def add_walk(from_node: object, to_node: object, walk: Walk) -> None:
         graph.add_edge(
             from_node, to_node, kind="walk", distance_m=walk.distance_m,
             minutes=walk.minutes, weight=walk.minutes,
@@ -174,7 +184,7 @@ def add_walking_layer(
             add_walk(off, WalkNode("end", b), walk)
         if (model.between_open_stops and off in graph and b in boards
                 and walk.distance_m <= model.max_transfer_walk_m):
-            add_walk(off, WalkNode("transfer", b), walk)
+            add_walk(off, b, walk)  # between two buses: board again at stop b
 
 
 def _arrivals(graph: nx.DiGraph, stop_id: str) -> list[tuple[object, bool]]:

@@ -21,8 +21,10 @@ walking to the route graph) and those journeys are compared like any other.
 """
 
 from collections import OrderedDict
-from collections.abc import Sequence
+from collections.abc import Hashable, Sequence, Set as AbstractSet
 from dataclasses import dataclass
+from threading import Lock
+from typing import Generic, TypeVar
 
 import networkx as nx
 import numpy as np
@@ -65,6 +67,8 @@ from app.services.route_graph import (
     TimeMatrix,
 )
 from app.services.walking import WalkingModel, add_walking_layer, journey_time_matrix
+
+V = TypeVar("V")
 
 # Two travel times closer than this are equal (guards against float noise).
 _EPSILON = 1e-9
@@ -245,12 +249,12 @@ class ScenarioState:
     """The network after a scenario, with every journey's fastest time.
 
     Shared by the simulation and the comparison of two scenarios, so both use
-    exactly the same rules (closed stops, walking, added stops).
+    exactly the same rules (closed stops, walking, added stops). Immutable:
+    states are cached and shared between requests (see scenario_state).
     """
 
-    graph: nx.DiGraph  # route graph with its walking layer
-    closed: set[str]
-    new_stop_ids: list[str]
+    closed: frozenset[str]
+    new_stop_ids: tuple[str, ...]
     # Fastest times between all stops, baseline and added, closed ones included
     # (reached on foot; inf without walking).
     times: TimeMatrix
@@ -268,17 +272,26 @@ def scenario_state(
     include_waiting: bool = False,
     walking: WalkingModel | None = None,
 ) -> ScenarioState:
-    """Apply the scenario to a copy of the baseline and compute journey times."""
+    """Apply the scenario to a copy of the baseline and compute journey times.
+
+    Cached (the last few scenarios per network and settings): downloading the
+    CSV, asking for the AI summary or comparing right after a run reuses it.
+    Raises ScenarioError for a scenario that does not fit (never cached)."""
+    key = (_network_key(baseline, transfer_penalty_min, include_waiting, walking), scenario.model_dump_json())
+    cached = _STATE_CACHE.get(key)
+    if cached is not None:
+        return cached
     graph, closed = apply_scenario(baseline, scenario, transfer_penalty_min, include_waiting)
     new_stop_ids = added_stop_ids(graph)
     add_walking_layer(graph, stop_places(baseline, graph), walking, closed)
-    return ScenarioState(
-        graph=graph,
-        closed=closed,
-        new_stop_ids=new_stop_ids,
+    state = ScenarioState(
+        closed=frozenset(closed),
+        new_stop_ids=tuple(new_stop_ids),
         times=journey_time_matrix(graph, [*sorted(baseline.nodes), *new_stop_ids]),
         walking=walking,
     )
+    _STATE_CACHE.put(key, state)
+    return state
 
 
 def journey_matrix(state: ScenarioState, stop_ids: Sequence[str]) -> tuple[np.ndarray, np.ndarray]:
@@ -299,10 +312,42 @@ def journey_matrix(state: ScenarioState, stop_ids: Sequence[str]) -> tuple[np.nd
     return times, touches_closed
 
 
+class _LruCache(Generic[V]):
+    """A small least-recently-used cache, safe to share between request threads.
+    Values must be immutable (they are shared)."""
+
+    def __init__(self, size: int) -> None:
+        self._size = size
+        self._items: OrderedDict[Hashable, V] = OrderedDict()
+        self._lock = Lock()
+
+    def get(self, key: Hashable) -> V | None:
+        with self._lock:
+            if key not in self._items:
+                return None
+            self._items.move_to_end(key)
+            return self._items[key]
+
+    def put(self, key: Hashable, value: V) -> None:
+        with self._lock:
+            self._items[key] = value
+            self._items.move_to_end(key)
+            while len(self._items) > self._size:
+                self._items.popitem(last=False)
+
+    def clear(self) -> None:
+        with self._lock:
+            self._items.clear()
+
+    def __len__(self) -> int:
+        return len(self._items)
+
+
 # Times on today's network, per network and settings: every simulation needs
 # them, and they only change when the network does (e.g. after an import).
-_BASELINE_CACHE: OrderedDict[tuple[object, ...], TimeMatrix] = OrderedDict()
-_BASELINE_CACHE_SIZE = 4
+_BASELINE_CACHE: _LruCache[TimeMatrix] = _LruCache(4)
+# The last few scenarios' journey times (about 4 MB each on the full Gdańsk network).
+_STATE_CACHE: _LruCache[ScenarioState] = _LruCache(8)
 
 
 def _network_key(
@@ -330,15 +375,13 @@ def baseline_times(
 
     ``walking``: the same model as the scenario's, so both sides walk alike."""
     key = _network_key(baseline, transfer_penalty_min, include_waiting, walking)
-    if key in _BASELINE_CACHE:
-        _BASELINE_CACHE.move_to_end(key)
-        return _BASELINE_CACHE[key]
+    cached = _BASELINE_CACHE.get(key)
+    if cached is not None:
+        return cached
     graph = build_route_graph(baseline, transfer_penalty_min, include_waiting)
     add_walking_layer(graph, baseline, walking, closed=())
     times = journey_time_matrix(graph, sorted(baseline.nodes))
-    _BASELINE_CACHE[key] = times
-    if len(_BASELINE_CACHE) > _BASELINE_CACHE_SIZE:
-        _BASELINE_CACHE.popitem(last=False)
+    _BASELINE_CACHE.put(key, times)
     return times
 
 
@@ -420,16 +463,8 @@ def simulate_state(
     }
 
     origins, destinations = np.nonzero(pairs)
-    changed: list[JourneyChange] = []
-    per_stop: dict[str, list[JourneyChange]] = {s: [] for s in stop_ids}
-    for k in np.flatnonzero(slower | faster | impossible):
-        origin, destination = stop_ids[origins[k]], stop_ids[destinations[k]]
-        journey = _journey_change(
-            origin, destination, float(t_before[k]), float(t_after[k]) if has[k] else None
-        )
-        changed.append(journey)
-        per_stop[origin].append(journey)
-        per_stop[destination].append(journey)
+    k = np.flatnonzero(slower | faster | impossible)  # changed journeys, in (origin, destination) order
+    changed = _ChangedJourneys.of(origins[k], destinations[k], t_before[k], t_after[k], has[k])
 
     count = int(comparable.sum())
     sum_before = _ordered_sum(t_before[comparable])
@@ -438,7 +473,7 @@ def simulate_state(
     weighted_before = _ordered_sum(weight[comparable] * t_before[comparable])
     weighted_after = _ordered_sum(weight[comparable] * t_after[comparable])
     after_times = state.times
-    stop_impacts = [_stop_impact(s, s in closed, per_stop[s]) for s in stop_ids]
+    stop_impacts = changed.stop_impacts(stop_ids, closed)
     summary = SimulationSummary(
         total_journeys=n * (n - 1),
         unchanged=int(unchanged.sum()),
@@ -451,7 +486,7 @@ def simulate_state(
         average_time_before_min=_round(sum_before / count) if count else None,
         average_time_after_min=_round(sum_after / count) if count else None,
         total_time_change_min=_round(sum_after - sum_before),
-        largest_increase=_largest_increase(changed),
+        largest_increase=changed.largest_increase(stop_ids),
         transfer_penalty_min=transfer_penalty_min,
         include_waiting=include_waiting,
         walking=_walking_settings(state.walking),
@@ -463,8 +498,8 @@ def simulate_state(
     return SimulationResult(
         scenario=scenario,
         summary=summary,
-        changed_journeys=_largest_changes(changed, max_changed),
-        changed_journeys_total=len(changed),
+        changed_journeys=changed.listed(stop_ids, max_changed),
+        changed_journeys_total=len(changed.change),
         stop_impacts=stop_impacts,
         most_affected_stop_ids=_most_affected(stop_impacts),
     )
@@ -496,9 +531,9 @@ def stop_places(baseline: nx.DiGraph, after_graph: nx.DiGraph) -> nx.DiGraph:
 
 
 def _new_stops(
-    new_stop_ids: list[str],
+    new_stop_ids: Sequence[str],
     stop_ids: list[str],
-    closed: set[str],
+    closed: AbstractSet[str],
     after: TimeMatrix,
 ) -> NewStops | None:
     """Journeys between open stops that involve at least one added stop."""
@@ -540,6 +575,81 @@ def _demand_weighted(
     )
 
 
+@dataclass(frozen=True)
+class _ChangedJourneys:
+    """Every changed journey as arrays, in (origin, destination) order.
+
+    A city has tens of thousands of them, but a result lists about 1,000:
+    the figures come from these arrays, and JourneyChange rows are built only
+    for the journeys listed. Every value equals what building all rows gave
+    (same rounding, same order of addition, same tie-breaking).
+    """
+
+    origins: np.ndarray  # stop index
+    destinations: np.ndarray
+    before: np.ndarray  # minutes, unrounded
+    after: np.ndarray  # minutes, unrounded (inf when impossible)
+    possible: np.ndarray  # bool: possible after the change
+    change: np.ndarray  # rounded change in minutes (NaN when impossible)
+
+    @classmethod
+    def of(cls, origins: np.ndarray, destinations: np.ndarray, before: np.ndarray,
+           after: np.ndarray, possible: np.ndarray) -> "_ChangedJourneys":
+        change = np.full(len(before), np.nan)
+        differences = (after[possible] - before[possible]).tolist()
+        change[possible] = [_round(d) for d in differences]  # Python's round, as in each row
+        return cls(origins, destinations, before, after, possible, change)
+
+    def row(self, i: int, stop_ids: Sequence[str]) -> JourneyChange:
+        return _journey_change(
+            stop_ids[self.origins[i]], stop_ids[self.destinations[i]],
+            float(self.before[i]), float(self.after[i]) if self.possible[i] else None,
+        )
+
+    def listed(self, stop_ids: Sequence[str], limit: int | None) -> list[JourneyChange]:
+        """The first ``limit`` in table order (see table_order) plus the chart's
+        largest still possible ones, in (origin, destination) order; all of them
+        when they fit (or ``limit`` is None)."""
+        count = len(self.change)
+        if limit is None or count <= limit:
+            keep = np.arange(count)
+        else:
+            size = np.where(self.possible, np.abs(np.nan_to_num(self.change)), 0.0)
+            table = np.lexsort((np.arange(count), -size, self.possible))  # impossible first
+            possible = np.flatnonzero(self.possible)
+            chart = possible[np.argsort(-size[possible], kind="stable")[:_CHART_JOURNEYS]]
+            keep = np.union1d(table[:limit], chart)
+        return [self.row(int(i), stop_ids) for i in keep]
+
+    def largest_increase(self, stop_ids: Sequence[str]) -> JourneyChange | None:
+        """The slower journey with the largest (rounded) increase; the first on ties."""
+        slower = np.flatnonzero(self.possible & (self.after > self.before))
+        if not slower.size:
+            return None
+        return self.row(int(slower[np.argmax(self.change[slower])]), stop_ids)
+
+    def stop_impacts(self, stop_ids: Sequence[str], closed: AbstractSet[str]) -> list[StopImpact]:
+        """Per stop: journeys starting or ending there; the average adds their
+        rounded changes in (origin, destination) order."""
+        count = len(self.change)
+        stops = np.concatenate([self.origins, self.destinations])
+        position = np.concatenate([np.arange(count), np.arange(count)])
+        grouped = position[np.lexsort((position, stops))]
+        bounds = np.concatenate([[0], np.cumsum(np.bincount(stops, minlength=len(stop_ids)))])
+        impacts = []
+        for index, stop_id in enumerate(stop_ids):
+            mine = grouped[bounds[index]:bounds[index + 1]]
+            changes = self.change[mine][self.possible[mine]]
+            impacts.append(StopImpact(
+                stop_id=stop_id,
+                closed=stop_id in closed,
+                affected_journeys=len(mine),
+                impossible_journeys=int((~self.possible[mine]).sum()),
+                average_change_min=_round(_ordered_sum(changes) / len(changes)) if len(changes) else None,
+            ))
+        return impacts
+
+
 def _journey_change(
     origin: str, destination: str, time_before: float, time_after: float | None
 ) -> JourneyChange:
@@ -570,39 +680,6 @@ def table_order(journeys: Sequence[JourneyChange]) -> list[JourneyChange]:
         key=lambda item: (item[1].status != "impossible", -abs(item[1].change_min or 0.0), item[0]),
     )
     return [journey for _, journey in ranked]
-
-
-def _largest_changes(changed: list[JourneyChange], limit: int | None) -> list[JourneyChange]:
-    """The first ``limit`` in table order plus the largest still possible ones
-    (the chart's), in (origin, destination) order. All of them when they fit."""
-    if limit is None or len(changed) <= limit:
-        return changed
-    keep = {id(j) for j in table_order(changed)[:limit]}
-    possible = [j for j in changed if j.change_min is not None]
-    possible.sort(key=lambda j: -abs(j.change_min or 0.0))  # stable: ties keep order
-    keep |= {id(j) for j in possible[:_CHART_JOURNEYS]}
-    return [j for j in changed if id(j) in keep]
-
-
-def _largest_increase(changed: Sequence[JourneyChange]) -> JourneyChange | None:
-    largest: JourneyChange | None = None
-    for journey in changed:  # already in (origin, destination) order
-        if journey.status != "slower" or journey.change_min is None:
-            continue
-        if largest is None or journey.change_min > (largest.change_min or 0.0):
-            largest = journey
-    return largest
-
-
-def _stop_impact(stop_id: str, closed: bool, journeys: list[JourneyChange]) -> StopImpact:
-    changes = [j.change_min for j in journeys if j.change_min is not None]
-    return StopImpact(
-        stop_id=stop_id,
-        closed=closed,
-        affected_journeys=len(journeys),
-        impossible_journeys=sum(j.status == "impossible" for j in journeys),
-        average_change_min=_round(sum(changes) / len(changes)) if changes else None,
-    )
 
 
 def _most_affected(impacts: Sequence[StopImpact]) -> list[str]:

@@ -339,3 +339,12 @@ def test_api_uses_walking(client: TestClient) -> None:
     assert summary["walking"] == {
         "speed_kmh": 5.0, "max_walk_m": 1000.0, "max_transfer_walk_m": 500.0, "between_open_stops": True,
     }
+
+
+def test_a_walk_between_buses_is_never_longer_than_one_at_the_end() -> None:
+    # Day 14 part 5: the smaller walking graph relies on it (see walking.py).
+    with pytest.raises(ValueError, match="cannot be longer"):
+        WalkingModel(speed_kmh=5, max_walk_m=400, max_transfer_walk_m=500)
+    with pytest.raises(ValueError, match="MAX_TRANSFER_WALK_M"):
+        Settings(_env_file=None, max_walk_m=400, max_transfer_walk_m=500)  # type: ignore[call-arg]
+    assert WalkingModel(speed_kmh=5, max_walk_m=500, max_transfer_walk_m=500).max_transfer_walk_m == 500

@@ -104,3 +104,30 @@ def test_csv_endpoint_has_every_journey(client: TestClient) -> None:
     assert (first["origin_id"], first["destination_id"]) == (expected.origin_id, expected.destination_id)
     bad = client.post("/api/simulations/csv", json={"changes": [{"type": "close_stop", "stop_id": "XYZ"}]})
     assert bad.status_code == 422
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        [{"type": "close_stop", "stop_id": "CEN"}],
+        [{"type": "close_stop", "stop_id": "AIR"}],  # impossible journeys too
+        [{"type": "change_frequency", "route_id": "R2", "headway_min": 4}],  # faster ones
+    ],
+)
+def test_figures_from_arrays_equal_those_from_every_row(sample: nx.DiGraph, changes: list[dict[str, Any]]) -> None:
+    # Day 14 part 5: rows are built only for the listed journeys; stop impacts and
+    # the largest increase must equal what the full list of rows gives.
+    full = simulate(sample, _scenario(*changes), 2.0, True, max_changed=None)
+    capped = simulate(sample, _scenario(*changes), 2.0, True, max_changed=3)
+    rows = full.changed_journeys
+    for impact in capped.stop_impacts:
+        mine = [j for j in rows if impact.stop_id in (j.origin_id, j.destination_id)]
+        changes_min = [j.change_min for j in mine if j.change_min is not None]
+        assert impact.affected_journeys == len(mine)
+        assert impact.impossible_journeys == sum(j.status == "impossible" for j in mine)
+        expected = round(sum(changes_min) / len(changes_min), 1) + 0.0 if changes_min else None
+        assert impact.average_change_min == expected
+    slower = [j for j in rows if j.status == "slower"]
+    largest = max(slower, key=lambda j: j.change_min or 0.0) if slower else None  # max: first on ties
+    assert capped.summary.largest_increase == largest
+    assert capped.summary == full.summary

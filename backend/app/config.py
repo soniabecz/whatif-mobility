@@ -5,7 +5,7 @@ Never hardcode secrets; see backend/.env.example for the available settings.
 
 from functools import lru_cache
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.database import BACKEND_DIR
@@ -39,10 +39,16 @@ class Settings(BaseSettings):
     walking_enabled: bool = True
     walk_speed_kmh: float = Field(default=5.0, ge=1, le=10)
     max_walk_m: float = Field(default=1000.0, ge=100, le=3000)  # at the start or end
-    max_transfer_walk_m: float = Field(default=500.0, ge=0, le=3000)  # between two buses
+    max_transfer_walk_m: float = Field(default=500.0, ge=0, le=3000)  # between two buses, <= max_walk_m
     # False: walk only from or to a CLOSED stop, never between open stops or
     # between buses (the model of Day 10 to Day 14 part 3, step A).
     walk_between_open_stops: bool = True
+
+    @model_validator(mode="after")
+    def _transfer_walk_fits(self) -> "Settings":
+        if self.max_transfer_walk_m > self.max_walk_m:
+            raise ValueError("MAX_TRANSFER_WALK_M must not be larger than MAX_WALK_M")
+        return self
 
     @property
     def walking(self) -> WalkingModel | None:

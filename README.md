@@ -312,7 +312,7 @@ Configuration is read from environment variables. Real values go in local
 | `WALKING_ENABLED`   | `backend/.env`        | `true`                  | Passengers may walk (off: journeys to/from closed stops are left out) |
 | `WALK_SPEED_KMH`    | `backend/.env`        | `5`                     | Walking speed (1–10) |
 | `MAX_WALK_M`        | `backend/.env`        | `1000`                  | Longest walk at the start or end, in metres (100–3000) |
-| `MAX_TRANSFER_WALK_M` | `backend/.env`      | `500`                   | Longest walk between two buses, in metres (0–3000) |
+| `MAX_TRANSFER_WALK_M` | `backend/.env`      | `500`                   | Longest walk between two buses, in metres (0–3000, at most `MAX_WALK_M`) |
 | `WALK_BETWEEN_OPEN_STOPS` | `backend/.env`  | `true`                  | `false`: walk only from or to a closed stop (the model before Day 14 part 3) |
 
 Restart the backend after changing `backend/.env`.

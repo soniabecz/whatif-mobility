@@ -85,3 +85,30 @@ def test_journey_matrix_marks_closed_stops(sample: nx.DiGraph) -> None:
     assert not excluded.any()
     assert times[cen, stops.index("AIR")] == walking.times.get("CEN", "AIR")
     assert np.isfinite(times[cen, stops.index("AIR")])  # reached on foot
+
+
+def test_scenario_states_are_cached_per_network_settings_and_changes(sample: nx.DiGraph) -> None:
+    # Day 14 part 5: CSV, AI summary and comparisons right after a run reuse its times.
+    simulation_service._STATE_CACHE.clear()
+    close = Scenario.model_validate({"changes": [{"type": "close_stop", "stop_id": "CEN"}]})
+    first = scenario_state(sample, close, 2.0, True)
+    assert scenario_state(sample, Scenario.model_validate(close.model_dump()), 2.0, True) is first
+    assert scenario_state(sample, close, 0.0, True) is not first  # other settings
+    assert scenario_state(sample, close, 2.0, True, WalkingModel(5, 1000)) is not first
+    changed = sample.copy()
+    changed.edges["CEN", "MKT"]["route_times"] = {"R1": 30.0, "R4": 30.0}
+    assert scenario_state(changed, close, 2.0, True) is not first  # other network
+    with pytest.raises(ValueError):
+        first.times.values[0, 1] = 1.0  # shared, so read-only
+    for stop in sorted(sample.nodes):
+        scenario_state(sample, Scenario.model_validate({"changes": [{"type": "close_stop", "stop_id": stop}]}))
+    assert len(simulation_service._STATE_CACHE) == 8  # bounded
+
+
+def test_a_scenario_that_does_not_fit_is_not_cached(sample: nx.DiGraph) -> None:
+    simulation_service._STATE_CACHE.clear()
+    bad = Scenario.model_validate({"changes": [{"type": "close_stop", "stop_id": "XXX"}]})
+    for _ in range(2):
+        with pytest.raises(simulation_service.ScenarioError):
+            scenario_state(sample, bad)
+    assert len(simulation_service._STATE_CACHE) == 0
