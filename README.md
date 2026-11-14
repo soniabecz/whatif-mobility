@@ -224,8 +224,10 @@ cd .. && WHATIF_DATABASE=gdansk.db ./dev.sh                    # start the app o
   `--modes all` (714 stations, about 510,000 journeys) in about 2 seconds, and the AI
   gets only the part of the network a request is about.
 - Each line's stop sequences ("patterns", one per direction) are stored too:
-  passengers stay on a vehicle only where a trip really goes. A database imported
-  before they existed (Day 14 part 4) works as before; re-run the import to add them.
+  passengers stay on a vehicle only where a trip really goes (on the full network
+  this corrects 20 % of journeys, e.g. staying on through a terminus). A database
+  imported before they existed (Day 14 part 4) keeps the earlier, more optimistic
+  rule; re-run the import to add them.
 - On the free Groq tier (8,000 tokens per minute), one AI request on Gdańsk uses
   most of a minute's allowance: wait about a minute between AI requests.
 
@@ -353,10 +355,16 @@ assumptions; neighbouring sample stops are about 840–870 m apart on foot, the
 airport has no stop within reach). Today's network and the scenario walk alike.
 With `WALK_BETWEEN_OPEN_STOPS=false` passengers walk only from or to a closed
 stop (Day 10 to Day 14 part 3 step A); with `WALKING_ENABLED=false` journeys to
-or from a closed stop are excluded, as before Day 10 part 3. Known limit: a
-two-way line uses the same platforms in both directions, so a ride can go out
-and back to its first stop without a change of bus, which joins two walks
-(0.008 % of journeys on the full Gdańsk network).
+or from a closed stop are excluded, as before Day 10 part 3.
+
+**Staying on the vehicle:** each line's stop sequences ("patterns": both
+directions, the sample's ring as two loops; for Gdańsk the main sequence per
+direction) decide where passengers may stay on: only to the next stop of the
+same sequence. Turning round, switching direction at a terminus or between
+directions that use different stops, or skipping a loop the vehicle drives is
+a change of bus (wait + penalty). A link added by a scenario joins its line at
+both ends; a line without stored patterns (an older imported database) keeps
+the earlier rule (stay on along any of the line's links).
 
 After pulling a change that adds database columns, `./dev.sh` (or
 `python -m app.seed`) rebuilds the tables automatically; the database only

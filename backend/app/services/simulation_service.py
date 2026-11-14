@@ -48,13 +48,19 @@ from app.schemas.simulation import (
 )
 from app.services.route_graph import (
     Platform,
+    add_joined_link,
+    add_pattern,
+    add_platform,
     add_ride,
     add_route,
     added_stop_ids,
     build_route_graph,
+    has_patterns,
     is_open_stop,
+    platforms_of,
     ride_edges,
     route_ids,
+    route_rides,
     set_headway,
     TimeMatrix,
 )
@@ -103,7 +109,10 @@ def apply_scenario(
                 set_headway(graph, change.route_id, change.headway_min)
             elif isinstance(change, AddConnection):
                 for u, v in _new_rides(graph, change, closed):
-                    add_ride(graph, u, v, change.route_id, change.travel_time_min)
+                    if has_patterns(graph, change.route_id):
+                        add_joined_link(graph, change.route_id, u, v, change.travel_time_min)
+                    else:
+                        add_ride(graph, u, v, change.route_id, change.travel_time_min)
             elif isinstance(change, AddStop):
                 _insert_stop(graph, change, closed)
             elif isinstance(change, AddRoute):
@@ -159,7 +168,7 @@ def _insert_stop(graph: nx.DiGraph, change: AddStop, closed: set[str]) -> None:
         (u, v, t_u, t_v)
         for u, v, t_u, t_v in ((a, b, change.time_from_min, change.time_to_min),
                                (b, a, change.time_to_min, change.time_from_min))
-        if graph.has_edge((u, route), (v, route))
+        if route_rides(graph, route, u, v)
     ]
     if not legs or legs[0][0] != a:
         raise ScenarioError(f"route '{route}' does not run directly from '{a}' to '{b}'")
@@ -168,9 +177,20 @@ def _insert_stop(graph: nx.DiGraph, change: AddStop, closed: set[str]) -> None:
         new, kind="stop", name=name, lat=change.lat, lon=change.lon, activity=1, added=True
     )
     for u, v, t_u, t_v in legs:
-        graph.remove_edge((u, route), (v, route))  # buses now stop at the new stop
-        add_ride(graph, u, new, route, t_u)
-        add_ride(graph, new, v, route, t_v)
+        for before, after in route_rides(graph, route, u, v):
+            graph.remove_edge(before, after)  # buses now stop at the new stop
+            if len(before) == 2:  # a route without patterns: shared platforms
+                add_ride(graph, u, new, route, t_u)
+                add_ride(graph, new, v, route, t_v)
+                continue
+            # Same pattern, between the two positions (a loop's way back: after the last).
+            position, following = before[3], after[3]
+            if following <= position:
+                following = int(position) + 1
+            middle = (new, route, before[2], (position + following) / 2)
+            add_platform(graph, middle)
+            graph.add_edge(before, middle, kind="ride", route_id=route, weight=t_u)
+            graph.add_edge(middle, after, kind="ride", route_id=route, weight=t_v)
 
 
 def _add_route(graph: nx.DiGraph, change: AddRoute, closed: set[str]) -> None:
@@ -185,10 +205,13 @@ def _add_route(graph: nx.DiGraph, change: AddRoute, closed: set[str]) -> None:
         _require_open_stop(graph, stop_id, closed)
 
     add_route(graph, route, name, change.headway_min)
-    for u, v, minutes in change.stretches():
-        add_ride(graph, u, v, route, minutes)
-        if change.both_directions:
-            add_ride(graph, v, u, route, minutes)
+    graph.graph["patterned_routes"] = graph.graph.get("patterned_routes", frozenset()) | {route}
+    stops, times = list(change.stop_ids), list(change.travel_times_min)
+    add_pattern(graph, route, 0, stops, times, change.is_loop)
+    if change.both_directions:
+        # The way back: a loop keeps its first stop; times run in reverse either way.
+        back = [stops[0], *reversed(stops[1:])] if change.is_loop else list(reversed(stops))
+        add_pattern(graph, route, 1, back, list(reversed(times)), change.is_loop)
 
 
 def _new_rides(
@@ -200,14 +223,14 @@ def _new_rides(
     _require_open_stop(graph, b, closed)
     if route not in route_ids(graph):
         raise ScenarioError(f"unknown route '{route}'")
-    if (a, route) not in graph and (b, route) not in graph:
+    if not platforms_of(graph, route, a) and not platforms_of(graph, route, b):
         raise ScenarioError(
             f"route '{route}' stops at neither '{a}' nor '{b}': "
             "a new link must start or end at a stop on the route"
         )
     directions = [(a, b), (b, a)] if change.both_directions else [(a, b)]
     for u, v in directions:
-        if graph.has_edge((u, route), (v, route)):
+        if route_rides(graph, route, u, v):
             raise ScenarioError(
                 f"route '{route}' already runs from '{u}' to '{v}' "
                 "(use change_travel_time to change its time)"
@@ -292,6 +315,7 @@ def _network_key(
         tuple(sorted((s, d["lat"], d["lon"]) for s, d in baseline.nodes(data=True))),
         tuple(sorted(baseline.graph.get("headways", {}).items())),
         tuple(sorted(baseline.nodes)),
+        tuple(sorted(baseline.graph.get("patterns", {}).items())),
         tuple(sorted((u, v, tuple(sorted(d["route_times"].items()))) for u, v, d in baseline.edges(data=True))),
     )
 

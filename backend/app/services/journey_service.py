@@ -153,7 +153,10 @@ def _plan(
         if not isinstance(node, tuple):  # a stop or walking node: boarding, alighting, walking
             previous = None
             continue
-        stop_id, route_id = node
+        stop_id, route_id = node[0], node[1]
+        if edge is not None and edge["kind"] == "stay":  # stays on at the same stop
+            previous = node
+            continue
         following = path.nodes[index + 1] if index + 1 < len(path.nodes) else None
         rides_on = isinstance(following, tuple) or (isinstance(following, WalkNode) and following.kind == "off")
         if previous is None and not rides_on:

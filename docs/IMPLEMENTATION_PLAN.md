@@ -12,9 +12,10 @@
 - **Last completed:** Day 14.3 walking between stops (steps A and B committed): walking
   is part of the route graph and on between open stops by default; 386 backend +
   135 Vitest + 20 e2e tests
-- **In progress:** Day 14.4 route patterns. Step A (patterns stored: seed, importer,
-  re-imported Gdańsk databases) committed; next step B (the route graph uses them).
-  393 backend tests The full network is in backend/gdansk-all.db
+- **Last completed:** Day 14.4 route patterns (steps A and B committed): passengers stay
+  on a vehicle only along a line's real stop sequences; 400 backend + 135 Vitest + 20 e2e
+- **Next up:** open choices: speed on the full network (simulation 2 s, compare 4 s),
+  or Day 14.1 deployment The full network is in backend/gdansk-all.db
   (re-import: `WHATIF_DATABASE=gdansk-all.db python -m app.import_gtfs --modes all`)
 - **Local e2e:** Playwright reuses a running app on port 8000; if it serves Gdańsk the run
   stops with a message: stop that app (or run it on whatif.db) before `npm run test:e2e`
@@ -774,7 +775,7 @@ transfer penalty at 0) and checks equivalence before changing defaults.
       0 differences. Sample 28 simulations: 1 journey pair differs (SCH↔STH with both
       closed: 35.3 → 33.4 min), see the known limit below. Full network: simulation
       0.94 → 1.11 s, compare 2.11 → 2.38 s. 3 new tests (380); e2e 20 unchanged
-- [ ] Known limit (being fixed in part 4): a two-way line shares its platforms in both directions, so a ride can
+- [x] Known limit (fixed in part 4, step B): a two-way line shared its platforms in both directions, so a ride could
       go out and back to the stop where it started (no change of bus), which joins two
       walks. The old search forbade it; the graph cannot without a copy per boarding stop.
       Measured: 0 fastest journeys in the step-A setting on trams and the full network; with
@@ -819,9 +820,24 @@ transfer penalty at 0) and checks equivalence before changing defaults.
       routes, links and source identical; trams 20 patterns (657 positions), full 186
       (4,398). The route graph does not use them yet: results unchanged. 7 tests (393)
 - [x] Commit step A (approved by the user)
-- [ ] Step B: route graph on patterns; check that every difference is explained (no
-      journey faster; every changed journey had an impossible continuation; valid paths
-      unchanged); speed; live check
+- [x] Step B: platforms (stop, route, pattern, position) with rides to the next position
+      (`add_pattern`; routes without patterns keep (stop, route)); scenario changes find
+      rides via `route_rides` / `platforms_of`: an added stop goes into every pattern that
+      drives the link (also a loop's way back), an added route gets one pattern per
+      direction, an added link joins at both ends (`add_joined_link`, "stay" edges);
+      explorer skips "stay" edges; baseline cache keyed by the patterns. Tests updated
+      (add-route internals) + 7 new (400)
+- [x] Explained differences vs step A's commit (walking on): no journey faster anywhere
+      (35 networks/scenarios); every changed journey's old fastest path stayed on through
+      stops not in sequence in any of the route's patterns: trams 9,210 of 9,210 (baseline
+      839 + 10 closures), full network 299,589 of 299,589 (baseline 99,996 + 2 closures);
+      the sample: 0 changes (its lines use the same stops both ways). Step A's known limit
+      (SCH↔STH round trip) gone. Baseline average: trams 32.7 → 32.9 min, full 66.1 → 67.2.
+      Full network: simulation 1.7 → 2.0 s, compare 3.4 → 4.0 s
+- [x] Live (trams): Mickiewicza → Wczasy was T3 through the Brzeźno terminus (19.5 min),
+      now T3 to Sternicza + walk (25.5 min); explorer before/after with Sternicza closed;
+      no console errors; e2e 20; API schema unchanged
+- [x] Commit step B (approved by the user)
 
 **Fallback:** all parts are optional; part 1 is only needed if the app goes public,
 part 2 can stop after a small extract of the city works, parts 3 and 4 can stop after step A.
@@ -901,3 +917,4 @@ All former "maybes" are now scheduled as Days 8–14. New ideas go here.
 | 2026-11-14 | 14  | Walking between stops, step A: walking layer in the route graph (Day 10 rules); trams + full network 0 differences, sample 1 pair (known limit); 380 backend |
 | 2026-11-14 | 14  | Walking between stops, step B: on by default (start/end ≤ 1 km, between buses ≤ 500 m); explorer walks list; closing a stop no longer makes journeys faster; 386 backend, 135 Vitest, 20 e2e |
 | 2026-11-14 | 14  | Route patterns, step A: measured 20 % of full-network journeys staying on through impossible continuations; patterns stored (seed, importer, Gdańsk re-imported identically); 393 backend |
+| 2026-11-14 | 14  | Route patterns, step B: stay on only to the next stop of a pattern; every difference explained (0 faster; trams 9,210, full 299,589 changed journeys, all through impossible continuations); 400 backend |

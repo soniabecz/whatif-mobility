@@ -21,6 +21,7 @@ from app.schemas.scenario import AddRoute, Scenario
 from app.services.ai_service import build_system_prompt, interpret
 from app.services.journey_service import compare_journey
 from app.services.network_service import build_graph, build_graph_from_db
+from app.services.route_graph import platforms_of, route_rides
 from app.services.simulation_service import ScenarioError, apply_scenario, simulate
 from app.services.walking import WalkingModel
 
@@ -96,8 +97,11 @@ def test_schema_rejects(overrides: dict[str, Any], message: str) -> None:
 
 def test_the_new_route_runs_both_ways_by_default() -> None:
     graph, _ = apply_scenario(NET, _scenario(_route()))
-    assert graph.edges[("A", "R5"), ("C", "R5")]["weight"] == 6
-    assert graph.edges[("C", "R5"), ("A", "R5")]["weight"] == 6
+    # One pattern each way (Day 14 part 4): A -> C on pattern 0, C -> A on pattern 1.
+    assert [(a, b, graph.edges[a, b]["weight"]) for a, b in route_rides(graph, "R5", "A", "C")] == [
+        (("A", "R5", 0, 0), ("C", "R5", 0, 1), 6)]
+    assert [(a, b, graph.edges[a, b]["weight"]) for a, b in route_rides(graph, "R5", "C", "A")] == [
+        (("C", "R5", 1, 0), ("A", "R5", 1, 1), 6)]
     assert graph.graph["route_names"]["R5"] == "Cross Town"
     assert "R5" not in NET.graph["headways"]
 
@@ -120,7 +124,7 @@ def test_journeys_get_faster() -> None:
 
 def test_waiting_uses_the_new_headway() -> None:
     graph, _ = apply_scenario(NET, _scenario(_route()), include_waiting=True)
-    assert graph.edges["A", ("A", "R5")]["wait_min"] == 6
+    assert {graph.edges["A", p]["wait_min"] for p in platforms_of(graph, "R5", "A")} == {6}
     # With waiting (5 min on R1/R2) and a penalty of 2: A->C was 4+5+2*5+2 = 21, now 6+6 = 12.
     result = simulate(NET, _scenario(_route()), transfer_penalty_min=2, include_waiting=True)
     assert _times(result)[("A", "C")] == (21.0, 12.0, "faster")
@@ -161,7 +165,7 @@ def test_a_new_route_may_use_an_added_stop() -> None:
                 "route_id": "R1", "from_stop_id": "A", "to_stop_id": "B",
                 "time_from_min": 2, "time_to_min": 3}
     graph, _ = apply_scenario(NET, _scenario(new_stop, _route(stop_ids=["N1", "C"], travel_times_min=[4])))
-    assert graph.has_edge(("N1", "R5"), ("C", "R5"))
+    assert route_rides(graph, "R5", "N1", "C")
     result = simulate(NET, _scenario(new_stop, _route(stop_ids=["N1", "C"], travel_times_min=[4])))
     assert _times(result)[("A", "C")] == (9.0, 6.0, "faster")  # A -R1 2- N1 -R5 4- C
 
@@ -180,9 +184,9 @@ def test_later_changes_apply_to_the_new_route() -> None:
         ),
         include_waiting=True,
     )
-    assert graph.edges["A", ("A", "R5")]["wait_min"] == 2
-    assert graph.has_edge(("N1", "R5"), ("C", "R5")) and graph.has_edge(("C", "R5"), ("D", "R5"))
-    assert not graph.has_edge(("A", "R5"), ("C", "R5"))
+    assert {graph.edges["A", p]["wait_min"] for p in platforms_of(graph, "R5", "A")} == {2}
+    assert route_rides(graph, "R5", "N1", "C") and route_rides(graph, "R5", "C", "D")
+    assert not route_rides(graph, "R5", "A", "C")  # N1 now lies between them
     assert closed == {"C"}
 
 
