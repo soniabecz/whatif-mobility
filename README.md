@@ -220,9 +220,12 @@ cd .. && WHATIF_DATABASE=gdansk.db ./dev.sh                    # start the app o
   Gdańsku, http://www.ztm.gda.pl/otwarty_ztm) and the data's creation and download
   dates on the map and in the legend. Keeping the data current is the user's duty:
   re-run the import now and then (the feed covers about two weeks ahead).
-- Size: trams (122 stations, about 15,000 journeys) simulate in under a second.
-  `--modes all` (about 740 stations, 550,000 journeys) imports, but the app is not
-  yet fast enough for it, and the AI prompt would exceed the free AI tier.
+- Size: trams (122 stations, about 15,000 journeys) simulate in under a second;
+  `--modes all` (714 stations, about 510,000 journeys) in about 2 seconds, and the AI
+  gets only the part of the network a request is about.
+- Each line's stop sequences ("patterns", one per direction) are stored too:
+  passengers stay on a vehicle only where a trip really goes. A database imported
+  before they existed (Day 14 part 4) works as before; re-run the import to add them.
 - On the free Groq tier (8,000 tokens per minute), one AI request on Gdańsk uses
   most of a minute's allowance: wait about a minute between AI requests.
 

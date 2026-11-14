@@ -37,10 +37,10 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
 from app.models import Connection, NetworkSource, Route, Stop
+from app.services.network_service import add_patterns, delete_network
 from app.schemas.scenario import MAX_HEADWAY_MIN, MIN_HEADWAY_MIN
 
 MAX_POST_DISTANCE_M = 500.0
@@ -96,6 +96,14 @@ class ImportedLink:
 
 
 @dataclass(frozen=True)
+class ImportedPattern:
+    """A route's main station sequence for one direction (see models.RoutePattern)."""
+
+    route_id: str
+    stop_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class SourceInfo:
     """Attribution details the data's terms require (shown in the app)."""
 
@@ -112,6 +120,7 @@ class ImportedNetwork:
     routes: list[ImportedRoute]
     links: list[ImportedLink]
     source: NetworkSource
+    patterns: list[ImportedPattern] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
 
@@ -407,10 +416,12 @@ def import_feed(
     colors = _colors(all_routes, gtfs_routes)
 
     links: dict[tuple[str, str, str], ImportedLink] = {}
+    imported_patterns: list[ImportedPattern] = []
     warnings: list[str] = []
     for (route, direction), counter in sorted(patterns.items()):
         # Most trips first; ties: the longer sequence, then a fixed order.
         main = min(counter, key=lambda seq: (-counter[seq], -len(seq), seq))
+        imported_patterns.append(ImportedPattern(app_ids[route], main))
         for a, b in zip(main, main[1:]):
             minutes = max(MIN_LINK_MIN, round(statistics.median(link_times[(route, a, b)]), 1))
             links.setdefault((app_ids[route], a, b), ImportedLink(app_ids[route], a, b, minutes))
@@ -461,6 +472,7 @@ def import_feed(
         links=sorted(links.values(), key=lambda l: (l.route_id, l.from_stop_id, l.to_stop_id)),
         source=network_source,
         warnings=warnings,
+        patterns=imported_patterns,
     )
 
 
@@ -468,10 +480,7 @@ def write_network(db: Session, network: ImportedNetwork) -> None:
     """Replace the network tables with the imported network (one transaction).
     Saved scenarios are kept; those that no longer fit are flagged when listed."""
     try:
-        db.execute(delete(Connection))
-        db.execute(delete(Route))
-        db.execute(delete(Stop))
-        db.execute(delete(NetworkSource))
+        delete_network(db)
         for stop in network.stops:
             db.add(Stop(id=stop.id, name=stop.name, lat=stop.lat, lon=stop.lon, activity=1))
         for route in network.routes:
@@ -484,6 +493,11 @@ def write_network(db: Session, network: ImportedNetwork) -> None:
                 to_stop_id=link.to_stop_id,
                 travel_time_min=link.travel_time_min,
             ))
+        patterns: dict[str, list[tuple[tuple[str, ...], bool]]] = {}
+        for pattern in network.patterns:
+            patterns.setdefault(pattern.route_id, []).append((pattern.stop_ids, False))
+        for route_id, route_patterns in patterns.items():
+            add_patterns(db, route_id, route_patterns)
         db.add(network.source)
         db.commit()
     except Exception:

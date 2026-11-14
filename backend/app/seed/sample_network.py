@@ -131,3 +131,10 @@ def route_segments(route: SampleRoute) -> list[tuple[str, str, float]]:
         segments.append((a, b, float(minutes)))
         segments.append((b, a, float(minutes)))
     return segments
+
+
+def route_patterns(route: SampleRoute) -> list[tuple[list[str], bool]]:
+    """(stop ids, is_loop) for both directions; a ring keeps its first stop."""
+    stops = route.stop_ids
+    backwards = [stops[0], *reversed(stops[1:])] if route.is_loop else list(reversed(stops))
+    return [(list(stops), route.is_loop), (backwards, route.is_loop)]

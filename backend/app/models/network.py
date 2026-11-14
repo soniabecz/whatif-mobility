@@ -1,6 +1,6 @@
 """SQLAlchemy tables describing the baseline bus network."""
 
-from sqlalchemy import CheckConstraint, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -55,6 +55,34 @@ class Connection(Base):
     from_stop_id: Mapped[str] = mapped_column(ForeignKey("stops.id"))
     to_stop_id: Mapped[str] = mapped_column(ForeignKey("stops.id"))
     travel_time_min: Mapped[float] = mapped_column(Float)
+
+
+class RoutePattern(Base):
+    """One way a route's vehicles actually run: an ordered sequence of stops
+    (e.g. one per direction). Passengers stay on the vehicle only from one
+    position of a pattern to the next (Day 14 part 4). The stretch times come
+    from ``connections``. A loop pattern continues from its last stop back to
+    its first (the sample's ring); a real trip that ends where it started is
+    not a loop.
+    """
+
+    __tablename__ = "route_patterns"
+    __table_args__ = (UniqueConstraint("route_id", "number"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    route_id: Mapped[str] = mapped_column(ForeignKey("routes.id"))
+    number: Mapped[int] = mapped_column(Integer)  # order within the route: 0, 1, ...
+    is_loop: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class PatternStop(Base):
+    """The stop at one position of a pattern (a stop may appear more than once)."""
+
+    __tablename__ = "pattern_stops"
+
+    pattern_id: Mapped[int] = mapped_column(ForeignKey("route_patterns.id"), primary_key=True)
+    position: Mapped[int] = mapped_column(Integer, primary_key=True)
+    stop_id: Mapped[str] = mapped_column(ForeignKey("stops.id"))
 
 
 class NetworkSource(Base):

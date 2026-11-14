@@ -1,13 +1,14 @@
 """Load the sample network into the database."""
 
-from sqlalchemy import delete, inspect, select
+from sqlalchemy import inspect, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
 from app.database import Base
 
-from app.models import Connection, NetworkSource, Route, Stop
-from app.seed.sample_network import ROUTES, STOPS, route_segments, stop_coordinates
+from app.models import Connection, NetworkSource, Route, RoutePattern, Stop
+from app.seed.sample_network import ROUTES, STOPS, route_patterns, route_segments, stop_coordinates
+from app.services.network_service import add_patterns, delete_network
 
 
 def outdated_tables(engine: Engine) -> list[str]:
@@ -56,16 +57,24 @@ def network_is_empty(db: Session) -> bool:
     return db.scalar(select(Stop.id).limit(1)) is None
 
 
+def sample_lacks_patterns(db: Session) -> bool:
+    """True for a sample network seeded before routes had patterns (Day 14
+    part 4): it has stops but neither patterns nor a data source. Imported
+    networks are never reseeded; re-import them instead."""
+    return (
+        not network_is_empty(db)
+        and db.scalar(select(RoutePattern.id).limit(1)) is None
+        and db.scalar(select(NetworkSource.id).limit(1)) is None
+    )
+
+
 def seed_database(db: Session) -> None:
     """Replace all network data with the sample network (idempotent).
 
     Runs in one transaction: either the whole network is written or nothing.
     """
     try:
-        db.execute(delete(Connection))
-        db.execute(delete(Route))
-        db.execute(delete(Stop))
-        db.execute(delete(NetworkSource))  # the sample is invented: no data source
+        delete_network(db)  # the sample is invented: no data source either
 
         for s in STOPS:
             lat, lon = stop_coordinates(s)
@@ -84,6 +93,7 @@ def seed_database(db: Session) -> None:
                         travel_time_min=minutes,
                     )
                 )
+            add_patterns(db, r.id, route_patterns(r))
         db.commit()
     except Exception:
         db.rollback()
