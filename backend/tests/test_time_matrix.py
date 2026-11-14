@@ -83,4 +83,5 @@ def test_journey_matrix_marks_closed_stops(sample: nx.DiGraph) -> None:
     walking = scenario_state(sample, scenario, walking=WalkingModel(5, 1000))
     times, excluded = journey_matrix(walking, stops)
     assert not excluded.any()
-    assert times[cen, stops.index("AIR")] == walking.journey_time("CEN", "AIR")
+    assert times[cen, stops.index("AIR")] == walking.times.get("CEN", "AIR")
+    assert np.isfinite(times[cen, stops.index("AIR")])  # reached on foot

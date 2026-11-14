@@ -1,29 +1,63 @@
-"""Walking to or from a closed stop (Day 10, part 3).
+"""Walking as part of the route graph (Day 10 part 3; Day 14 walking between stops).
 
-Scope: only journeys that start or end at a CLOSED stop use walking. The
-passenger walks to a nearby open stop and takes the bus from there (or walks
-the whole way if the other stop is within reach). Every other journey is
-unchanged, so the route graph and its penalty rule stay as they are; the
-walking time is simply added to bus times the graph already computed.
+The route graph (route_graph.py) knows only buses. ``add_walking_layer`` adds a
+few nodes per stop for the passenger's situation, so ONE shortest-path search
+finds journeys that walk at the start, between two buses or at the end:
+
+  start(s)    the journey begins at s, nothing boarded yet. Boards at s WITHOUT
+              counting it as a change of bus, or walks once (to walked(t)).
+  walked(t)   walked from the start to t. Boards at t; cannot walk again. It is
+              also how a journey walks the whole way.
+  stop t      (the route graph's own node) got off a bus at t. Boards again
+              (a change of bus).
+  off(t)      the same, reached only by RIDING to t (every ride edge into t has
+              a copy ending here). Walks once: to end(u) or transfer(u). Walks
+              start here, not at stop t, because stop t can also be reached by
+              boarding and getting off at once, which would chain two walks.
+  end(u)      walked to u after the last bus. The journey ends here.
+  transfer(u) walked to u between two buses. Boards at u (a change of bus).
+
+So there is at most one walk in a row: at the start, between buses and at the
+end, never two walks chained into a longer one. Journey time from s to d =
+the fastest of: stop d or end(d) minus one transfer penalty (the first
+boarding is no change of bus; see route_graph.py), or walked(d) (no bus).
+
+Closed stops keep their start, walked and end nodes (passengers walk away from
+or to them), but nobody boards there: their stop node and board edges are gone.
+
+``WalkingModel.between_open_stops`` False keeps the Day 10 rule: walking only
+from or to a CLOSED stop (at the start or end), never between two buses.
 
 Walking distance = straight line between the stops' coordinates x WALK_DETOUR
 (streets are not straight). All walking parameters are invented assumptions.
 """
 
-from collections.abc import Callable, Iterable
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from math import asin, cos, radians, sin, sqrt
+from typing import Literal
 
 import networkx as nx
+import numpy as np
+from scipy.sparse import csr_matrix
+from scipy.sparse.csgraph import dijkstra
+
+from app.services.route_graph import TimeMatrix, is_open_stop
 
 EARTH_RADIUS_M = 6_371_000
 WALK_DETOUR = 1.3  # walking distance / straight-line distance
+
+_EPSILON = 1e-9  # two times closer than this are equal (as in the simulation)
+
+WalkKind = Literal["start", "walked", "off", "end", "transfer"]
 
 
 @dataclass(frozen=True)
 class WalkingModel:
     speed_kmh: float  # e.g. 5 km/h
-    max_walk_m: float  # longest walk to or from a closed stop
+    max_walk_m: float  # longest walk at the start or end of a journey
+    max_transfer_walk_m: float = 500.0  # longest walk between two buses
+    between_open_stops: bool = False  # False: walk only from/to a closed stop
 
     def minutes(self, distance_m: float) -> float:
         return distance_m / (self.speed_kmh * 1000 / 60)
@@ -37,18 +71,12 @@ class Walk:
     minutes: float
 
 
-@dataclass(frozen=True)
-class WalkOption:
-    """Fastest way between two stops when one or both are closed.
+@dataclass(frozen=True, order=True)
+class WalkNode:
+    """A passenger's situation at a stop (see the module docstring)."""
 
-    ``bus_from``/``bus_to`` are None for a walk all the way.
-    """
-
-    total_min: float
-    walk_start: Walk | None
-    walk_end: Walk | None
-    bus_from: str | None
-    bus_to: str | None
+    kind: WalkKind
+    stop_id: str
 
 
 def straight_line_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -58,84 +86,167 @@ def straight_line_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float
     return 2 * EARTH_RADIUS_M * asin(sqrt(h))
 
 
-def walking_distance_m(network: nx.DiGraph, a: str, b: str) -> float:
-    na, nb = network.nodes[a], network.nodes[b]
+def walking_distance_m(places: nx.DiGraph, a: str, b: str) -> float:
+    na, nb = places.nodes[a], places.nodes[b]
     return straight_line_m(na["lat"], na["lon"], nb["lat"], nb["lon"]) * WALK_DETOUR
 
 
-def _walk(network: nx.DiGraph, model: WalkingModel, a: str, b: str) -> Walk | None:
-    """The walk a -> b, or None if it is longer than the maximum."""
-    distance = walking_distance_m(network, a, b)
-    if distance > model.max_walk_m:
-        return None
-    return Walk(a, b, distance, model.minutes(distance))
+def walks_within(places: nx.DiGraph, stop_ids: Sequence[str], model: WalkingModel) -> list[Walk]:
+    """Every walk a -> b (a != b) of at most ``model.max_walk_m``, in (a, b) order.
 
-
-def nearby_open_stops(
-    network: nx.DiGraph, model: WalkingModel, stop_id: str, closed: Iterable[str]
-) -> list[Walk]:
-    """Walks from ``stop_id`` to every open stop within reach, sorted by stop id."""
-    closed_set = set(closed)
-    walks = (
-        _walk(network, model, stop_id, other)
-        for other in sorted(network.nodes)
-        if other != stop_id and other not in closed_set
-    )
-    return [walk for walk in walks if walk is not None]
-
-
-def best_walk_option(
-    network: nx.DiGraph,
-    model: WalkingModel,
-    origin: str,
-    destination: str,
-    closed: set[str],
-    bus_time: Callable[[str, str], float | None],
-    nearby: Callable[[str], list[Walk]] | None = None,
-) -> WalkOption | None:
-    """Fastest walk + bus (+ walk) for a journey touching a closed stop, or None.
-
-    ``bus_time(a, b)``: fastest time between two OPEN stops after the
-    scenario (None if unreachable). Ties are broken by stop ids, so the
-    simulation and the journey explorer always pick the same option.
-    ``nearby(stop)``: ``nearby_open_stops`` for this network and closure, if the
-    caller keeps them (they depend only on the stop; a city has many journeys).
+    A vectorised pre-selection finds the candidates; each distance is then
+    computed exactly as ``walking_distance_m`` (so it never depends on numpy's
+    rounding).
     """
-    if nearby is None:
-        nearby = lambda stop: nearby_open_stops(network, model, stop, closed)  # noqa: E731
-    candidates: list[tuple[float, str, str, WalkOption]] = []
+    if len(stop_ids) < 2:
+        return []
+    lat = np.radians([places.nodes[s]["lat"] for s in stop_ids])
+    lon = np.radians([places.nodes[s]["lon"] for s in stop_ids])
+    h = (np.sin((lat[:, None] - lat[None, :]) / 2) ** 2
+         + np.cos(lat[:, None]) * np.cos(lat[None, :]) * np.sin((lon[:, None] - lon[None, :]) / 2) ** 2)
+    rough = 2 * EARTH_RADIUS_M * np.arcsin(np.sqrt(np.clip(h, 0, 1))) * WALK_DETOUR
+    walks = []
+    max_m = model.max_walk_m
+    for i, j in zip(*np.nonzero(rough <= max_m + 1.0)):  # 1 m margin for rounding
+        if i == j:
+            continue
+        a, b = stop_ids[i], stop_ids[j]
+        distance = walking_distance_m(places, a, b)
+        if distance <= max_m:
+            walks.append(Walk(a, b, distance, model.minutes(distance)))
+    return walks
 
-    # Walk the whole way (both stops may be closed).
-    direct = _walk(network, model, origin, destination)
-    if direct is not None:
-        candidates.append((direct.minutes, "", "", WalkOption(direct.minutes, direct, None, None, None)))
 
-    starts: list[tuple[str, Walk | None]] = (
-        [(w.to_stop_id, w) for w in nearby(origin)]
-        if origin in closed
-        else [(origin, None)]
-    )
-    ends: list[tuple[str, Walk | None]] = (
-        [(w.to_stop_id, _reverse(w)) for w in nearby(destination)]
-        if destination in closed
-        else [(destination, None)]
-    )
-    for bus_from, walk_start in starts:
-        for bus_to, walk_end in ends:
-            if bus_from == bus_to:
-                continue  # walking via a stop without riding: the direct walk covers it
-            ride = bus_time(bus_from, bus_to)
-            if ride is None:
-                continue
-            total = ride + (walk_start.minutes if walk_start else 0) + (walk_end.minutes if walk_end else 0)
-            option = WalkOption(total, walk_start, walk_end, bus_from, bus_to)
-            candidates.append((total, bus_from, bus_to, option))
+def add_walking_layer(
+    graph: nx.DiGraph,
+    places: nx.DiGraph,
+    model: WalkingModel | None,
+    closed: Iterable[str],
+) -> None:
+    """Add the start/walked/end/transfer nodes and walks to a route graph (in place).
 
-    if not candidates:
+    ``places``: every stop with coordinates, closed ones included (baseline
+    stops plus stops added by the scenario). ``model`` None: no walking at all
+    (only the start nodes, so journeys can still be searched from them).
+    Call it after all of a scenario's changes: the boarding copies take the
+    board edges (and waits) as they are then.
+    """
+    closed_set = set(closed)
+    stop_ids = sorted(places.nodes)
+    boards = {
+        s: [(platform, dict(data)) for _, platform, data in graph.out_edges(s, data=True)
+            if data["kind"] == "board"]
+        for s in stop_ids if is_open_stop(graph, s)
+    }
+
+    def add_boarding(node: WalkNode, stop_id: str) -> None:
+        graph.add_node(node, kind=node.kind, stop_id=stop_id)
+        for platform, data in boards.get(stop_id, []):
+            graph.add_edge(node, platform, **data)
+
+    for s in stop_ids:
+        add_boarding(WalkNode("start", s), s)
+    if model is None:
+        return
+    rides = [(u, v, data) for u, v, data in graph.edges(data=True) if data["kind"] == "ride"]
+    for u, v, data in rides:
+        if v[0] in boards:  # nobody gets off at a closed stop
+            graph.add_edge(u, WalkNode("off", v[0]), **data)
+    for s in stop_ids:
+        add_boarding(WalkNode("walked", s), s)
+        graph.add_node(WalkNode("end", s), kind="end", stop_id=s)
+        if model.between_open_stops:
+            add_boarding(WalkNode("transfer", s), s)
+
+    def add_walk(from_node: object, to_node: WalkNode, walk: Walk) -> None:
+        graph.add_edge(
+            from_node, to_node, kind="walk", distance_m=walk.distance_m,
+            minutes=walk.minutes, weight=walk.minutes,
+        )
+
+    for walk in walks_within(places, stop_ids, model):
+        a, b = walk.from_stop_id, walk.to_stop_id
+        touches_closed = a in closed_set or b in closed_set
+        if model.between_open_stops or touches_closed:
+            add_walk(WalkNode("start", a), WalkNode("walked", b), walk)
+        off = WalkNode("off", a)
+        if off in graph and (model.between_open_stops or b in closed_set):
+            add_walk(off, WalkNode("end", b), walk)
+        if (model.between_open_stops and off in graph and b in boards
+                and walk.distance_m <= model.max_transfer_walk_m):
+            add_walk(off, WalkNode("transfer", b), walk)
+
+
+def _arrivals(graph: nx.DiGraph, stop_id: str) -> list[tuple[object, bool]]:
+    """Nodes where a journey to ``stop_id`` can end, and whether a transfer
+    penalty is subtracted (it is, once a bus was boarded)."""
+    # On a tie the simplest journey wins: walking the whole way, then by bus.
+    candidates: list[tuple[object, bool]] = [
+        (WalkNode("walked", stop_id), False), (stop_id, True), (WalkNode("end", stop_id), True),
+    ]
+    return [
+        (node, subtract) for node, subtract in candidates
+        if node in graph and (not isinstance(node, str) or is_open_stop(graph, node))
+    ]
+
+
+def journey_time_matrix(graph: nx.DiGraph, stop_ids: Sequence[str]) -> TimeMatrix:
+    """Fastest journey times between the given stops in a graph with a walking
+    layer (closed stops included: they are reached and left on foot).
+
+    The same compiled Dijkstra as ``route_graph.travel_time_matrix``; journeys
+    start at start(s) and end at the fastest of their arrival nodes.
+    """
+    nodes = list(graph.nodes)
+    position = {node: i for i, node in enumerate(nodes)}
+    edges = [(position[u], position[v], data["weight"]) for u, v, data in graph.edges(data=True)]
+    rows = np.fromiter((e[0] for e in edges), dtype=np.int64, count=len(edges))
+    cols = np.fromiter((e[1] for e in edges), dtype=np.int64, count=len(edges))
+    weights = np.fromiter((e[2] for e in edges), dtype=float, count=len(edges))
+    matrix = csr_matrix((weights, (rows, cols)), shape=(len(nodes), len(nodes)))
+    penalty: float = graph.graph["transfer_penalty_min"]
+
+    n = len(stop_ids)
+    values = np.full((n, n), np.inf)
+    if n:
+        sources = [position[WalkNode("start", s)] for s in stop_ids]
+        distances = dijkstra(matrix, directed=True, indices=sources)
+        for j, stop_id in enumerate(stop_ids):
+            for node, subtract in _arrivals(graph, stop_id):
+                column = distances[:, position[node]] - (penalty if subtract else 0.0)
+                values[:, j] = np.minimum(values[:, j], column)
+    np.fill_diagonal(values, 0.0)
+    values.setflags(write=False)
+    return TimeMatrix(tuple(stop_ids), {s: i for i, s in enumerate(stop_ids)}, values)
+
+
+@dataclass(frozen=True)
+class JourneyPath:
+    """Fastest journey in a graph with a walking layer: nodes from start(origin)
+    to the arrival node, and the journey time (unrounded)."""
+
+    nodes: list[object]
+    travel_time_min: float
+
+
+def fastest_journey(graph: nx.DiGraph, origin: str, destination: str) -> JourneyPath | None:
+    """The fastest journey origin -> destination (same rules as
+    ``journey_time_matrix``), or None if there is none."""
+    source = WalkNode("start", origin)
+    if source not in graph or origin == destination:
         return None
-    return min(candidates, key=lambda c: (c[0], c[1], c[2]))[3]
-
-
-def _reverse(walk: Walk) -> Walk:
-    """A walk computed from the destination, turned to arrive there."""
-    return Walk(walk.to_stop_id, walk.from_stop_id, walk.distance_m, walk.minutes)
+    lengths, paths = nx.single_source_dijkstra(graph, source, weight="weight")
+    penalty: float = graph.graph["transfer_penalty_min"]
+    best: float | None = None
+    best_node: object = None
+    # Arrivals in order of preference: a later one must be faster by more than
+    # float noise (e.g. "walk" vs "walk, board and get off at once" with no wait).
+    for node, subtract in _arrivals(graph, destination):
+        if node not in lengths:
+            continue
+        time = lengths[node] - (penalty if subtract else 0.0)
+        if best is None or time < best - _EPSILON:
+            best, best_node = time, node
+    if best is None:
+        return None
+    return JourneyPath(nodes=list(paths[best_node]), travel_time_min=best)

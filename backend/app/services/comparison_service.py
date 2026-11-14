@@ -48,7 +48,7 @@ def compare(
 
     stop_ids = sorted(baseline.nodes)
     n = len(stop_ids)
-    base = baseline_times(baseline, transfer_penalty_min, include_waiting).values
+    base = baseline_times(baseline, transfer_penalty_min, include_waiting, walking).values
     times_a, excluded_a = journey_matrix(state_a, stop_ids)
     times_b, excluded_b = journey_matrix(state_b, stop_ids)
 

@@ -9,8 +9,8 @@
 - **Last completed:** Day 14.2 step B4 (map and UI at scale: legend scroll + filter,
   small stops when zoomed out; no canvas needed); 377 backend + 131 Vitest + 20 e2e tests.
   Step B (full network) is complete and committed
-- **Next up:** decide on the open issue "walking only to/from closed stops" (a model
-  change), or Day 14.1 deployment. The full network is in backend/gdansk-all.db
+- **In progress:** Day 14.3 walking between stops. Step A (walking layer in the route
+  graph, Day 10 rules) committed; next step B (switch on, explorer walk legs, UI texts). The full network is in backend/gdansk-all.db
   (re-import: `WHATIF_DATABASE=gdansk-all.db python -m app.import_gtfs --modes all`)
 - **Local e2e:** Playwright reuses a running app on port 8000; if it serves Gdańsk the run
   stops with a message: stop that app (or run it on whatif.db) before `npm run test:e2e`
@@ -752,8 +752,36 @@ transfer penalty at 0) and checks equivalence before changing defaults.
       (3.7 s), AI request; no console errors. 5 Vitest (131); e2e 20 on the sample
 - [x] Commit B4 (approved by the user)
 
-**Fallback:** both parts are optional; part 1 is only needed if the app goes public, and
-part 2 can stop after a small extract of the city works.
+**3. Walking between stops** (L, ≈ 1 session) – the former open issue
+- [x] Measured: walking (5 km/h, ×1.3) beats the bus for 93 % of stop pairs within 1 km on
+      the full network; allowing a walk at the start or end makes 62 % of journeys faster
+      (average 74.6 → 67.3 min; trams 35 %, sample 44 %)
+- [x] Design approved (2026-11-14): walking becomes part of the route graph (one search);
+      walks at the start, between buses (≤ 500 m, a change of bus) and at the end (≤ 1 km),
+      never two in a row; walking the whole way counts; default on, setting to switch off
+- [x] Step A: `walking.add_walking_layer` adds per stop start / walked / off / end /
+      transfer nodes; `journey_time_matrix` and `fastest_journey` replace the closed-stop
+      search (`best_walk_option`, `nearby_open_stops` removed); the explorer reads walks from
+      the path; baseline cache keyed by the walking model. `between_open_stops` off =
+      the Day 10 rule. Found and fixed during the check: boarding and getting off at once
+      chained two walks (walks after a bus now start from "off" nodes, reached only by riding)
+- [x] Equivalence vs previous commit (walking on, between open stops off): trams 61
+      simulations and full network 13 (53,628 changed journeys, 192 explorer journeys):
+      0 differences. Sample 28 simulations: 1 journey pair differs (SCH↔STH with both
+      closed: 35.3 → 33.4 min), see the known limit below. Full network: simulation
+      0.94 → 1.11 s, compare 2.11 → 2.38 s. 3 new tests (380); e2e 20 unchanged
+- [ ] Known limit: a two-way line shares its platforms in both directions, so a ride can
+      go out and back to the stop where it started (no change of bus), which joins two
+      walks. The old search forbade it; the graph cannot without a copy per boarding stop.
+      Measured: 0 fastest journeys in the step-A setting on trams and the full network; with
+      walking between open stops 39 of 509,082 (0.008 %) on the full network. Proper fix
+      later: direction-aware platforms (a turn-round = a change of bus)
+- [x] Commit step A (approved by the user)
+- [ ] Step B: switch on (`walk_between_open_stops`, `max_transfer_walk_m` settings), walk
+      legs between buses in the explorer API and UI, texts ("Walking"), tests; live check
+
+**Fallback:** all parts are optional; part 1 is only needed if the app goes public,
+part 2 can stop after a small extract of the city works, and part 3 can stop after step A.
 
 ---
 
@@ -761,8 +789,7 @@ part 2 can stop after a small extract of the city works.
 
 - [ ] Walking only to/from CLOSED stops: on a real city two open stops 300 m apart can
       need a 36-min bus detour, so closing one makes nearby journeys "faster" (walk 3 min).
-      Consider allowing short walks between open stops in the baseline too (model change:
-      needs a design and an equivalence decision)
+      → being solved in Day 14 part 3 (walking between stops)
 
 - [ ] Starlette deprecation warning in tests: `httpx` → `httpx2`
       (verify `httpx2` is the official successor before switching)
@@ -828,3 +855,4 @@ All former "maybes" are now scheduled as Days 8–14. New ideas go here.
 | 2026-11-13 | 14  | AI excerpts for big networks (stem matching for Polish names): full Gdańsk prompt 55k → 6–11k chars; 377 backend; live AI checked (4 requests + summary) |
 | 2026-11-13 | 14  | Session end: step B1–B3 committed, CI green; next B4 (map/UI at scale) |
 | 2026-11-14 | 14  | B4: measured (no canvas needed); legend scroll + line filter; small stops when zoomed out on big networks; live check of the full app; 131 Vitest, 20 e2e |
+| 2026-11-14 | 14  | Walking between stops, step A: walking layer in the route graph (Day 10 rules); trams + full network 0 differences, sample 1 pair (known limit); 380 backend |

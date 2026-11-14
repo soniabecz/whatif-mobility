@@ -11,6 +11,7 @@ from itertools import permutations
 from typing import Any
 
 import networkx as nx
+import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -23,11 +24,14 @@ from app.schemas.scenario import Scenario
 from app.services.journey_service import compare_journey
 from app.services.network_service import build_graph, build_graph_from_db
 from app.services.simulation_service import simulate
+from app.services.route_graph import build_route_graph, travel_time_matrix
 from app.services.walking import (
     WALK_DETOUR,
     WalkingModel,
-    nearby_open_stops,
+    add_walking_layer,
+    journey_time_matrix,
     straight_line_m,
+    walks_within,
 )
 
 METRES_PER_DEGREE_LAT = 6_371_000 * 3.141592653589793 / 180  # ~111,195 m
@@ -65,14 +69,19 @@ def _times(result: Any) -> dict[tuple[str, str], tuple[float, float | None, str]
 
 def test_distance_is_straight_line_times_detour() -> None:
     assert straight_line_m(0, 0, 500 / METRES_PER_DEGREE_LAT, 0) == pytest.approx(500, abs=0.01)
-    walks = nearby_open_stops(LINE, WALK, "P", closed=[])
+    walks = [w for w in walks_within(LINE, ["P", "Q", "R"], WALK) if w.from_stop_id == "P"]
     assert [(w.to_stop_id, round(w.distance_m, 1), round(w.minutes, 2)) for w in walks] == [
         ("Q", 500 * WALK_DETOUR, 6.5)  # R is 1300 m away: out of reach
     ]
 
 
-def test_nearby_stops_skip_closed_ones() -> None:
-    assert nearby_open_stops(LINE, WALK, "Q", closed=["P"])[0].to_stop_id == "R"
+def test_nobody_boards_at_a_closed_stop_reached_on_foot() -> None:
+    both = Scenario.model_validate({"changes": [
+        {"type": "close_stop", "stop_id": "P"}, {"type": "close_stop", "stop_id": "Q"},
+    ]})
+    times = _times(simulate(LINE, both, walking=WALK))
+    assert times[("P", "R")] == (10.0, None, "impossible")  # Q is near but closed; R too far
+    assert times[("P", "Q")] == (5.0, 6.5, "slower")  # walking the whole way still works
 
 
 def test_closed_origin_walks_to_the_next_stop_and_takes_the_bus() -> None:
@@ -194,6 +203,41 @@ def test_baseline_is_never_modified(sample: nx.DiGraph) -> None:
     )
     assert nx.utils.graphs_equal(sample, snapshot)
     assert dict(sample.nodes(data=True)) == dict(snapshot.nodes(data=True))
+
+
+def test_no_two_walks_in_a_row_by_boarding_and_getting_off_at_once(sample: nx.DiGraph) -> None:
+    # CEN and UNI closed: walking CEN -> LIB, boarding and leaving the bus at LIB at
+    # once, then walking LIB -> UNI would be 25.8 min. A walk after a bus needs a
+    # real ride: walk to LIB, R3 to OLD, walk to UNI.
+    changes = [{"type": "close_stop", "stop_id": "CEN"}, {"type": "close_stop", "stop_id": "UNI"}]
+    simulation = simulate(sample, Scenario.model_validate({"changes": changes}), 2.0, True, SAMPLE_WALK)
+    assert _times(simulation)[("CEN", "UNI")] == (11.0, 30.5, "slower")
+    after = compare_journey(
+        sample, JourneyRequest(origin_id="CEN", destination_id="UNI", changes=changes), 2.0, True, SAMPLE_WALK,
+    ).after
+    assert after is not None and after.walk_start is not None and after.walk_end is not None
+    assert [(leg.route_id, leg.stop_ids) for leg in after.legs] == [("R3", ["LIB", "OLD"])]
+    assert (after.walk_start.to_stop_id, after.walk_end.from_stop_id) == ("LIB", "OLD")
+
+
+def test_walking_the_whole_way_has_no_transfer_penalty() -> None:
+    # The penalty is subtracted once for the first boarding; a walk has none.
+    result = simulate(LINE, CLOSE_P, transfer_penalty_min=5, walking=WALK)
+    assert _times(result)[("P", "Q")] == (5.0, 6.5, "slower")
+    plan = compare_journey(
+        LINE, JourneyRequest(origin_id="P", destination_id="Q", changes=CLOSE_P.changes), 5, walking=WALK,
+    ).after
+    assert plan is not None and (plan.travel_time_min, plan.transfers, plan.legs) == (6.5, 0, [])
+
+
+def test_journey_matrix_without_walking_equals_the_route_graph_matrix(sample: nx.DiGraph) -> None:
+    stops = sorted(sample.nodes)
+    plain = build_route_graph(sample, 2.0, True)
+    expected = travel_time_matrix(plain, stops)
+    for model in (None, SAMPLE_WALK):  # Day 10 walking: none between open stops
+        layered = build_route_graph(sample, 2.0, True)
+        add_walking_layer(layered, sample, model, closed=())
+        assert np.array_equal(journey_time_matrix(layered, stops).values, expected.values)  # exact
 
 
 # --- Settings and API ----------------------------------------------------------------------

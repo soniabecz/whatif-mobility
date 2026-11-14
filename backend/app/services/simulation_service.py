@@ -16,13 +16,13 @@ headway at every boarding, plus a fixed penalty per change of bus.
 Closing a stop: nobody can board, alight or change bus there, but buses still
 drive through it (its platforms and ride edges stay in the route graph).
 Journeys to or from a closed stop are excluded from the figures, unless a
-``WalkingModel`` is given: then passengers walk to a nearby open stop (see
-walking.py) and those journeys are compared like any other.
+``WalkingModel`` is given: then passengers walk (see walking.py, which adds
+walking to the route graph) and those journeys are compared like any other.
 """
 
 from collections import OrderedDict
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import networkx as nx
 import numpy as np
@@ -56,9 +56,8 @@ from app.services.route_graph import (
     route_ids,
     set_headway,
     TimeMatrix,
-    travel_time_matrix,
 )
-from app.services.walking import Walk, WalkingModel, best_walk_option, nearby_open_stops
+from app.services.walking import WalkingModel, add_walking_layer, journey_time_matrix
 
 # Two travel times closer than this are equal (guards against float noise).
 _EPSILON = 1e-9
@@ -225,38 +224,17 @@ class ScenarioState:
     exactly the same rules (closed stops, walking, added stops).
     """
 
-    graph: nx.DiGraph
+    graph: nx.DiGraph  # route graph with its walking layer
     closed: set[str]
     new_stop_ids: list[str]
-    # Fastest times between all open stops (baseline and added).
+    # Fastest times between all stops, baseline and added, closed ones included
+    # (reached on foot; inf without walking).
     times: TimeMatrix
-    places: nx.DiGraph
     walking: WalkingModel | None
-    # Walks from each closed stop to nearby open stops, computed once per stop.
-    _nearby: dict[str, list[Walk]] = field(default_factory=dict, compare=False, repr=False)
-
-    def nearby(self, stop_id: str) -> list[Walk]:
-        if stop_id not in self._nearby:
-            assert self.walking is not None
-            self._nearby[stop_id] = nearby_open_stops(self.places, self.walking, stop_id, self.closed)
-        return self._nearby[stop_id]
 
     def excludes(self, origin: str, destination: str) -> bool:
         """True for a journey to or from a closed stop when walking is off."""
         return self.walking is None and (origin in self.closed or destination in self.closed)
-
-    def journey_time(self, origin: str, destination: str) -> float | None:
-        """Fastest time (None = impossible). Only for journeys not ``excludes``d;
-        a journey to or from a closed stop walks to a nearby open stop."""
-        if origin in self.closed or destination in self.closed:
-            if self.walking is None:
-                raise ValueError("journeys to or from a closed stop are excluded without walking")
-            option = best_walk_option(
-                self.places, self.walking, origin, destination, self.closed, self.times.get,
-                self.nearby,
-            )
-            return option.total_min if option else None
-        return self.times.get(origin, destination)
 
 
 def scenario_state(
@@ -269,13 +247,12 @@ def scenario_state(
     """Apply the scenario to a copy of the baseline and compute journey times."""
     graph, closed = apply_scenario(baseline, scenario, transfer_penalty_min, include_waiting)
     new_stop_ids = added_stop_ids(graph)
-    open_stops = [s for s in [*sorted(baseline.nodes), *new_stop_ids] if s not in closed]
+    add_walking_layer(graph, stop_places(baseline, graph), walking, closed)
     return ScenarioState(
         graph=graph,
         closed=closed,
         new_stop_ids=new_stop_ids,
-        times=travel_time_matrix(graph, open_stops),
-        places=stop_places(baseline, graph),
+        times=journey_time_matrix(graph, [*sorted(baseline.nodes), *new_stop_ids]),
         walking=walking,
     )
 
@@ -283,26 +260,19 @@ def scenario_state(
 def journey_matrix(state: ScenarioState, stop_ids: Sequence[str]) -> tuple[np.ndarray, np.ndarray]:
     """(times, excluded) for every pair of ``stop_ids`` after the scenario.
 
-    ``times[i, j]``: fastest time (inf = impossible), walking to/from closed
-    stops when walking is on. ``excluded[i, j]``: a journey to or from a closed
-    stop with walking off (left out of the figures). The diagonal is unused.
+    ``times[i, j]``: fastest time (inf = impossible), walking as the model
+    allows. ``excluded[i, j]``: a journey to or from a closed stop with walking
+    off (left out of the figures). The diagonal is unused.
     """
     n = len(stop_ids)
+    rows = [state.times.index[s] for s in stop_ids]
+    times = np.array(state.times.values[np.ix_(rows, rows)])
+    if state.walking is not None:
+        return times, np.zeros((n, n), dtype=bool)
     closed = np.array([s in state.closed for s in stop_ids], dtype=bool)
-    open_index = [i for i in range(n) if not closed[i]]
-    times = np.full((n, n), np.inf)
-    if open_index:
-        rows = [state.times.index[stop_ids[i]] for i in open_index]
-        times[np.ix_(open_index, open_index)] = state.times.values[np.ix_(rows, rows)]
     touches_closed = closed[:, None] | closed[None, :]
-    if state.walking is None:
-        return times, touches_closed
-    # Only journeys touching a closed stop need the (slower) walking search.
-    for i, j in zip(*np.nonzero(touches_closed)):
-        if i != j:
-            time = state.journey_time(stop_ids[i], stop_ids[j])
-            times[i, j] = np.inf if time is None else time
-    return times, np.zeros((n, n), dtype=bool)
+    times[touches_closed] = np.inf
+    return times, touches_closed
 
 
 # Times on today's network, per network and settings: every simulation needs
@@ -311,24 +281,36 @@ _BASELINE_CACHE: OrderedDict[tuple[object, ...], TimeMatrix] = OrderedDict()
 _BASELINE_CACHE_SIZE = 4
 
 
-def _network_key(baseline: nx.DiGraph, transfer_penalty_min: float, include_waiting: bool) -> tuple[object, ...]:
+def _network_key(
+    baseline: nx.DiGraph, transfer_penalty_min: float, include_waiting: bool, walking: WalkingModel | None
+) -> tuple[object, ...]:
     return (
         transfer_penalty_min,
         include_waiting,
+        walking,
+        tuple(sorted((s, d["lat"], d["lon"]) for s, d in baseline.nodes(data=True))),
         tuple(sorted(baseline.graph.get("headways", {}).items())),
         tuple(sorted(baseline.nodes)),
         tuple(sorted((u, v, tuple(sorted(d["route_times"].items()))) for u, v, d in baseline.edges(data=True))),
     )
 
 
-def baseline_times(baseline: nx.DiGraph, transfer_penalty_min: float, include_waiting: bool) -> TimeMatrix:
-    """Fastest times between all stops of today's network (cached)."""
-    key = _network_key(baseline, transfer_penalty_min, include_waiting)
+def baseline_times(
+    baseline: nx.DiGraph,
+    transfer_penalty_min: float,
+    include_waiting: bool,
+    walking: WalkingModel | None = None,
+) -> TimeMatrix:
+    """Fastest times between all stops of today's network (cached).
+
+    ``walking``: the same model as the scenario's, so both sides walk alike."""
+    key = _network_key(baseline, transfer_penalty_min, include_waiting, walking)
     if key in _BASELINE_CACHE:
         _BASELINE_CACHE.move_to_end(key)
         return _BASELINE_CACHE[key]
     graph = build_route_graph(baseline, transfer_penalty_min, include_waiting)
-    times = travel_time_matrix(graph, sorted(baseline.nodes))
+    add_walking_layer(graph, baseline, walking, closed=())
+    times = journey_time_matrix(graph, sorted(baseline.nodes))
     _BASELINE_CACHE[key] = times
     if len(_BASELINE_CACHE) > _BASELINE_CACHE_SIZE:
         _BASELINE_CACHE.popitem(last=False)
@@ -355,7 +337,8 @@ def simulate(
 
     ``transfer_penalty_min``: minutes added per change of bus (0 = free).
     ``include_waiting``: wait half the headway at every boarding.
-    ``walking``: walk to/from closed stops (None = such journeys are excluded).
+    ``walking``: how passengers walk (None = no walking; journeys to or from a
+    closed stop are then excluded).
     """
     state = scenario_state(baseline, scenario, transfer_penalty_min, include_waiting, walking)
     return simulate_state(baseline, scenario, state, transfer_penalty_min, include_waiting, max_changed)
@@ -376,7 +359,7 @@ def simulate_state(
     closed, new_stop_ids = state.closed, state.new_stop_ids
     stop_ids = sorted(baseline.nodes)
     n = len(stop_ids)
-    before = baseline_times(baseline, transfer_penalty_min, include_waiting).values
+    before = baseline_times(baseline, transfer_penalty_min, include_waiting, state.walking).values
     after, excluded = journey_matrix(state, stop_ids)
 
     # Every ordered pair of distinct stops, in (origin, destination) order:
