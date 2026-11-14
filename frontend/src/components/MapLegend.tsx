@@ -22,7 +22,7 @@ interface MapLegendProps {
   showJourney: boolean
   defaultOpen: boolean
   className?: string
-  /** The real network's data source (credited as its terms require); null for the sample. */
+  /** The network's data source (credited as its terms require); null only for test data. */
   source: NetworkSource | null
 }
 
@@ -85,7 +85,7 @@ export function MapLegend({
             </label>
           )}
           {/* A long list keeps at least a few rows when the legend is squeezed; a short
-              one keeps its natural height (the sample city's legend must not grow). */}
+              one keeps its natural height (a short legend must not grow). */}
           <ul
             className={cx('space-y-1.5 overflow-y-auto overscroll-contain shrink!', filterable && 'min-h-24 pr-1')}
             aria-label="Lines"
@@ -199,9 +199,7 @@ export function MapLegend({
                 <p className="mt-1">{source.method}</p>
               </details>
             </div>
-          ) : (
-            <p className="border-t border-line pt-2.5 text-[11px]">Invented sample city (not real data).</p>
-          )}
+          ) : null}
         </div>
       )}
     </Card>

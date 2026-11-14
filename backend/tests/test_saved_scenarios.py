@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, inspect, select, text
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.database import Base
 from app.models import Connection, SavedScenario, Stop
 
 CLOSE_CEN = {"type": "close_stop", "stop_id": "CEN"}
@@ -105,6 +106,7 @@ def _run_seed(monkeypatch: pytest.MonkeyPatch, path: Path, *args: str) -> None:
     from app.seed import __main__ as seed_main
 
     engine = create_engine(f"sqlite:///{path}")
+    monkeypatch.setenv("WHATIF_DATABASE", "e2e-test.db")  # the sample is test data only
     monkeypatch.setattr(seed_main, "engine", engine)
     monkeypatch.setattr(seed_main, "SessionLocal", sessionmaker(bind=engine))
     monkeypatch.setattr("sys.argv", ["seed", *args])
@@ -141,3 +143,50 @@ def test_an_outdated_saved_scenarios_table_stops_the_seed(
     with pytest.raises(SystemExit, match="saved_scenarios.*not dropped automatically"):
         _run_seed(monkeypatch, path)
     assert "saved_scenarios" in inspect(engine).get_table_names()  # left as it was
+
+
+def test_the_sample_is_never_seeded_into_the_apps_database(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from app.seed import __main__ as seed_main
+
+    monkeypatch.setenv("WHATIF_DATABASE", "gdansk.db")
+    engine = create_engine(f"sqlite:///{tmp_path / 'gdansk.db'}")
+    monkeypatch.setattr(seed_main, "engine", engine)
+    monkeypatch.setattr("sys.argv", ["seed"])
+    with pytest.raises(SystemExit, match="test data and is not written into gdansk.db"):
+        seed_main.main()
+    assert "stops" not in inspect(engine).get_table_names()  # nothing written
+
+
+def _run_import_if_empty(monkeypatch: pytest.MonkeyPatch, path: Path) -> None:
+    from app import import_gtfs
+
+    engine = create_engine(f"sqlite:///{path}")
+    monkeypatch.setattr(import_gtfs, "engine", engine)
+    monkeypatch.setattr(import_gtfs, "SessionLocal", sessionmaker(bind=engine))
+    monkeypatch.setattr(import_gtfs, "_download", lambda url: pytest.fail("must not download"))
+    monkeypatch.setattr("sys.argv", ["import_gtfs", "--if-empty"])
+    import_gtfs.main()
+
+
+def test_dev_start_refuses_a_database_holding_the_sample(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    path = tmp_path / "e2e-old.db"
+    _run_seed(monkeypatch, path)
+    with pytest.raises(SystemExit, match="invented sample city, but the app runs on Gdańsk only"):
+        _run_import_if_empty(monkeypatch, path)
+
+
+def test_dev_start_leaves_an_imported_network_alone(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from app.services.gtfs_import import write_network
+    from tests.test_gtfs_import import _trams
+
+    path = tmp_path / "gdansk.db"
+    engine = create_engine(f"sqlite:///{path}")
+    Base.metadata.create_all(engine)
+    with Session(engine) as db:
+        write_network(db, _trams(tmp_path))
+    _run_import_if_empty(monkeypatch, path)  # would fail if it downloaded
+    assert "already imported, left unchanged" in capsys.readouterr().out

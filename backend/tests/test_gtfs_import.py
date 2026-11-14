@@ -219,3 +219,8 @@ def test_calls_without_boarding_or_alighting_are_driven_through(tmp_path: Path) 
     assert sorted(s.name for s in network.stops) == ["Alfa", "Beta"]
     assert [(l.from_stop_id, l.to_stop_id, l.travel_time_min) for l in network.links] == [("S11", "S20", 5.0)]
     assert "driven through" in network.source.method
+
+
+def test_the_source_names_the_modes(tmp_path: Path) -> None:
+    both = import_feed(_feed(tmp_path), {"tram", "bus"}, TODAY, source=SOURCE)
+    assert both.source.name.endswith("trams and buses")

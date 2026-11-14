@@ -200,7 +200,7 @@ function ComparisonView({
       )}
 
       <p className="text-[11px] leading-relaxed text-ink-subtle">
-        {describeTimeModel(summary.include_waiting, summary.transfer_penalty_min, Boolean(network.source))}{' '}
+        {describeTimeModel(summary.include_waiting, summary.transfer_penalty_min)}{' '}
         {describeWalking(summary.walking)}
       </p>
 

@@ -54,6 +54,7 @@ MODE_ROUTE_TYPES: dict[str, set[int]] = {
 }
 MODE_LABELS = {"tram": "Tram", "bus": "Bus"}
 MODE_PREFIX = {"tram": "T", "bus": "B"}
+MODE_PLURALS = {"tram": "trams", "bus": "buses"}
 
 # Distinct line colours, used when the feed's own colours are missing or repeat.
 # Chosen to stay apart from each other and from the new-route colours.
@@ -454,7 +455,7 @@ def import_feed(
         publisher = next((row.get("feed_publisher_name", "") for row in feed.rows("feed_info")), "")
     if not publisher and feed.has("agency"):
         publisher = next((row.get("agency_name", "") for row in feed.rows("agency")), "")
-    mode_names = " and ".join(f"{MODE_LABELS[m].lower()}s" for m in sorted(modes, reverse=True))
+    mode_names = " and ".join(MODE_PLURALS[m] for m in sorted(modes, reverse=True))
     network_source = NetworkSource(
         name=f"{publisher or 'GTFS feed'} – {mode_names}"[:200],
         publisher=publisher or "unknown publisher",

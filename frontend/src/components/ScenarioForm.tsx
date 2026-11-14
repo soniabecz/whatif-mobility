@@ -176,7 +176,7 @@ export function ScenarioForm({
               label="A bus every (minutes)"
               hint={
                 currentRoute &&
-                `Currently every ${currentRoute.headway_min} min (${network.source ? 'from the timetable, morning peak' : 'invented timetable'}). Waiting is half of it on average.`
+                `Currently every ${currentRoute.headway_min} min (from the timetable, morning peak). Waiting is half of it on average.`
               }
             >
               <input

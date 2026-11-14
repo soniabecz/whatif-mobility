@@ -1,12 +1,12 @@
 """Import a real network from a GTFS timetable feed (Day 14).
 
 Usage (from backend/, with .venv active):
-    WHATIF_DATABASE=gdansk.db python -m app.import_gtfs                # Gdańsk trams
-    WHATIF_DATABASE=gdansk.db python -m app.import_gtfs --modes all    # trams and buses
+    python -m app.import_gtfs                 # Gdańsk trams and buses into gdansk.db
+    python -m app.import_gtfs --if-empty      # only when no network is imported yet (dev.sh)
     python -m app.import_gtfs path/to/feed.zip --modes bus --date 2026-11-18 \\
         --attribution-url https://... --licence "..."
 
-Then start the app on that database: WHATIF_DATABASE=gdansk.db ./dev.sh
+Then start the app: ./dev.sh (WHATIF_DATABASE picks another database file).
 
 A URL is downloaded to backend/data/gtfs/ (git-ignored). The network tables of
 the database are replaced; saved scenarios are kept. The data's terms require
@@ -22,7 +22,8 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from app.database import BACKEND_DIR, DATABASE_URL, SessionLocal, engine
-from app.seed.seed_db import prepare_tables
+from app.seed.seed_db import network_is_empty, prepare_tables
+from app.services.network_service import get_source
 from app.services.gtfs_import import GtfsError, SourceInfo, import_feed, write_network
 
 # ZTM Gdańsk (https://ckan.multimediagdansk.pl/dataset/tristar). Terms: name the
@@ -50,11 +51,25 @@ def _download(url: str) -> Path:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Import a network from a GTFS feed.")
     parser.add_argument("source", nargs="?", default=GDANSK_FEED_URL, help="zip file or URL (default: ZTM Gdańsk)")
-    parser.add_argument("--modes", choices=sorted(_MODES), default="tram", help="default: tram")
+    parser.add_argument("--modes", choices=sorted(_MODES), default="all", help="default: all (trams and buses)")
+    parser.add_argument("--if-empty", action="store_true", help="do nothing when a network is already imported")
     parser.add_argument("--date", type=date.fromisoformat, help="reference weekday (default: next Wednesday)")
     parser.add_argument("--attribution-url", help="source link the data's terms ask for")
     parser.add_argument("--licence", help="licence and terms of the data")
     args = parser.parse_args()
+
+    if args.if_empty:
+        prepare_tables(engine)
+        with SessionLocal() as db:
+            if not network_is_empty(db):
+                if get_source(db) is None:
+                    sys.exit(
+                        f"{DATABASE_URL} holds the invented sample city, but the app runs on Gdańsk only. "
+                        "Use another database file (WHATIF_DATABASE) or delete this one."
+                    )
+                print(f"Network already imported, left unchanged: {DATABASE_URL}")
+                return
+        print("No network yet: importing Gdańsk (about 25 MB download, once).")
 
     is_url = args.source.startswith(("http://", "https://"))
     gdansk = args.source == GDANSK_FEED_URL

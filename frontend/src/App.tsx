@@ -152,7 +152,7 @@ function App() {
         if (network.stops.length === 0) {
           setNetworkState({
             kind: 'error',
-            message: 'The network is empty. Run "python -m app.seed" in backend/ and retry.',
+            message: 'The network is empty. Run "python -m app.import_gtfs" in backend/ (or ./dev.sh) and retry.',
           })
         } else {
           setNetworkState({ kind: 'ready', network })
@@ -352,7 +352,6 @@ function App() {
       tab={resultsTab}
       onTabChange={setResultsTab}
       onSelectJourney={selectJourney}
-      source={network.source ?? null}
       journeyExplorer={
         <JourneyExplorer
           key={journeySelection ? `${journeySelection.originId}-${journeySelection.destinationId}` : 'none'}

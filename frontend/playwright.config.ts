@@ -1,6 +1,7 @@
 // End-to-end test: real backend + real frontend in a real browser.
 // Run with `npm run test:e2e` (first time: `npx playwright install chromium`).
-// The backend needs the seeded sample network (`python -m app.seed`).
+// The tests run on the invented sample city (test data; the app itself runs on
+// Gdańsk): the backend command seeds it into its own test database first.
 
 import { defineConfig, devices } from '@playwright/test'
 
@@ -27,10 +28,10 @@ export default defineConfig({
   // Both servers are started for the test, or reused when already running locally.
   webServer: [
     {
-      command: `${python} -m uvicorn app.main:app --port 8000`,
+      command: `${python} -m app.seed && ${python} -m uvicorn app.main:app --port 8000`,
       cwd: '../backend',
-      // The tests expect the sample city, even if WHATIF_DATABASE points elsewhere.
-      env: { WHATIF_DATABASE: 'whatif.db' },
+      // A separate test database, freshly seeded on every run (never the app's gdansk.db).
+      env: { WHATIF_DATABASE: 'e2e-sample.db' },
       url: 'http://localhost:8000/api/health',
       reuseExistingServer: !isCI,
       timeout: 60_000,

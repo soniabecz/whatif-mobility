@@ -6,23 +6,17 @@
 
 ## Current status
 
-- **Last completed:** Day 14.2 step B4 (map and UI at scale: legend scroll + filter,
-  small stops when zoomed out; no canvas needed); 377 backend + 131 Vitest + 20 e2e tests.
-  Step B (full network) is complete and committed
-- **Last completed:** Day 14.3 walking between stops (steps A and B committed): walking
-  is part of the route graph and on between open stops by default; 386 backend +
-  135 Vitest + 20 e2e tests
-- **Last completed:** Day 14.4 route patterns (steps A and B committed): passengers stay
-  on a vehicle only along a line's real stop sequences; 400 backend + 135 Vitest + 20 e2e
-- **Last completed:** Day 14.5 speed on the full network (committed): run 1.4 s, compare
-  of just-run scenarios 0.75 s, results unchanged; 406 backend + 135 Vitest + 20 e2e
+- **Last completed:** Day 14.6 Gdańsk only (committed): the app runs only on
+  the ZTM Gdańsk network (trams and buses, backend/gdansk.db); the invented sample city
+  is test data only (backend tests in memory, e2e in backend/e2e-sample.db).
+  410 backend + 135 Vitest + 20 e2e tests. Today also: map at scale (14.2 B4), walking
+  between stops (14.3), route patterns (14.4), speed (14.5)
 - **Next up:** open choices: CSV written from arrays (1.6 s now), Dijkstra in worker
-  processes, or Day 14.1 deployment The full network is in backend/gdansk-all.db
-  (re-import: `WHATIF_DATABASE=gdansk-all.db python -m app.import_gtfs --modes all`)
-- **Local e2e:** Playwright reuses a running app on port 8000; if it serves Gdańsk the run
-  stops with a message: stop that app (or run it on whatif.db) before `npm run test:e2e`
-- **Real city:** `WHATIF_DATABASE=gdansk.db python -m app.import_gtfs`, then
-  `WHATIF_DATABASE=gdansk.db ./dev.sh` (see README "Real city data")
+  processes, or Day 14.1 deployment (hosting, AI rate limit, map tiles, login)
+- **Local e2e:** Playwright reuses a running app on port 8000; if it serves Gdańsk (./dev.sh)
+  the run stops with a message: stop the app before `npm run test:e2e`
+- **Network:** `./dev.sh` imports Gdańsk on the first run; refresh with
+  `python -m app.import_gtfs` in backend/ (see README "The network: Gdańsk")
 - **How to start:** `./dev.sh` (app on http://localhost:5173); after pulling, it
   rebuilds outdated database tables automatically
 - **Working pattern used so far:** each part = design proposal → approval → build
@@ -866,6 +860,27 @@ transfer penalty at 0) and checks equivalence before changing defaults.
 - [ ] Possible later: the CSV still builds all 75k rows (1.6 s); Dijkstra in worker
       processes (3–4×, needs >1 CPU on the host)
 
+**6. Gdańsk as the only network** (S–M)
+- [x] Decided with the user (2026-11-14): trams and buses; the sample city stays as test
+      data only (rewriting 400+ tests on a feed that changes daily would make them brittle)
+- [x] Backend: default database gdansk.db; importer defaults to all modes and has
+      `--if-empty` (dev.sh: imports Gdańsk on the first run, refuses a database holding
+      the sample); `app.seed` writes only into `e2e-*.db` test databases; startup and
+      empty-network messages point to the import. Fixed: source name "buss" → "buses"
+- [x] Tests: Playwright seeds backend/e2e-sample.db itself (CI no longer seeds);
+      4 new backend tests (410): seed refuses the app's database, dev start refuses the
+      sample / leaves an imported network alone, source name
+- [x] Frontend: removed sample-only branches (legend "Invented sample city", activity
+      tooltips, "invented timetable", invented-demand text, sample frequency hint);
+      `ResultsPanel.source` and `ACTIVITY_LABELS` gone
+- [x] Local data: gdansk.db is now the full network (the trams-only file backed up to the
+      scratchpad); whatif.db and gdansk-all.db left for the user to delete
+- [x] README: Gdańsk throughout (quick start, setup, examples with real station ids,
+      "The network: Gdańsk", e2e on the test database)
+- [x] Live: plain ./dev.sh → "Network already imported", 714 stations; closing Brama
+      Wyżynna runs; the page never says "invented" or "sample"; no console errors
+- [x] Commit (approved by the user)
+
 **Fallback:** all parts are optional; part 1 is only needed if the app goes public,
 part 2 can stop after a small extract of the city works, parts 3 and 4 can stop after step A.
 
@@ -946,3 +961,4 @@ All former "maybes" are now scheduled as Days 8–14. New ideas go here.
 | 2026-11-14 | 14  | Route patterns, step A: measured 20 % of full-network journeys staying on through impossible continuations; patterns stored (seed, importer, Gdańsk re-imported identically); 393 backend |
 | 2026-11-14 | 14  | Route patterns, step B: stay on only to the next stop of a pattern; every difference explained (0 faster; trams 9,210, full 299,589 changed journeys, all through impossible continuations); 400 backend |
 | 2026-11-14 | 14  | Speed: figures from arrays, smaller walking graph, scenario-state cache; 0 differences (215 outputs); full network run 2.4 → 1.4 s, compare after runs 4.2 → 0.75 s; 406 backend |
+| 2026-11-14 | 14  | Gdańsk only: default gdansk.db (trams + buses), dev.sh imports it, sample city kept as test data (e2e-sample.db); UI and README without the sample; 410 backend, 20 e2e |

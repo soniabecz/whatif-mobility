@@ -11,7 +11,7 @@ export type Route = Schemas['RouteOut']
 /** A directed link between two consecutive stops on one route. */
 export type Connection = Schemas['ConnectionOut']
 
-/** Where a real network's data comes from; null/undefined for the invented sample city. */
+/** Where the network's data comes from; null/undefined only for test data (the invented sample city). */
 export type NetworkSource = Schemas['NetworkSourceOut']
 
 export type Network = Schemas['NetworkOut']

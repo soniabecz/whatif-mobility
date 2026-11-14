@@ -4,12 +4,11 @@
 #     ./dev.sh
 #
 # First run: creates backend/.venv, installs packages, creates backend/.env
-# from the example and seeds the sample network. Later runs only install
-# what changed and never reset the database (use `python -m app.seed` for that).
-# Then starts the backend (port 8000) and frontend (port 5173) with hot
-# reload. Ctrl+C stops both.
-#
-# Real city: WHATIF_DATABASE=gdansk.db ./dev.sh (after importing it, see README).
+# from the example and imports the Gdańsk network (trams and buses, a one-time
+# download of about 25 MB) into backend/gdansk.db. Later runs only install what
+# changed and never touch the network (re-import it with
+# `python -m app.import_gtfs` in backend/). Then starts the backend (port 8000)
+# and frontend (port 5173) with hot reload. Ctrl+C stops both.
 #
 # Works with the bash 3.2 that ships with macOS, and on Linux.
 
@@ -65,8 +64,8 @@ if [ ! -f "$BACKEND/.env" ]; then
   cp "$BACKEND/.env.example" "$BACKEND/.env"
 fi
 
-step "Checking the database"
-(cd "$BACKEND" && "$VENV_PY" -m app.seed --if-empty)
+step "Checking the database (imports Gdańsk on the first run)"
+(cd "$BACKEND" && "$VENV_PY" -m app.import_gtfs --if-empty)
 
 # --- Frontend setup ----------------------------------------------------------
 

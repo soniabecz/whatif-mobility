@@ -42,12 +42,12 @@ class HealthResponse(BaseModel):
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     # Create missing tables so a fresh checkout doesn't fail with
-    # "no such table". Data itself is loaded with `python -m app.seed`.
+    # "no such table". The network itself is imported with `python -m app.import_gtfs`.
     outdated = outdated_tables(engine)
     if outdated:
         # Outdated columns would make requests on those tables fail with a 500.
         logger.error(
-            "Database tables are outdated (%s): run `python -m app.seed` in backend/.",
+            "Database tables are outdated (%s): run `python -m app.import_gtfs` in backend/.",
             ", ".join(outdated),
         )
     Base.metadata.create_all(engine)

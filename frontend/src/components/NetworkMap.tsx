@@ -14,7 +14,7 @@ import {
 import { divIcon, type LatLngBoundsExpression, type LatLngTuple, type PointTuple } from 'leaflet'
 
 import type { DraftSelection } from '../lib/changeDraft'
-import { ACTIVITY_LABELS, IMPACT_STYLES, describeImpact, impactLevel } from '../lib/impact'
+import { IMPACT_STYLES, describeImpact, impactLevel } from '../lib/impact'
 import { compactStops, linkKey, stopMarkerSize, routeSegments, routeStretches, scenarioHighlights } from '../lib/network'
 import { journeyStopIds } from '../lib/journeyPlan'
 import type { JourneyComparison } from '../types/journey'
@@ -380,15 +380,6 @@ export function NetworkMap({
           >
             <Tooltip direction="top" offset={[0, -8]}>
               <strong>{stop.name}</strong> <span style={{ color: '#8b95a5' }}>{stop.id}</span>
-              {/* The sample city's invented demand levels; real feeds have none. */}
-              {!network.source && (
-                <>
-                  <br />
-                  <span style={{ color: '#8b95a5' }}>
-                    Activity: {ACTIVITY_LABELS[stop.activity] ?? stop.activity} (invented)
-                  </span>
-                </>
-              )}
               {style && (
                 <>
                   <br />

@@ -2,17 +2,18 @@
 
 [![CI](https://github.com/soniabecz/whatif-mobility/actions/workflows/ci.yml/badge.svg)](https://github.com/soniabecz/whatif-mobility/actions/workflows/ci.yml)
 
-An AI-powered urban public transport simulator. Users describe hypothetical
-changes to a city bus network in natural language ("close stop X",
-"add a route between A and B"), and the system simulates their impact on
-passenger journeys.
+An AI-powered urban public transport simulator for **Gdańsk**. Users describe
+hypothetical changes to the city's tram and bus network in natural language
+("close stop X", "add a route between A and B"), and the system simulates their
+impact on passenger journeys.
 
-> **Status:** MVP complete. The backend serves an invented sample bus network
-> and simulates scenarios (close a stop, remove a connection, change a travel
-> time, change how often a route runs, add a link or a stop to a route) with
-> deterministic before/after metrics. The web UI shows the network
-> on a map, builds scenarios with a form or from plain language (AI via Groq),
-> and displays the results.
+> **Status:** the app runs on the real ZTM Gdańsk network (trams and buses,
+> 714 stations, 93 lines, imported from the public GTFS timetable) and simulates
+> scenarios (close a stop, remove a connection, change a travel time, change how
+> often a route runs, add a link, a stop or a whole route) with deterministic
+> before/after metrics. The web UI shows the network on a map, builds scenarios
+> with a form or from plain language (AI via Groq), and displays the results.
+> A small invented sample city exists only as test data.
 
 ## Tech stack
 
@@ -53,8 +54,10 @@ whatif-mobility/
 
 One command does everything (macOS and Linux; on Windows use WSL): on the first
 run it creates `backend/.venv`, installs the backend and frontend packages,
-creates `backend/.env` from the example and seeds the sample network. Later
-runs only reinstall what changed and **never reset the database**. Then it starts
+creates `backend/.env` from the example and imports the Gdańsk network into
+`backend/gdansk.db` (a one-time download of about 25 MB, see
+[The network: Gdańsk](#the-network-gdańsk)). Later runs only reinstall what
+changed and **never touch the network**. Then it starts
 both servers with hot reload and prints the address,
 http://localhost:5173. **Ctrl+C** stops both.
 
@@ -72,12 +75,12 @@ cd backend
 python3 -m venv .venv            # create an isolated Python environment
 source .venv/bin/activate        # activate it (prompt shows "(.venv)")
 pip install -r requirements.txt
-python -m app.seed               # create backend/whatif.db with the sample network
+python -m app.import_gtfs        # import Gdańsk (trams and buses) into backend/gdansk.db
 cp .env.example .env             # then add your Groq API key (optional, see below)
 ```
 
-Re-run `python -m app.seed` at any time to reset the database to the sample
-network (`python -m app.seed --if-empty` seeds only a fresh database). The database file is git-ignored.
+Re-run `python -m app.import_gtfs` to refresh the network from the latest
+timetable (saved scenarios are kept). The database file is git-ignored.
 
 ### Frontend
 
@@ -116,19 +119,18 @@ Example scenario (changes are applied in order; `both_directions` defaults to `t
 ```json
 {
   "changes": [
-    { "type": "close_stop", "stop_id": "CEN" },
-    { "type": "remove_connection", "from_stop_id": "MKT", "to_stop_id": "UNI" },
-    { "type": "change_travel_time", "from_stop_id": "RIV", "to_stop_id": "EST",
-      "travel_time_min": 9, "both_directions": false },
-    { "type": "change_frequency", "route_id": "R3", "headway_min": 7.5 },
-    { "type": "add_connection", "route_id": "R2", "from_stop_id": "EST",
-      "to_stop_id": "TEC", "travel_time_min": 5 },
-    { "type": "add_stop", "stop_id": "N1", "name": "Old Market", "lat": 50.0644,
-      "lon": 19.9366, "route_id": "R1", "from_stop_id": "MKT", "to_stop_id": "UNI",
-      "time_from_min": 1.5, "time_to_min": 2 }
+    { "type": "close_stop", "stop_id": "S1028" },
+    { "type": "remove_connection", "from_stop_id": "S1025", "to_stop_id": "S1013" },
+    { "type": "change_travel_time", "from_stop_id": "S1025", "to_stop_id": "S1832",
+      "travel_time_min": 6, "both_directions": false },
+    { "type": "change_frequency", "route_id": "B199", "headway_min": 10 }
   ]
 }
 ```
+
+(Brama Wyżynna closed; Hucisko – Dworzec Główny removed; Hucisko → Targ Drzewny
+takes 6 minutes; bus 199 every 10 minutes. Station ids and names are in
+`GET /api/network`.)
 
 `add_connection` lets an existing route also run directly between two stops
 (an extension or a shortcut). At least one of the stops must already be on the
@@ -172,12 +174,12 @@ the changes; the recipient presses *Run* and gets the same results, because
 the simulation is deterministic. The format is readable and can be edited by hand:
 
 ```
-http://localhost:5173/?s=close:CEN~remove:MKT-UNI~time:RIV-EST:9:oneway
+http://localhost:5173/?s=close:S1028~remove:S1025-S1013~time:S1025-S1832:6:oneway
 ```
 
 Changes are separated by `~`; `:oneway` limits a link change to one direction;
-`freq:R3:7.5` sets route R3 to a bus every 7.5 minutes; `add:R2:EST-TEC:5`
-adds a 5-minute link East Gate–Tech Park to R2.
+`freq:B199:10` sets bus 199 to a bus every 10 minutes; `add:<route>:<from>-<to>:<minutes>`
+adds a link to a route.
 A link with any invalid change (unknown stop, no such link, time out of range,
 more than 20 changes) loads nothing and says why.
 
@@ -188,27 +190,29 @@ them; times are empty for impossible journeys. The file is comma-separated
 UTF-8 with `.` as the decimal point; in Excel with a locale that uses `;`,
 open it via *Data → From Text/CSV*.
 
-If the page says the network is empty, run `python -m app.seed` in `backend/`.
+If the page says the network is empty, run `python -m app.import_gtfs` in `backend/`
+(or `./dev.sh`).
 
 Map tiles come from the public OpenStreetMap tile server, which is fine for
 local development. A public deployment needs its own tile provider.
 
-## Real city data (Gdańsk)
+## The network: Gdańsk
 
-Besides the invented sample city, the app can run on a real network imported from
-a GTFS timetable feed. The default is the trams of **ZTM Gdańsk**
-([open data](https://ckan.multimediagdansk.pl/dataset/tristar)):
+The app runs on the real network of **ZTM Gdańsk**, trams and buses, imported from
+its GTFS timetable feed ([open data](https://ckan.multimediagdansk.pl/dataset/tristar)).
+`./dev.sh` imports it on the first run; to refresh it by hand:
 
 ```bash
 cd backend && source .venv/bin/activate
-WHATIF_DATABASE=gdansk.db python -m app.import_gtfs            # Gdańsk trams (default)
-cd .. && WHATIF_DATABASE=gdansk.db ./dev.sh                    # start the app on it
+python -m app.import_gtfs            # trams and buses into backend/gdansk.db
 ```
 
-- `WHATIF_DATABASE` (a file name in `backend/`, default `whatif.db`) picks the
-  database, so the sample city stays in `whatif.db`; the tests always use the sample.
-  Set it in the shell, not in `backend/.env`.
-- `python -m app.import_gtfs [zip or URL] [--modes tram|bus|all] [--date YYYY-MM-DD]`;
+- The database is `backend/gdansk.db`; `WHATIF_DATABASE` (a file name in `backend/`)
+  picks another one. Set it in the shell, not in `backend/.env`. A database holding
+  the invented sample city is refused: the sample is test data only (see
+  [Tests and checks](#tests-and-checks)).
+- `python -m app.import_gtfs [zip or URL] [--modes tram|bus|all] [--date YYYY-MM-DD] [--if-empty]`
+  (default: all modes; `--if-empty` does nothing when a network is already imported);
   other feeds: add `--attribution-url` and `--licence`. Downloads go to
   `backend/data/gtfs/` (git-ignored). Saved scenarios are kept; those that no longer
   fit the network are flagged.
@@ -220,9 +224,8 @@ cd .. && WHATIF_DATABASE=gdansk.db ./dev.sh                    # start the app o
   Gdańsku, http://www.ztm.gda.pl/otwarty_ztm) and the data's creation and download
   dates on the map and in the legend. Keeping the data current is the user's duty:
   re-run the import now and then (the feed covers about two weeks ahead).
-- Size: trams (122 stations, about 15,000 journeys) simulate in under a second;
-  `--modes all` (714 stations, about 510,000 journeys) in about 2 seconds, and the AI
-  gets only the part of the network a request is about.
+- Size: 714 stations, about 510,000 journeys; a simulation takes about 1.5 seconds,
+  and the AI gets only the part of the network a request is about.
 - Each line's stop sequences ("patterns", one per direction) are stored too:
   passengers stay on a vehicle only where a trip really goes (on the full network
   this corrects 20 % of journeys, e.g. staying on through a terminus). A database
@@ -256,8 +259,11 @@ download the CSV export and compare every row with the backend; and make a
 route run more often with the Frequency tab; add a link with the Add link tab
 (and see the form refuse one the route cannot get); add whole and decimal
 minutes on the Travel time tab; and place a new stop by clicking the map, run
-it and check the new-stop figures and an explorer journey from it. It uses the real backend and the seeded sample network
-(`python -m app.seed`); nothing is written to the database.
+it and check the new-stop figures and an explorer journey from it. It uses the real backend on the
+**invented sample city**, test data with stable, hand-checkable numbers: Playwright seeds it into
+its own test database, `backend/e2e-sample.db`, on every run (`python -m app.seed` writes only
+into databases named `e2e-*.db`, never into the app's `gdansk.db`). The backend tests use the
+same sample in memory.
 
 Playwright starts the backend (from `backend/.venv`) and the Vite dev server
 itself, or reuses them if they are already running. Download the browser once:
@@ -326,9 +332,8 @@ are on. A journey's time is
 time on the bus + waiting at every boarding + 2 min per change of bus
 ```
 
-- **Waiting:** every route has a headway (a bus every N minutes:
-  R1 and R2 every 10, R3 every 15, R4 every 20). These are **invented**, like
-  the whole sample network. Passengers arrive at random, so they wait half
+- **Waiting:** every route has a headway (a bus every N minutes), taken from the
+  timetable's morning peak. Passengers arrive at random, so they wait half
   the headway on average, at the first boarding too (`INCLUDE_WAITING`).
 - **Changing bus** adds `TRANSFER_PENALTY_MIN` (2 min) for the inconvenience
   of changing, on top of the wait for the next bus.
@@ -337,43 +342,38 @@ time on the bus + waiting at every boarding + 2 min per change of bus
 - Known simplification: where two routes share a street, a real passenger
   takes whichever bus comes first; the model waits for one specific route.
 
-Journeys are all ordered pairs of stops (240). The counts (slower, faster,
-impossible) weigh every journey the same. Next to them, **"% of trips"** weighs
-each journey by an **invented** activity level of its two stops (quiet 1,
-medium 2, major 3; weight = origin × destination; Central Station, Market Square
-and University are major). Only shares and averages are reported, never
-passenger numbers, because the demand is not real data. With equal levels the
-weighted figures equal the unweighted ones (tested).
+Journeys are all ordered pairs of stations (about 510,000). The counts (slower,
+faster, impossible) weigh every journey the same. There is no passenger data, so
+**"% of trips"** weighs every station the same too: it equals the share of
+journeys. (The engine can weigh stations by an activity level; only the test
+sample city uses that, with invented levels.)
 
 A closed stop is driven through by buses, but nobody can board, alight or
 change bus there. **Walking** is part of the route graph, so one search finds
 the fastest journey: passengers may walk at the start and at the end (at most
 1,000 m), between two buses (at most 500 m; it counts as a change of bus), or
 the whole way, but never twice in a row. A closed stop is left or reached on
-foot. Walking distance = straight line × 1.3, at 5 km/h (all invented
-assumptions; neighbouring sample stops are about 840–870 m apart on foot, the
-airport has no stop within reach). Today's network and the scenario walk alike.
+foot. Walking distance = straight line × 1.3, at 5 km/h (invented assumptions).
+Today's network and the scenario walk alike.
 With `WALK_BETWEEN_OPEN_STOPS=false` passengers walk only from or to a closed
 stop (Day 10 to Day 14 part 3 step A); with `WALKING_ENABLED=false` journeys to
 or from a closed stop are excluded, as before Day 10 part 3.
 
-**Staying on the vehicle:** each line's stop sequences ("patterns": both
-directions, the sample's ring as two loops; for Gdańsk the main sequence per
-direction) decide where passengers may stay on: only to the next stop of the
-same sequence. Turning round, switching direction at a terminus or between
+**Staying on the vehicle:** each line's stop sequences ("patterns": the
+timetable's main sequence per direction) decide where passengers may stay on:
+only to the next stop of the same sequence. Turning round, switching direction at a terminus or between
 directions that use different stops, or skipping a loop the vehicle drives is
 a change of bus (wait + penalty). A link added by a scenario joins its line at
 both ends; a line without stored patterns (an older imported database) keeps
 the earlier rule (stay on along any of the line's links).
 
-After pulling a change that adds database columns, `./dev.sh` (or
-`python -m app.seed`) rebuilds the tables automatically; the database only
-holds generated sample data.
+After pulling a change that adds database columns, `./dev.sh` rebuilds the
+network tables and imports Gdańsk again (saved scenarios are kept).
 
 ## How the AI is used
 
 The AI (a Groq-hosted model) only **translates** text such as *"roadworks make
-Riverside – East Gate twice as slow"* into the scenario format. Its answer is
+Hucisko – Targ Drzewny twice as slow"* into the scenario format. Its answer is
 forced into a strict JSON schema, validated with the same rules as the form, and
 dry-run against the network before it is shown. The changes then appear in the
 normal list, where the user checks them before running the simulation. The AI

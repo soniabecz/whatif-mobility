@@ -117,10 +117,9 @@ describe('formatShare', () => {
 })
 
 describe('describeTimeModel', () => {
-  it('says whether the timetable is invented or real', () => {
-    expect(describeTimeModel(true, 2)).toContain('an invented timetable')
-    expect(describeTimeModel(true, 2, true)).toContain('from the real timetable')
-    expect(describeTimeModel(true, 2, true)).not.toContain('invented')
+  it('says the waits come from the real timetable', () => {
+    expect(describeTimeModel(true, 2)).toContain('from the real timetable')
+    expect(describeTimeModel(true, 2)).not.toContain('invented')
   })
 
   it('mentions waiting only when it is modelled', () => {

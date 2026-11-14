@@ -1,11 +1,12 @@
 """SQLAlchemy engine, session factory and declarative base.
 
-The SQLite database file lives in backend/ (git-ignored): ``whatif.db`` by
-default, or the file named by the WHATIF_DATABASE environment variable, so a
-real city can live next to the sample (e.g. WHATIF_DATABASE=gdansk.db).
+The SQLite database file lives in backend/ (git-ignored): ``gdansk.db`` by
+default (the Gdańsk network, the app's only network), or the file named by the
+WHATIF_DATABASE environment variable. The invented sample city exists only as
+test data: its databases are named ``e2e-*.db`` (see app/seed).
 
-    python -m app.seed                                    # sample city
-    WHATIF_DATABASE=gdansk.db python -m app.import_gtfs   # Gdańsk trams
+    python -m app.import_gtfs                              # Gdańsk trams and buses
+    WHATIF_DATABASE=e2e-sample.db python -m app.seed       # browser tests only
 """
 
 import os
@@ -23,9 +24,14 @@ from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 
 
+DEFAULT_DATABASE = "gdansk.db"
+# The sample seed writes only into databases named like this (test data).
+TEST_DATABASE_PREFIX = "e2e-"
+
+
 def database_file(name: str | None = None) -> Path:
     """The database file in backend/: a plain file name ending in .db."""
-    name = name or os.environ.get("WHATIF_DATABASE") or "whatif.db"
+    name = name or os.environ.get("WHATIF_DATABASE") or DEFAULT_DATABASE
     if not re.fullmatch(r"[A-Za-z0-9_-]+\.db", name):
         raise ValueError(f"WHATIF_DATABASE must be a file name like gdansk.db, not {name!r}")
     return BACKEND_DIR / name
