@@ -7,6 +7,9 @@ import {
   addedConnectionProblem,
   addedRouteProblem,
   addedStopProblem,
+  compactStops,
+  stopMarkerSize,
+  filterRoutes,
   applyAddedChanges,
   withAddedRoute,
   withAddedStop,
@@ -348,5 +351,54 @@ describe('sortedRoutes and exampleRequest', () => {
   it('builds the AI example from a real link of the network', () => {
     expect(exampleRequest(network)).toBe('e.g. "Roadworks make Alpine Road – Brook Street twice as slow"')
     expect(exampleRequest({ ...network, connections: [] })).toBe('e.g. "Close the busiest stop"')
+  })
+})
+
+describe('filterRoutes', () => {
+  const lines = [
+    { id: 'B199', name: 'Bus 199' },
+    { id: 'B100', name: 'Bus 100' },
+    { id: 'T2', name: 'Tram 2' },
+  ]
+
+  it('keeps every route for an empty or blank query', () => {
+    expect(filterRoutes(lines, '')).toEqual(lines)
+    expect(filterRoutes(lines, '   ')).toEqual(lines)
+  })
+
+  it('matches the id or the name, ignoring case and outer spaces', () => {
+    expect(filterRoutes(lines, '199').map((r) => r.id)).toEqual(['B199'])
+    expect(filterRoutes(lines, ' tram ').map((r) => r.id)).toEqual(['T2'])
+    expect(filterRoutes(lines, 'b1').map((r) => r.id)).toEqual(['B199', 'B100'])
+    expect(filterRoutes(lines, 'xyz')).toEqual([])
+  })
+})
+
+describe('compactStops', () => {
+  it('only shrinks stops of a large network below the full-size zoom', () => {
+    expect(compactStops(714, 12)).toBe(true)
+    expect(compactStops(714, 13)).toBe(true)
+    expect(compactStops(714, 14)).toBe(false)
+    expect(compactStops(200, 10)).toBe(false) // the limit itself is not large
+    expect(compactStops(122, 11)).toBe(false) // trams
+    expect(compactStops(16, 5)).toBe(false) // sample city
+  })
+})
+
+describe('stopMarkerSize', () => {
+  it('keeps the usual sizes on a normal map', () => {
+    expect(stopMarkerSize(null, false)).toEqual({ radius: 6, weight: 2.5 })
+    expect(stopMarkerSize('unaffected', false)).toEqual({ radius: 6, weight: 2.5 })
+    expect(stopMarkerSize('slower', false)).toEqual({ radius: 9, weight: 3 })
+    expect(stopMarkerSize('closed', false)).toEqual({ radius: 9, weight: 3 })
+  })
+
+  it('shrinks plain and coloured stops on a compact map, but not closed ones', () => {
+    expect(stopMarkerSize(null, true)).toEqual({ radius: 3, weight: 1.5 })
+    expect(stopMarkerSize('unaffected', true)).toEqual({ radius: 3, weight: 1.5 })
+    for (const level of ['slower', 'faster', 'impossible'] as const) {
+      expect(stopMarkerSize(level, true)).toEqual({ radius: 5, weight: 1.5 })
+    }
+    expect(stopMarkerSize('closed', true)).toEqual({ radius: 9, weight: 3 })
   })
 })

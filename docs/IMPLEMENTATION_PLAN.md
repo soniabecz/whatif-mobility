@@ -6,13 +6,12 @@
 
 ## Current status
 
-- **Last completed:** Day 14.2 step B3 (AI prompt excerpts for big networks);
-  377 backend + 126 Vitest tests
-- **Next up:** B4 (map and UI at scale: measure map drawing with 714 stations, canvas
-  only if slow; legend scroll for 93 lines; live check of the whole app). The full
-  network is already imported in backend/gdansk-all.db (re-import:
-  `WHATIF_DATABASE=gdansk-all.db python -m app.import_gtfs --modes all`).
-  After B4: decide on the open issue "walking only to/from closed stops" (a model change)
+- **Last completed:** Day 14.2 step B4 (map and UI at scale: legend scroll + filter,
+  small stops when zoomed out; no canvas needed); 377 backend + 131 Vitest + 20 e2e tests.
+  Step B (full network) is complete and committed
+- **Next up:** decide on the open issue "walking only to/from closed stops" (a model
+  change), or Day 14.1 deployment. The full network is in backend/gdansk-all.db
+  (re-import: `WHATIF_DATABASE=gdansk-all.db python -m app.import_gtfs --modes all`)
 - **Local e2e:** Playwright reuses a running app on port 8000; if it serves Gdańsk the run
   stops with a message: stop that app (or run it on whatif.db) before `npm run test:e2e`
 - **Real city:** `WHATIF_DATABASE=gdansk.db python -m app.import_gtfs`, then
@@ -740,7 +739,18 @@ transfer penalty at 0) and checks equivalence before changing defaults.
       minut" → B199 every 10; "close the stop" → asks which; "3 minutes slower" on a 2/1-min
       link → two one-way changes 5 and 4 (the step-A limit did not recur here); AI summary OK
 - [x] Commit B3 (approved by the user)
-- [ ] B4 map and UI at scale (measure; canvas only if needed; legend scroll); live check
+- [x] B4 measured (headless Chromium, full network vs trams): 5,781 SVG shapes vs 803; load
+      2.1 s vs 0.84 s (one ~1 s task at start); zoom ~200 ms and stop click ~80 ms on both;
+      panning no worse. **No canvas renderer**: speed was fine, the problems were visual
+- [x] Legend: line list scrolls inside a height-capped card (credit and explanations stay
+      visible); above 20 lines a "Filter N lines" box (id or name, `filterRoutes`)
+- [x] Stops: on networks with > 200 stops, below zoom 14 plain stops are radius 3 and
+      coloured result stops radius 5 (a run colours nearly every stop); closed stops stay 9
+      (`compactStops`, `stopMarkerSize`). The zoom watcher reports only threshold crossings
+      (setting unchanged state re-rendered all 5,781 shapes: zoom 56 → 190 ms, fixed)
+- [x] Live (full network): run 2.9 s in the browser, journey explorer, save + compare
+      (3.7 s), AI request; no console errors. 5 Vitest (131); e2e 20 on the sample
+- [x] Commit B4 (approved by the user)
 
 **Fallback:** both parts are optional; part 1 is only needed if the app goes public, and
 part 2 can stop after a small extract of the city works.
@@ -817,3 +827,4 @@ All former "maybes" are now scheduled as Days 8–14. New ideas go here.
 | 2026-11-13 | 14  | Results list the 1,000 largest changes (5.1 MB → 205 kB), CSV from the backend; e2e guard against a non-sample backend; 358 backend, 126 Vitest |
 | 2026-11-13 | 14  | AI excerpts for big networks (stem matching for Polish names): full Gdańsk prompt 55k → 6–11k chars; 377 backend; live AI checked (4 requests + summary) |
 | 2026-11-13 | 14  | Session end: step B1–B3 committed, CI green; next B4 (map/UI at scale) |
+| 2026-11-14 | 14  | B4: measured (no canvas needed); legend scroll + line filter; small stops when zoomed out on big networks; live check of the full app; 131 Vitest, 20 e2e |

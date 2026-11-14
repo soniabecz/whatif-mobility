@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   CircleMarker,
   MapContainer,
@@ -15,7 +15,7 @@ import { divIcon, type LatLngBoundsExpression, type LatLngTuple, type PointTuple
 
 import type { DraftSelection } from '../lib/changeDraft'
 import { ACTIVITY_LABELS, IMPACT_STYLES, describeImpact, impactLevel } from '../lib/impact'
-import { linkKey, routeSegments, routeStretches, scenarioHighlights } from '../lib/network'
+import { compactStops, linkKey, stopMarkerSize, routeSegments, routeStretches, scenarioHighlights } from '../lib/network'
 import type { JourneyComparison, JourneyLeg, WalkLeg } from '../types/journey'
 import type { Network, NetworkSource, Route, Stop } from '../types/network'
 import type { ScenarioChange } from '../types/scenario'
@@ -65,6 +65,8 @@ export function NetworkMap({
   mapSelect,
 }: NetworkMapProps) {
   const segments = useMemo(() => routeSegments(network), [network])
+  // Big networks: plain stops are small when zoomed out (set by CompactStopsWatcher).
+  const [compact, setCompact] = useState(false)
 
   const bounds = useMemo<LatLngBoundsExpression>(
     () => network.stops.map((stop) => [stop.lat, stop.lon] as [number, number]),
@@ -359,17 +361,18 @@ export function NetworkMap({
             : null
         const style = level ? IMPACT_STYLES[level] : null
         const highlighted = level !== null && level !== 'unaffected'
+        const size = stopMarkerSize(level, compact)
         return (
           <CircleMarker
             key={stop.id}
             center={[stop.lat, stop.lon]}
-            radius={highlighted ? 9 : 6}
+            radius={size.radius}
             eventHandlers={{ click: () => mapSelect?.onStopClick(stop.id) }}
             // Normal stops: white with a dark ring. Highlighted: status colour, white ring.
             pathOptions={{
               className: `stop-marker stop-${stop.id}`,
               color: highlighted ? '#ffffff' : INK,
-              weight: highlighted ? 3 : 2.5,
+              weight: size.weight,
               fillColor: style?.color ?? '#ffffff',
               fillOpacity: 1,
             }}
@@ -439,6 +442,7 @@ export function NetworkMap({
         </CircleMarker>
       ))}
 
+      <CompactStopsWatcher stopCount={network.stops.length} onChange={setCompact} />
       {mapSelect && <MapClicks onClick={mapSelect.onMapClick} />}
       {network.source && <DataAttribution source={network.source} />}
 
@@ -599,6 +603,28 @@ function DataAttribution({ source }: { source: NetworkSource }) {
 }
 
 /** Reports clicks on the map itself (also clicks that hit a line). */
+/**
+ * Reports whether plain stops should be drawn small at the current zoom. It only
+ * changes when a zoom crosses the threshold, so the thousands of lines of a big
+ * network are not re-rendered on every zoom.
+ */
+function CompactStopsWatcher({ stopCount, onChange }: { stopCount: number; onChange: (compact: boolean) => void }) {
+  const map = useMap()
+  // Remember the last answer: even setting an unchanged state can make React render
+  // the whole map once more (~150 ms for the full Gdańsk network).
+  const last = useRef<boolean | null>(null)
+  const report = useCallback(() => {
+    const compact = compactStops(stopCount, map.getZoom())
+    if (compact !== last.current) {
+      last.current = compact
+      onChange(compact)
+    }
+  }, [map, stopCount, onChange])
+  useEffect(report, [report])
+  useMapEvents({ zoomend: report })
+  return null
+}
+
 function MapClicks({ onClick }: { onClick: (lat: number, lon: number) => void }) {
   useMapEvents({ click: (event) => onClick(event.latlng.lat, event.latlng.lng) })
   return null

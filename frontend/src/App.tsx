@@ -446,7 +446,7 @@ function App() {
         showJourney={shownJourney !== null}
         defaultOpen={isDesktop}
         source={network.source ?? null}
-        className="absolute top-3 left-3 z-[1100] lg:top-4 lg:left-[436px]"
+        className="absolute top-3 left-3 z-[1100] max-h-[calc(100dvh-1.5rem)] lg:top-4 lg:left-[436px] lg:max-h-[calc(100dvh-2rem)]"
       />
 
       {isDesktop ? (

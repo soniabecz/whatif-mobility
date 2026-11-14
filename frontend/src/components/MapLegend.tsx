@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { ChevronDown, ChevronUp, Layers } from 'lucide-react'
+import { ChevronDown, ChevronUp, Layers, Search } from 'lucide-react'
 
 import { IMPACT_ORDER, IMPACT_STYLES, type ImpactLevel } from '../lib/impact'
-import { scenarioHighlights } from '../lib/network'
+import { LEGEND_FILTER_FROM, filterRoutes, scenarioHighlights } from '../lib/network'
 import type { NetworkSource, Route } from '../types/network'
 import type { ScenarioChange } from '../types/scenario'
 import { IMPACT_ICONS } from './impactIcons'
@@ -42,18 +42,25 @@ export function MapLegend({
   source,
 }: MapLegendProps) {
   const [open, setOpen] = useState(defaultOpen)
+  const [query, setQuery] = useState('')
   const highlights = scenarioHighlights(changes)
   const newHeadways = highlights.headways
   const newRouteIds = new Set(highlights.addedRoutes.map((route) => route.route_id))
   const levels: ImpactLevel[] = showImpact ? IMPACT_ORDER : showScenario ? ['closed'] : []
+  const sorted = [...routes].sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }))
+  // Big networks (Gdańsk: 93 lines) get a filter box; the list scrolls in any case.
+  const filterable = routes.length > LEGEND_FILTER_FROM
+  const shown = filterable ? filterRoutes(sorted, query) : sorted
 
   return (
-    <Card className={cx('w-72 text-xs', className)}>
+    // The caller limits the height (max-h); only the line list scrolls, so the
+    // explanations and the data credit below it stay visible.
+    <Card className={cx('flex w-72 flex-col text-xs', className)}>
       <button
         type="button"
         onClick={() => setOpen(!open)}
         aria-expanded={open}
-        className="flex w-full items-center justify-between gap-2 rounded-panel px-3 py-2.5 font-semibold text-ink focus-visible:ring-2 focus-visible:ring-accent-ring focus-visible:outline-none"
+        className="flex w-full shrink-0 items-center justify-between gap-2 rounded-panel px-3 py-2.5 font-semibold text-ink focus-visible:ring-2 focus-visible:ring-accent-ring focus-visible:outline-none"
       >
         <span className="flex items-center gap-2">
           <Layers size={14} className="text-accent" aria-hidden />
@@ -63,9 +70,28 @@ export function MapLegend({
       </button>
 
       {open && (
-        <div className="space-y-3 border-t border-line px-3 pt-2.5 pb-3 text-ink-muted">
-          <ul className="space-y-1.5">
-            {[...routes].sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true })).map((route) => (
+        <div className="flex min-h-0 flex-col gap-3 border-t border-line px-3 pt-2.5 pb-3 text-ink-muted [&>*]:shrink-0">
+          {filterable && (
+            <label className="flex items-center gap-1.5 rounded-md border border-line bg-white px-2 py-1 focus-within:ring-2 focus-within:ring-accent-ring">
+              <Search size={12} className="text-ink-subtle" aria-hidden />
+              <input
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder={`Filter ${routes.length} lines`}
+                aria-label="Filter lines"
+                className="min-w-0 flex-1 bg-transparent text-ink outline-none placeholder:text-ink-subtle"
+              />
+            </label>
+          )}
+          {/* A long list keeps at least a few rows when the legend is squeezed; a short
+              one keeps its natural height (the sample city's legend must not grow). */}
+          <ul
+            className={cx('space-y-1.5 overflow-y-auto overscroll-contain shrink!', filterable && 'min-h-24 pr-1')}
+            aria-label="Lines"
+          >
+            {filterable && shown.length === 0 && <li className="text-ink-subtle">No line matches “{query.trim()}”.</li>}
+            {shown.map((route) => (
               <li key={route.id} className="flex items-center gap-2 whitespace-nowrap">
                 {newRouteIds.has(route.id) ? (
                   <span className="w-6 shrink-0 border-t-[3px] border-dashed" style={{ borderColor: route.color }} />

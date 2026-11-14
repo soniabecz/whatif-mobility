@@ -1,5 +1,6 @@
 // Pure helpers over the network data. No React, no API calls.
 
+import type { ImpactLevel } from './impact'
 import type { Network, Route, Stop } from '../types/network'
 import {
   MAX_HEADWAY_MIN,
@@ -27,6 +28,40 @@ export function stopLabel(stops: Map<string, Stop>, stopId: string): string {
 /** Routes in natural id order (T2 before T10). */
 export function sortedRoutes(network: Network): Route[] {
   return [...network.routes].sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }))
+}
+
+/** Lines above which the legend offers a filter box. */
+export const LEGEND_FILTER_FROM = 20
+
+/** Routes whose id or name contains the query (case-insensitive); all for an empty query. */
+export function filterRoutes<T extends Pick<Route, 'id' | 'name'>>(routes: T[], query: string): T[] {
+  const needle = query.trim().toLowerCase()
+  if (!needle) return routes
+  return routes.filter((route) => `${route.id} ${route.name}`.toLowerCase().includes(needle))
+}
+
+/** Networks with more stops than this draw plain stops small when zoomed out. */
+export const LARGE_NETWORK_STOPS = 200
+/** From this zoom level on, plain stops of a large network are drawn at full size. */
+export const FULL_SIZE_STOP_ZOOM = 14
+
+/**
+ * Plain stops are drawn small on a large network seen from afar, so the lines stay
+ * visible under 700 overlapping circles. Small networks never change.
+ */
+export function compactStops(stopCount: number, zoom: number): boolean {
+  return stopCount > LARGE_NETWORK_STOPS && zoom < FULL_SIZE_STOP_ZOOM
+}
+
+/**
+ * Circle size of a stop on the map. Coloured stops are larger; on a compact (big,
+ * zoomed-out) map they shrink too, since a run can colour nearly every stop there.
+ * A closed stop always stays full size: it is what the scenario is about.
+ */
+export function stopMarkerSize(level: ImpactLevel | null, compact: boolean): { radius: number; weight: number } {
+  if (level === null || level === 'unaffected') return compact ? { radius: 3, weight: 1.5 } : { radius: 6, weight: 2.5 }
+  if (compact && level !== 'closed') return { radius: 5, weight: 1.5 }
+  return { radius: 9, weight: 3 }
 }
 
 /** An example request for the AI input, using a real link of this network. */
